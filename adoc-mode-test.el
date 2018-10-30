@@ -5,7 +5,7 @@
 ;; Call adoc-test-run to run the test suite
 ;; 
 ;;; Todo:
-;; - test for font lock multiline property 
+;; - test for font lock multiline property
 ;; - test for presence of adoc-reserved (we do white-box testing here)
 ;; - test also with multiple versions of (X)Emacs
 ;; - compare adoc-mode fontification with actuall output from AsciiDoc, being
@@ -22,6 +22,7 @@
 ;;   - beginning/end of paragraph
 ;;   - side-to-side yes/no with next same construct
 (defun adoctest-faces (name &rest args)
+  "Todo document adoctest-faces NAME ARGS."
   (let ((not-done t)
 	(font-lock-support-mode))
     (with-temp-buffer
@@ -52,13 +53,13 @@
 	    (setq not-done nil)))))))
 
 (defun adoctest-trans (original-text expected-text transform)
-  "Calling TRANSFORM on EXPECTED-TEXT, ORIGINAL-TEXT `should' result.
+  "On ORIGINAL-TEXT, EXPECTED-TEXT Calling TRANSFORM `should' result.
 ORIGINAL-TEXT is put in an temporary buffer and TRANSFORM is
-evaluated using `eval'. The resulting buffer content is compared
+evaluated using `eval'.  The resulting buffer content is compared
 to EXPECTED-TEXT.
 
 ORIGINAL-TEXT optionaly may contain the following special
-charachters. Escaping them is not (yet) supported. They are
+charachters.  Escaping them is not (yet) supported.  They are
 removed before TRANSFORM is evaluated.
 
 !  Position of point before TRANSFORM is evaluated
@@ -86,7 +87,7 @@ removed before TRANSFORM is evaluated.
 	  (setq pos (1+ pos))
 	  (setq pos-old pos))
 	(setq new-original-text (concat new-original-text (substring original-text pos-old pos)))
-	;; run adoctest-trans-inner for each remembered pos 
+	;; run adoctest-trans-inner for each remembered pos
 	(while pos-new-list
 	  (adoctest-trans-inner new-original-text expected-text transform (car pos-new-list))
 	  (setq pos-new-list (cdr pos-new-list))))
@@ -94,6 +95,7 @@ removed before TRANSFORM is evaluated.
     (adoctest-trans-inner original-text expected-text transform)))
 
 (defun adoctest-trans-inner (original-text expected-text transform &optional pos)
+  "Todo document adoctest-trans-inner ORIGINAL-TEXT EXPECTED-TEXT TRANSFORM POS."
   (let ((not-done t)
 	(font-lock-support-mode))
     (with-temp-buffer
@@ -105,7 +107,7 @@ removed before TRANSFORM is evaluated.
 	(goto-char (1+ (car pos)))
 	(set-mark (1+ (cdr pos))))
        (pos
-	(goto-char (1+ pos)))) 
+	(goto-char (1+ pos))))
       ;; exercise
       (eval transform)
       ;; verify
@@ -240,7 +242,7 @@ removed before TRANSFORM is evaluated.
 
 (ert-deftest adoctest-test-comments ()
   (adoctest-faces "comments"
-    ;; as block macro 
+    ;; as block macro
     "// lorem ipsum\n" markup-comment-face
     "\n" nil
     ;; as inline macro
@@ -364,19 +366,19 @@ removed before TRANSFORM is evaluated.
   (adoctest-faces "images"
      ;; block macros
      ;; empty arglist
-     "image" markup-complex-replacement-face "::" markup-meta-face 
+     "image" markup-complex-replacement-face "::" markup-meta-face
        "./foo/bar.png" markup-internal-reference-face
        "[]" markup-meta-face "\n" nil
-     ;; pos attribute 0 = alternate text 
-     "image" markup-complex-replacement-face "::" markup-meta-face 
+     ;; pos attribute 0 = alternate text
+     "image" markup-complex-replacement-face "::" markup-meta-face
        "./foo/bar.png" markup-internal-reference-face
        "[" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "\n" nil
      ;; keyword title
-     "image" markup-complex-replacement-face "::" markup-meta-face 
+     "image" markup-complex-replacement-face "::" markup-meta-face
        "./foo/bar.png" markup-internal-reference-face
        "[" markup-meta-face "alt" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "\n" nil
      ;; keyword alt and title
-     "image" markup-complex-replacement-face "::" markup-meta-face 
+     "image" markup-complex-replacement-face "::" markup-meta-face
        "./foo/bar.png" markup-internal-reference-face
        "[" markup-meta-face "alt" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "," markup-meta-face
        "title" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "\n" nil
@@ -389,19 +391,19 @@ removed before TRANSFORM is evaluated.
        "lorem\nipsum\nsit" markup-secondary-text-face "]" markup-meta-face "\n" nil
 
      ;; no everything again with inline macros
-     "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face 
+     "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face
        "./foo/bar.png" markup-internal-reference-face
        "[]" markup-meta-face "bar" 'no-face "\n" nil
 
-     "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face 
+     "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face
        "./foo/bar.png" markup-internal-reference-face
        "[" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "bar" 'no-face "\n" nil
 
-     "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face 
+     "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face
        "./foo/bar.png" markup-internal-reference-face
        "[" markup-meta-face "alt" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "bar" 'no-face "\n" nil
 
-     "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face 
+     "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face
        "./foo/bar.png" markup-internal-reference-face
        "[" markup-meta-face "alt" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "," markup-meta-face
        "title" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "bar" 'no-face "\n" nil
@@ -415,15 +417,15 @@ removed before TRANSFORM is evaluated.
 
 (ert-deftest adoctest-test-attribute-list ()
   (adoctest-faces "attribute-list"
-    ;; positional attribute 
-    "[" markup-meta-face "hello" markup-value-face "]" markup-meta-face "\n" nil 		  
+    ;; positional attribute
+    "[" markup-meta-face "hello" markup-value-face "]" markup-meta-face "\n" nil
     ;; positional attribute containing spaces
-    "[" markup-meta-face "hello world" markup-value-face "]" markup-meta-face "\n" nil 		  
+    "[" markup-meta-face "hello world" markup-value-face "]" markup-meta-face "\n" nil
     ;; positional attribute as string
-    "[\"" markup-meta-face  "hello world" markup-value-face "\"]" markup-meta-face "\n" nil 		  
+    "[\"" markup-meta-face  "hello world" markup-value-face "\"]" markup-meta-face "\n" nil
 
     ;; multiple positional attributes
-    "[" markup-meta-face "hello" markup-value-face "," markup-meta-face "world" markup-value-face "]" markup-meta-face "\n" nil 		  
+    "[" markup-meta-face "hello" markup-value-face "," markup-meta-face "world" markup-value-face "]" markup-meta-face "\n" nil
 
     ;; multiple positional attributes, however one or both are empty (really empty or only one space)
     "[" markup-meta-face "hello" markup-value-face ",]" markup-meta-face "\n" nil
@@ -440,19 +442,19 @@ removed before TRANSFORM is evaluated.
     "[" markup-meta-face " " markup-value-face "]" markup-meta-face "\n" nil
 
     ;; keyword attribute
-    "[" markup-meta-face "salute" markup-attribute-face "=" markup-meta-face "hello" markup-value-face "]" markup-meta-face "\n" nil 		  
+    "[" markup-meta-face "salute" markup-attribute-face "=" markup-meta-face "hello" markup-value-face "]" markup-meta-face "\n" nil
     ;; keyword attribute where value is a string
-    "[" markup-meta-face "salute" markup-attribute-face "=\"" markup-meta-face "hello world" markup-value-face "\"]" markup-meta-face "\n" nil 		  
+    "[" markup-meta-face "salute" markup-attribute-face "=\"" markup-meta-face "hello world" markup-value-face "\"]" markup-meta-face "\n" nil
 
     ;; multiple positional attributes, multiple keyword attributes
     "[" markup-meta-face "lorem" markup-value-face "," markup-meta-face "ipsum" markup-value-face "," markup-meta-face
         "dolor" markup-attribute-face "=" markup-meta-face "sit" markup-value-face "," markup-meta-face
-        "dolor" markup-attribute-face "=" markup-meta-face "sit" markup-value-face "]" markup-meta-face "\n" nil 		  
+        "dolor" markup-attribute-face "=" markup-meta-face "sit" markup-value-face "]" markup-meta-face "\n" nil
 
     ;; is , within strings really part of the string and not mistaken as element separator
-    "[\"" markup-meta-face "lorem,ipsum=dolor" markup-value-face "\"]" markup-meta-face "\n" nil 		  
+    "[\"" markup-meta-face "lorem,ipsum=dolor" markup-value-face "\"]" markup-meta-face "\n" nil
     ;; does escaping " in strings work
-    "[\"" markup-meta-face "lorem \\\"ipsum\\\" dolor" markup-value-face "\"]" markup-meta-face 
+    "[\"" markup-meta-face "lorem \\\"ipsum\\\" dolor" markup-value-face "\"]" markup-meta-face
     ))
 
 (ert-deftest adoctest-test-block-macro ()
@@ -593,7 +595,7 @@ removed before TRANSFORM is evaluated.
   ;; 1) test that meta characters always only have a single meta and don't get
   ;;    markup-bold/-emphasis/... face just because they are within a
   ;;    strongh/emphasis/... construct.
-  ;; 2) test that nested quotes really apply the faces of both quotes to the inner text 
+  ;; 2) test that nested quotes really apply the faces of both quotes to the inner text
   (adoctest-faces "meta-face-cleanup-1"
     "*" markup-meta-hide-face "lorem " markup-strong-face
         "_" markup-meta-hide-face "ipsum" '(markup-strong-face markup-emphasis-face) "_" markup-meta-hide-face
@@ -611,7 +613,7 @@ removed before TRANSFORM is evaluated.
 
 (ert-deftest adoctest-test-url ()
   (adoctest-faces "url"
-    ;; url inline macro with attriblist 
+    ;; url inline macro with attriblist
     "foo " nil
     "http://www.lorem.com/ipsum.html" markup-internal-reference-face
     "[" markup-meta-face "sit amet" markup-reference-face "]" markup-meta-face
@@ -622,7 +624,7 @@ removed before TRANSFORM is evaluated.
     "sit,\namet,\nconsectetur" markup-reference-face
     "]" markup-meta-face
     " bar \n" nil
-    ;; url inline macro withOUT attriblist 
+    ;; url inline macro withOUT attriblist
     "http://www.lorem.com/ipsum.html" markup-reference-face
     "[]" markup-meta-face
     " bar \n" nil
@@ -632,7 +634,7 @@ removed before TRANSFORM is evaluated.
 
 (ert-deftest adoctest-test-url-enclosing-quote ()
   (adoctest-faces "url-enclosing-quote"
-    ;; spaces between __ and url seem really to be needed also in asciidoc 
+    ;; spaces between __ and url seem really to be needed also in asciidoc
     "foo " nil "__" markup-meta-hide-face " " nil
     "http://www.lorem.com/ipsum.html" '(markup-emphasis-face markup-reference-face)
     " " nil "__" markup-meta-hide-face
@@ -647,9 +649,9 @@ removed before TRANSFORM is evaluated.
 (ert-deftest adoctest-test-inline-subst-boundaries ()
   (adoctest-faces "inline-subst-boundaries"
 
-   ;; 1) don't cross title boundaries. 
+   ;; 1) don't cross title boundaries.
    ;; 2) don't cross paragraph boundaries.
-   ;; 3) verify that the (un)constrained quotes would work however 
+   ;; 3) verify that the (un)constrained quotes would work however
    "== " markup-meta-hide-face "chapter ** 1" markup-title-1-face "\n" nil
    "lorem ** ipsum\n" 'no-face
    "\n" nil
@@ -686,7 +688,7 @@ removed before TRANSFORM is evaluated.
    "-" markup-list-face " " nil "dolor ** sit\n" 'no-face
    ;; test that a quote within the list element works
    "-" markup-list-face " " nil "dolor " 'no-face "**" markup-meta-hide-face " sit " markup-strong-face "**" markup-meta-hide-face "\n" nil
-   ;; dont mistake '**' list elements for quote starters/enders 
+   ;; dont mistake '**' list elements for quote starters/enders
    "**" markup-list-face " " nil "lorem ** ipsum\n" 'no-face
    "**" markup-list-face " " nil "dolor ** sit\n" 'no-face
    "**" markup-list-face " " nil "dolor ** sit\n" 'no-face
@@ -731,7 +733,7 @@ removed before TRANSFORM is evaluated.
 (ert-deftest adoctest-test-xref-at-point-1 ()
   (unwind-protect
       (progn
-	(set-buffer (get-buffer-create "adoc-test")) 
+	(set-buffer (get-buffer-create "adoc-test"))
 	(insert "lorem xref:bogous1[] ipsum xref:foo[bla\nbli] dolor xref:bogous2[]")
 	(re-search-backward "bli")	; move point within ref
 	(should (equal (adoc-xref-id-at-point) "foo")))
@@ -740,7 +742,7 @@ removed before TRANSFORM is evaluated.
 (ert-deftest adoctest-test-xref-at-point-2 ()
   (unwind-protect
       (progn
-	(set-buffer (get-buffer-create "adoc-test")) 
+	(set-buffer (get-buffer-create "adoc-test"))
 	(insert "lorem <<bogous1,caption>> ipsum <<foo,bla\nbli>> dolor <<bogous2>>")
 	(re-search-backward "bli") ; move point within ref
 	(should (equal (adoc-xref-id-at-point) "foo")))
@@ -749,7 +751,7 @@ removed before TRANSFORM is evaluated.
 (ert-deftest adoctest-test-goto-ref-label ()
   (unwind-protect
       (progn
-	(set-buffer (get-buffer-create "adoc-test")) 
+	(set-buffer (get-buffer-create "adoc-test"))
 	(insert "[[foo]]\n"		   ;1
 		"lorem ipsum\n"		   ;2
 		"[[bar]]\n"		   ;3
@@ -764,11 +766,12 @@ removed before TRANSFORM is evaluated.
     (kill-buffer "adoc-test")))
 
 (defun adoctest-template (template expected)
+  "Todo document adoctest-template TEMPLATE EXPECTED."
   (let ((buf-name (concat "adoctest-" (symbol-name template))))
     (unwind-protect
 	(progn
 	  ;; setup
-	  (set-buffer (get-buffer-create buf-name)) 
+	  (set-buffer (get-buffer-create buf-name))
 	  (delete-region (point-min) (point-max))
 	  (funcall template)
 	  (should (equal (buffer-substring-no-properties (point-min) (point-max)) expected)))
@@ -776,6 +779,7 @@ removed before TRANSFORM is evaluated.
       (kill-buffer buf-name))))
 
 (defun adoctest-quotes (start-del end-del transform)
+  "Todo document adoctest-quotes START-DEL END-DEL TRANSFORM."
   (adoctest-trans "lorem ! ipsum"
 		  (concat "lorem " start-del end-del " ipsum") transform)
   (adoctest-trans "lorem <ipsum> dolor"
@@ -840,6 +844,7 @@ removed before TRANSFORM is evaluated.
   (adoctest-trans "lorem<ipsum>" "lorem\nTIP: ipsum" '(tempo-template-adoc-paragraph-tip)))
 
 (defun adoctest-delimited-block (del transform)
+  "Todo document adoctest-delimited-block DEL TRANSFORM."
   (let ((del-line (if (integerp del) (make-string 50 del) del)))
     (adoctest-trans
      "" (concat del-line "\n\n" del-line) transform)
@@ -954,6 +959,7 @@ removed before TRANSFORM is evaluated.
 ;; 
 ;; todo: also test for warnings
 (defun adoctest-save-compile-load ()
+  "Todo document adoctest-save-compile-load."
   (unwind-protect
       (progn
 	(let ((buf-adoc-mode (find-buffer-visiting "adoc-mode.el"))
@@ -963,17 +969,17 @@ removed before TRANSFORM is evaluated.
 	  (cond
 	   ((null buf-adoc-mode))	;nop
 	   ((bufferp buf-adoc-mode) (save-buffer buf-adoc-mode))
-	   (t (error "Multiple buffer are visiting adoc-mode.el. Save them first")))	   
-	  (or (byte-compile-file (locate-library "adoc-mode.el" t)) (error "compile error"))
-	  (or (load "adoc-mode.el" nil nil t) (error "load error"))
+	   (t (error "Multiple buffer are visiting adoc-mode.el.  Save them first")))
+	  (or (byte-compile-file (locate-library "adoc-mode.el" t)) (error "Compile error"))
+	  (or (load "adoc-mode.el" nil nil t) (error "Load error"))
 
 	  ;; adoc-mode-test
 	  (cond
 	   ((null buf-adoc-mode-test))	;nop
 	   ((bufferp buf-adoc-mode-test) (save-buffer buf-adoc-mode-test))
-	   (t (error "Multiple buffer are visiting adoc-mode-test.el. Save them first")))
-	  (or (byte-compile-file (locate-library "adoc-mode-test.el" t)) (error "compile error"))
-	  (or (load "adoc-mode-test.el" nil nil t) (error "load error"))))
+	   (t (error "Multiple buffer are visiting adoc-mode-test.el.  Save them first")))
+	  (or (byte-compile-file (locate-library "adoc-mode-test.el" t)) (error "Compile error"))
+	  (or (load "adoc-mode-test.el" nil nil t) (error "Load error"))))
 
     (when (file-exists-p "adoc-mode.elc")
       (delete-file "adoc-mode.elc"))
@@ -985,7 +991,7 @@ removed before TRANSFORM is evaluated.
 
   ;; ensure that a failed test can be re-run
   (when (get-buffer "*ert*")
-    (kill-buffer "*ert*")) 
+    (kill-buffer "*ert*"))
 
   ;; ensure no no-longer test defuns exist, which would otherwise be executed
   (mapatoms
