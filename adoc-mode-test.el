@@ -1,9 +1,9 @@
 ;;; adoc-mode-test.el --- test suite for adoc-mode.el
-;;; 
+;;;
 ;;; Commentary:
-;; 
+;;
 ;; Call adoc-test-run to run the test suite
-;; 
+;;
 ;;; Todo:
 ;; - test for font lock multiline property
 ;; - test for presence of adoc-reserved (we do white-box testing here)
@@ -53,7 +53,7 @@
 	    (setq not-done nil)))))))
 
 (defun adoctest-trans (original-text expected-text transform)
-  "On ORIGINAL-TEXT, EXPECTED-TEXT Calling TRANSFORM `should' result.
+  "Calling TRANSFORM on ORIGINAL-TEXT `should' result in EXPECTED-TEXT.
 ORIGINAL-TEXT is put in an temporary buffer and TRANSFORM is
 evaluated using `eval'.  The resulting buffer content is compared
 to EXPECTED-TEXT.
