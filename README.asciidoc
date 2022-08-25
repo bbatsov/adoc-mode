@@ -157,18 +157,27 @@ You can also quickly evaluate some Emacs Lisp code in the minibuffer with `M-:`.
 
 Run all tests with:
 
- $ eldev test
+[source,shellsession]
+----
+$ eldev test
+----
 
 NOTE: Tests may not run correctly inside Emacs' `shell-mode` buffers. Running
 them in a terminal is recommended.
 
 You can also check for compliance with a variety of coding standards in batch mode (including docstrings):
 
- $ eldev lint
+[source,shellsession]
+----
+$ eldev lint
+----
 
 To check for byte-compilation warnings you can just compile the project with Eldev:
 
- $ eldev compile
+[source,shellsession]
+----
+$ eldev compile
+----
 
 == License
 
