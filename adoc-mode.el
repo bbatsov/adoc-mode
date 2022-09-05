@@ -2435,11 +2435,14 @@ trailing delimiter ('== my title ==').
          ;; method ensuring the correct length of the underline, be aware that
          ;; due to adoc-adjust-title-del we sometimes want to find a title which has
          ;; the wrong underline length.
-         ((or (looking-at (adoc-re-two-line-title (nth level adoc-two-line-title-del)))
-              (save-excursion
-                (forward-line -1)
-                (beginning-of-line)
-                (looking-at (adoc-re-two-line-title (nth level adoc-two-line-title-del)))))
+         ((and (or (looking-at (adoc-re-two-line-title (nth level adoc-two-line-title-del)))
+                   (save-excursion
+                     (forward-line -1)
+                     (beginning-of-line)
+                     (looking-at (adoc-re-two-line-title (nth level adoc-two-line-title-del)))))
+               ;; avoid matching non-title elements
+               (eql (length (match-string 3)) (length (match-string 2)))
+               (not (string-prefix-p "[" (match-string 2))))
           (setq type 2)
           (setq text (match-string 2))
           (setq found t))
@@ -2653,9 +2656,10 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
         (let* ((descriptor (adoc-title-descriptor))
                (title-text (nth 3 descriptor))
                (title-pos (nth 4 descriptor)))
-          (setq
-           index-alist
-           (cons (cons title-text title-pos) index-alist)))))
+          (unless (null title-text)
+            (setq
+             index-alist
+             (cons (cons title-text title-pos) index-alist))))))
     (nreverse index-alist)))
 
 (defvar adoc-mode-syntax-table
