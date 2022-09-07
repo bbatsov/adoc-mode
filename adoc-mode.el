@@ -2402,8 +2402,10 @@ Returns nil if there was no xref found."
                       (> saved-point (match-end 0)))))
       id)))
 
-(defun adoc-title-descriptor()
+(defun adoc-title-descriptor (&optional strict-match )
   "Returns title descriptor of title point is in.
+
+When STRICT-MATCH is t, 2 line title length must be within 2 chars of undertext
 
 Title descriptor looks like this: (TYPE SUB-TYPE LEVEL TEXT START END)
 
@@ -2441,7 +2443,7 @@ trailing delimiter ('== my title ==').
                      (beginning-of-line)
                      (looking-at (adoc-re-two-line-title (nth level adoc-two-line-title-del)))))
                ;; avoid matching non-title elements
-               (eql (length (match-string 3)) (length (match-string 2)))
+               (or (not strict-match) (<= (abs (- (length (match-string 3)) (length (match-string 2)))) 2))
                (not (string-prefix-p "[" (match-string 2))))
           (setq type 2)
           (setq text (match-string 2))
@@ -2653,7 +2655,7 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
       (goto-char 0)
       (while (re-search-forward re-all-titles nil t)
         (backward-char) ; skip backwards the trailing \n of a title
-        (let* ((descriptor (adoc-title-descriptor))
+        (let* ((descriptor (adoc-title-descriptor t))
                (title-text (nth 3 descriptor))
                (title-pos (nth 4 descriptor)))
           (unless (null title-text)
