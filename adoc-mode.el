@@ -342,7 +342,7 @@ To become a customizable variable when regexps for list items become customizabl
     ("text" . markup-secondary-text-face))
   "An alist, key=attribute id, value=face.")
 
-(defvar adoc-mode-abbrev-table nil
+(defvar adoc-text-mode-abbrev-table nil
   "Abbrev table in use in adoc-mode buffers.")
 
 (defvar adoc-font-lock-keywords nil
@@ -350,7 +350,7 @@ To become a customizable variable when regexps for list items become customizabl
 
 (defvar adoc-replacement-failed nil )
 
-(define-abbrev-table 'adoc-mode-abbrev-table ())
+(define-abbrev-table 'adoc-text-mode-abbrev-table ())
 
 
 ;;;; help text copied from asciidoc manual
@@ -2658,7 +2658,7 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
            (cons (cons title-text title-pos) index-alist)))))
     (nreverse index-alist)))
 
-(defvar adoc-mode-syntax-table
+(defvar adoc-text-mode-syntax-table
   (let ((table (make-syntax-table)))
     (modify-syntax-entry ?$ "." table)
     (modify-syntax-entry ?% "." table)
@@ -2679,13 +2679,13 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
     table)
   "Syntax table to use in adoc-mode.")
 
-(defvar adoc-mode-map
+(defvar adoc-text-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-c\C-d" 'adoc-demote)
     (define-key map "\C-c\C-p" 'adoc-promote)
     (define-key map "\C-c\C-t" 'adoc-toggle-title-type)
     (define-key map "\C-c\C-g" 'adoc-goto-ref-label)
-    (easy-menu-define adoc-mode-menu map "Menu for adoc mode"
+    (easy-menu-define adoc-text-mode-menu map "Menu for adoc mode"
     `("AsciiDoc"
       ["Promote" adoc-promote]
       ["Demote" adoc-demote]
@@ -2852,7 +2852,7 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
 
 
 ;;;###autoload
-(define-derived-mode adoc-mode text-mode "adoc"
+(define-derived-mode adoc-text-mode text-mode "adoc"
   "Major mode for editing AsciiDoc text files.
 Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   ;; comments
@@ -2901,6 +2901,61 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (when (boundp 'compilation-error-regexp-alist)
     (make-local-variable 'compilation-error-regexp-alist)
     (add-to-list 'compilation-error-regexp-alist 'asciidoc)))
+
+
+;;; polymode
+
+(require 'polymode)
+
+(define-hostmode poly-adoc-hostmode
+  :mode 'adoc-text-mode)
+
+(defun adoc-code-tail-matcher (&optional _arg)
+  "Search for tail of code block."
+  (let* ((n (- (point) (line-beginning-position)))
+	 (re (format "^-\\{%d\\}$" n)))
+    (and (re-search-forward re nil t)
+	 (cons (match-beginning 0) (match-end 0)))))
+
+(defconst adoc-code-block-head-re "^\\[\\(?:source\\)?\\(?:%[^,]*\\)?,[[:space:]]*\\([^]]+\\)]\n--+$"
+  "Regexp for the head of a code block.")
+
+(defcustom adoc-code-alist
+  '(
+    ("cpp" . "c++-mode")
+    ("elisp" . "emacs-lisp-mode")
+    ("asciidoc" . "adoc-mode")
+    ("batch" . "bat-mode")
+    )
+  "Alist mapping source block language attributes to major modes."
+  :type '(repeat (cons (string :tag "Source Block Language Attribute") (string :tag "Major Mode")))
+:group 'adoc)
+
+(defun adoc-code-mode-matcher ()
+  "Determine major mode of source block at point."
+  (unless (looking-at adoc-code-block-head-re)
+    (user-error "Not at beginning of a source block"))
+  (let* ((lang-attr (match-string 1))
+	 (default-mode (or (intern-soft (format "%s-mode" lang-attr))
+			   'prog-mode)))
+    (alist-get lang-attr adoc-code-alist (symbol-name default-mode) nil #'string-equal)))
+
+(define-innermode poly-adoc-root-innermode
+  :mode 'prog-mode
+  :fallback-mode 'host
+  :head-mode 'host
+  :tail-mode 'host)
+
+(define-auto-innermode poly-adoc-code-innermode poly-adoc-root-innermode
+  :head-matcher adoc-code-block-head-re
+  :tail-matcher #'adoc-code-tail-matcher
+  :mode-matcher #'adoc-code-mode-matcher)
+
+;;;###autoload (autoload 'adoc-mode "adoc-mode")
+(define-polymode adoc-mode nil
+  "Minor mode fontifying source blocks in `adoc-mode'."
+  :hostmode 'poly-adoc-hostmode
+  :innermodes '(poly-adoc-code-innermode))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.a\\(?:scii\\)?doc\\'" . adoc-mode))
