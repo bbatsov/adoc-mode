@@ -2405,7 +2405,8 @@ Returns nil if there was no xref found."
 (defun adoc-title-descriptor (&optional strict-match )
   "Returns title descriptor of title point is in.
 
-When STRICT-MATCH is t, 2 line title length must be within 2 chars of undertext
+When STRICT-MATCH is t, and 2 line title is used, the lengths of the underline
+text and title must not differ by more than 2 characters.
 
 Title descriptor looks like this: (TYPE SUB-TYPE LEVEL TEXT START END)
 
@@ -2442,8 +2443,11 @@ trailing delimiter ('== my title ==').
                      (forward-line -1)
                      (beginning-of-line)
                      (looking-at (adoc-re-two-line-title (nth level adoc-two-line-title-del)))))
-               ;; avoid matching non-title elements
-               (or (not strict-match) (<= (abs (- (length (match-string 3)) (length (match-string 2)))) 2))
+               ;; If strict-mode, expect title and underline text lengths to be at most +-2 characters different
+               (or (not strict-match)
+                   (<= (abs (- (length (match-string 3))
+                               (length (match-string 2))))
+                       2))
                (not (string-prefix-p "[" (match-string 2))))
           (setq type 2)
           (setq text (match-string 2))

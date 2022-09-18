@@ -941,9 +941,24 @@ removed before TRANSFORM is evaluated.
         (set-buffer (get-buffer-create "adoc-test"))
         (insert "= document title\n"
                 "== chapter 1\n"
+                "[IMPORTANT]\n"
+                ".Important announcement\n"
+                "====\n"
+                "This should not be a title\n"
+                "====\n"
                 "=== sub chapter 1.1\n"
+                "[source,rust]\n"
+                "----\n"
+                "// here is a comment\n"
+                "----\n"
                 "chapter 2\n"
                 "----------\n"
+                "[latexmath#einstein]\n"
+                "++++\n"
+                "\begin{equation}\n"
+                "e = mc^{2}\n"
+                "\end{equation}\n"
+                "++++\n"
                 "sub chapter 2.1\n"
                 "~~~~~~~~~~~~~~\n")
         (should
@@ -952,9 +967,9 @@ removed before TRANSFORM is evaluated.
           (list
            (cons "document title" 1)
            (cons "chapter 1" 18)
-           (cons "sub chapter 1.1" 31)
-           (cons "chapter 2" 51)
-           (cons "sub chapter 2.1" 72)))))
+           (cons "sub chapter 1.1" 104)
+           (cons "chapter 2" 169)
+           (cons "sub chapter 2.1" 262)))))
     (kill-buffer "adoc-test")))
 
 ;; purpose
