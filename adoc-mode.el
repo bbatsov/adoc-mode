@@ -46,6 +46,15 @@
 ;;; Variables:
 
 (require 'markup-faces) ; https://github.com/sensorflo/markup-faces
+
+(defface markup-native-code-face ;; TODO: This should go into `markup-faces.el'
+  '((((background light))
+     (:background "cornsilk" :extend t))
+    (((background dark))
+     (:background "saddlebrown" :extend t)))
+  "For code blocks that are highlighted natively."
+  :group 'markup-faces-text)
+
 (require 'cl-lib)
 ;; tempo or tempo-snippet is required later below
 
@@ -247,6 +256,42 @@ See for example `tempo-template-adoc-title-1'."
   :type '(choice (const :tag "tempo" tempo-vanilla)
                  (const :tag "tempo-snippets" tempo-snippets))
   :group 'adoc)
+
+(defcustom adoc-fontify-code-blocks-natively nil
+  "When non-nil, fontify code in code blocks using the native major mode.
+This only works for fenced code blocks where the language is
+specified where we can automatically determine the appropriate
+mode to use.  The language to mode mapping may be customized by
+setting the variable `adoc-code-lang-modes'."
+  :group 'markdown
+  :type 'boolean
+  :safe 'booleanp)
+
+;; This is based on `org-src-lang-modes' from org-src.el
+(defcustom adoc-code-lang-modes
+  '(("ocaml" . tuareg-mode) ("elisp" . emacs-lisp-mode) ("ditaa" . artist-mode)
+    ("asymptote" . asy-mode) ("dot" . fundamental-mode) ("sqlite" . sql-mode)
+    ("calc" . fundamental-mode) ("C" . c-mode) ("cpp" . c++-mode)
+    ("C++" . c++-mode) ("screen" . shell-script-mode) ("shell" . sh-mode)
+    ("bash" . sh-mode))
+  "Alist mapping languages to their major mode.
+The key is the language name, the value is the major mode.  For
+many languages this is simple, but for language where this is not
+the case, this variable provides a way to simplify things on the
+user side.  For example, there is no ocaml-mode in Emacs, but the
+mode to use is `tuareg-mode'."
+  :group 'adoc
+  :type '(repeat
+          (cons
+           (string "Language name")
+           (symbol "Major mode"))))
+
+(defcustom adoc-fontify-code-block-default-mode 'prog-mode
+  "Default mode to use to fontify code blocks.
+This mode is used when automatic detection fails, such as for GFM
+code blocks with no language specified."
+  :group 'adoc
+  :type '(choice function (const :tag "None" nil)))
 
 
 ;;;; faces / font lock
@@ -1560,6 +1605,7 @@ meta characters."
        ;; font (most probably), because then it also won't look aligned
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-typewriter-face)
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-code-face)
+       (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-code-block t)
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-passthrough-face)
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-comment-face)))
 
@@ -1591,6 +1637,134 @@ meta characters."
                              (if (= 1 (length newfaces)) (car newfaces) newfaces)))
       (goto-char next-pos)))
   nil)
+
+
+;;; Natively hilit source code blocks.
+;; The code is an adaption of the code of `markdown-mode.el`.
+
+(defun adoc-get-lang-mode (lang)
+  "Return major mode that should be used for LANG.
+LANG is a string, and the returned major mode is a symbol."
+  (cl-find-if
+   'fboundp
+   (list (cdr (assoc lang adoc-code-lang-modes))
+         (cdr (assoc (downcase lang) adoc-code-lang-modes))
+         (intern (concat lang "-mode"))
+         (intern (concat (downcase lang) "-mode")))))
+
+;; Based on `org-src-font-lock-fontify-block' from org-src.el.
+(defun adoc-fontify-code-block-natively (lang start-block end-block start-src end-src)
+  "Fontify source code block.
+This function is called by Emacs for automatic fontification when
+`adoc-fontify-code-blocks-natively' is non-nil.  LANG is the
+language used in the block.
+START-BLOCK and END-BLOCK specify the limits of the full source block
+with header lines and delimiters (but without header arguments).
+START-SRC and END-SRC delimit the actual source code."
+  (let ((lang-mode (if lang (adoc-get-lang-mode lang)
+                     adoc-fontify-code-block-default-mode)))
+    (when (fboundp lang-mode)
+      (let ((string (buffer-substring-no-properties start-src end-src))
+            (modified (buffer-modified-p))
+            (adoc-buffer (current-buffer)) pos next)
+        (remove-text-properties start-block end-block '(face nil adoc-code-block nil font-lock-fontified nil font-lock-multiline nil))
+        (with-current-buffer
+            (get-buffer-create
+             (concat " adoc-code-fontification:" (symbol-name lang-mode)))
+          ;; Make sure that modification hooks are not inhibited in
+          ;; the org-src-fontification buffer in case we're called
+          ;; from `jit-lock-function' (Bug#25132).
+          (let ((inhibit-modification-hooks nil))
+            (delete-region (point-min) (point-max))
+            (insert string " ")) ;; so there's a final property change
+          (unless (eq major-mode lang-mode) (funcall lang-mode))
+          (font-lock-ensure)
+          (setq pos (point-min))
+          (while (setq next (next-single-property-change pos 'face))
+            (let ((val (get-text-property pos 'face)))
+              (when val
+                (put-text-property
+                 (+ start-src (1- pos)) (1- (+ start-src next)) 'face
+                 val adoc-buffer)))
+            (setq pos next)))
+	(add-text-properties start-block start-src '(face markup-meta-face))
+	(add-text-properties end-src end-block '(face markup-meta-face))
+        (add-text-properties
+         start-block end-block
+         '(font-lock-fontified t fontified t font-lock-multiline t
+	   adoc-code-block t adoc-reserved t))
+        (set-buffer-modified-p modified)))))
+
+(defconst adoc-code-block-begin-regexp
+  (cl-flet ((rx-or (first second) (format "\\(?:%s\\|%s\\)" first second))
+	    (rx-optional (stuff) (format "\\(?:%s\\)?" stuff))
+	    (outer-brackets-and-delimiter (&rest stuff)
+					  (format "^\\[%s\\]\n\\(?2:----+\\)\n"
+						  (apply #'concat stuff)))
+	    (lang () ",\\(?1:[^],]+\\)")
+	    (optional-other-args () "\\(?:,[^]]+\\)?"))
+    (outer-brackets-and-delimiter
+     (rx-or
+      (concat
+       "source"
+       (rx-optional (lang))
+       (optional-other-args))
+      (concat
+       (lang)
+       (optional-other-args)))
+     ))
+  "Regexp matching the beginning of source blocks.
+Group 1 contains the language attribute.
+Group 2 contains the block delimiter.")
+
+(defun adoc-search-forward-code-block (last &optional noerror)
+  "Search for next adoc-code block up to LAST.
+NOERROR is the same as for `search-forward'.
+
+Return the source block language and
+sets match data if a source block is found.
+Otherwise return nil.
+
+The overall match data begins at the
+header of the code block and ends at the end of the
+delimiter.
+The first group of the match data delimits the
+actual source code."
+  (let (start-header start-src end-src end-block lang)
+    (save-match-data
+      (and (setq start-src (re-search-forward adoc-code-block-begin-regexp last noerror))
+	   (setq lang (or (match-string 1) t)
+		 start-header (match-beginning 0))
+	   (setq end-block (re-search-forward (format "\n%s$" (match-string 2))))
+	   (setq end-src (match-beginning 0)))
+      )
+    (when end-block
+      (set-match-data (list start-header end-block start-src end-src (current-buffer)))
+      lang)))
+
+(defun adoc-fontify-code-blocks (last)
+  "Add text properties to next code block from point to LAST.
+Use matching function MATCHER."
+  (let ((lang (adoc-search-forward-code-block last 'noError)))
+    (when lang
+      (save-excursion
+	(save-match-data
+          (let* ((start-block (match-beginning 0))
+		 (end-block (match-end 0))
+		 (start-src (match-beginning 1))
+		 (end-src (match-end 1))
+		 (bol-prev (progn (goto-char start-block)
+                                  (if (bolp) (line-beginning-position 0) (line-beginning-position))))
+		 (eol-next (progn (goto-char end-block)
+                                  (if (bolp) (line-beginning-position 2) (line-beginning-position 3)))))
+            (if adoc-fontify-code-blocks-natively
+		(adoc-fontify-code-block-natively lang start-block end-block start-src end-src)
+              (add-text-properties start-src end-src '(face markup-verbatim-face)))
+            ;; Set background for block as well as opening and closing lines.
+            (font-lock-append-text-property
+             start-src end-src 'face 'markup-native-code-face)
+	    )))
+      t)))
 
 
 ;;;; font lock
@@ -1625,6 +1799,10 @@ meta characters."
 
    ;; Asciidoc BUG: Lex.next has a different order than the following extract
    ;; from the documentation states.
+
+   ;; Fontify code blocks first to mark these regions as fontified.
+   '(adoc-fontify-code-blocks)
+
 
    ;; When a block element is encountered asciidoc(1) determines the type of
    ;; block by checking in the following order (first to last): (section)
@@ -1748,14 +1926,13 @@ meta characters."
    ;; ------------------------------
    (adoc-kw-delimited-block 0 markup-comment-face)   ; comment
    (adoc-kw-delimited-block 1 markup-passthrough-face) ; passthrough
-   (adoc-kw-delimited-block 2 markup-code-face) ; listing
+;;   (adoc-kw-delimited-block 2 markup-code-face) ; listing
    (adoc-kw-delimited-block 3 markup-verbatim-face) ; literal
    (adoc-kw-delimited-block 4 nil t) ; quote
    (adoc-kw-delimited-block 5 nil t) ; example
    (adoc-kw-delimited-block 6 adoc-secondary-text t) ; sidebar
    (adoc-kw-delimited-block 7 nil t) ; open block
    (adoc-kw-delimiter-line-fallback)
-
 
    ;; tables
    ;; ------------------------------
@@ -2883,7 +3060,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
          nil nil nil nil
          (font-lock-multiline . t)
          (font-lock-mark-block-function . adoc-font-lock-mark-block-function)))
-  (setq-local font-lock-extra-managed-props '(adoc-reserved adoc-attribute-list))
+  (setq-local font-lock-extra-managed-props '(adoc-reserved adoc-attribute-list adoc-code-block))
   (setq-local font-lock-unfontify-region-function 'adoc-unfontify-region-function)
 
   ;; outline mode
