@@ -248,16 +248,24 @@ This only works for code blocks where the language is
 specified where we can automatically determine the appropriate
 mode to use.  The language to mode mapping may be customized by
 setting the variable `adoc-code-lang-modes'."
-  :group 'markdown
+  :group 'adoc
   :type 'boolean
   :safe 'booleanp)
 
 ;; This is based on `org-src-lang-modes' from org-src.el
 (defcustom adoc-code-lang-modes
-  '(("ocaml" . tuareg-mode) ("elisp" . emacs-lisp-mode) ("ditaa" . artist-mode)
-    ("asymptote" . asy-mode) ("dot" . fundamental-mode) ("sqlite" . sql-mode)
-    ("calc" . fundamental-mode) ("C" . c-mode) ("cpp" . c++-mode)
-    ("C++" . c++-mode) ("screen" . shell-script-mode) ("shell" . sh-mode)
+  '(("ocaml" . tuareg-mode)
+    ("elisp" . emacs-lisp-mode)
+    ("ditaa" . artist-mode)
+    ("asymptote" . asy-mode)
+    ("dot" . fundamental-mode)
+    ("sqlite" . sql-mode)
+    ("calc" . fundamental-mode)
+    ("C" . c-mode)
+    ("cpp" . c++-mode)
+    ("C++" . c++-mode)
+    ("screen" . shell-script-mode)
+    ("shell" . sh-mode)
     ("bash" . sh-mode))
   "Alist mapping languages to their major mode.
 The key is the language name, the value is the major mode.  For
