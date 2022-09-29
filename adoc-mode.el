@@ -244,7 +244,7 @@ See for example `tempo-template-adoc-title-1'."
 
 (defcustom adoc-fontify-code-blocks-natively nil
   "When non-nil, fontify code in code blocks using the native major mode.
-This only works for fenced code blocks where the language is
+This only works for code blocks where the language is
 specified where we can automatically determine the appropriate
 mode to use.  The language to mode mapping may be customized by
 setting the variable `adoc-code-lang-modes'."
@@ -273,10 +273,16 @@ mode to use is `tuareg-mode'."
 
 (defcustom adoc-fontify-code-block-default-mode 'prog-mode
   "Default mode to use to fontify code blocks.
-This mode is used when automatic detection fails, such as for GFM
+This mode is used when automatic detection fails, such as for
 code blocks with no language specified."
   :group 'adoc
   :type '(choice function (const :tag "None" nil)))
+
+(defcustom adoc-font-lock-extend-after-change-max 5000
+  "Number of chars scanned backwards for re-fontification of code block headers.
+Also used to delimit the scan for the end delimiter."
+  :type 'integer
+  :group 'adoc)
 
 
 ;;;; faces / font lock
@@ -1945,8 +1951,8 @@ meta characters."
   nil)
 
 
-;;; Natively hilit source code blocks.
-;; The code is an adaption of the code of `markdown-mode.el`.
+;;; Natively highlite source code blocks.
+;; The code is an adaption of the code in markdown-mode.el.
 
 (defun adoc-get-lang-mode (lang)
   "Return major mode that should be used for LANG.
@@ -2028,12 +2034,12 @@ Group 2 contains the block delimiter.")
 NOERROR is the same as for `search-forward'.
 
 Return the source block language and
-sets match data if a source block is found.
+set match data if a source block is found.
 Otherwise return nil.
 
 The overall match data begins at the
 header of the code block and ends at the end of the
-delimiter.
+end delimiter.
 The first group of the match data delimits the
 actual source code."
   (let (start-header start-src end-src end-block lang)
@@ -2047,11 +2053,6 @@ actual source code."
     (when end-block
       (set-match-data (list start-header end-block start-src end-src (current-buffer)))
       lang)))
-
-(defcustom adoc-font-lock-extend-after-change-max 5000
-  "Number of chars scanned backwards for re-fontification of code block headers."
-  :type 'integer
-  :group 'adoc)
 
 (defun adoc-font-lock-extend-after-change-region (beg end _old-len)
   "Enlarge region for re-fontification after edit.
@@ -2075,7 +2076,7 @@ Returns a cons (BEG . END) with the updated limits of the region."
 
 (defun adoc-fontify-code-blocks (last)
   "Add text properties to next code block from point to LAST.
-Uses as matching function MATCHER in `font-lock-keywords'."
+Use this function as matching function MATCHER in `font-lock-keywords'."
   (let ((lang (adoc-search-forward-code-block last 'noError)))
     (when lang
       (save-excursion
@@ -2265,15 +2266,16 @@ Uses as matching function MATCHER in `font-lock-keywords'."
 
    ;; Delimited blocks
    ;; ------------------------------
-   (adoc-kw-delimited-block 0 adoc-comment-face)   ; comment
-   (adoc-kw-delimited-block 1 adoc-passthrough-face) ; passthrough
-;;   (adoc-kw-delimited-block 2 adoc-code-face) ; listing
-   (adoc-kw-delimited-block 3 adoc-verbatim-face) ; literal
+   (adoc-kw-delimited-block 0 markup-comment-face)   ; comment
+   (adoc-kw-delimited-block 1 markup-passthrough-face) ; passthrough
+   (adoc-kw-delimited-block 2 markup-code-face) ; listing
+   (adoc-kw-delimited-block 3 markup-verbatim-face) ; literal
    (adoc-kw-delimited-block 4 nil t) ; quote
    (adoc-kw-delimited-block 5 nil t) ; example
    (adoc-kw-delimited-block 6 adoc-secondary-text-face t) ; sidebar
    (adoc-kw-delimited-block 7 nil t) ; open block
    (adoc-kw-delimiter-line-fallback)
+
 
    ;; tables
    ;; ------------------------------
