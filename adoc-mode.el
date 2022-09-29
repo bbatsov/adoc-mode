@@ -2048,9 +2048,34 @@ actual source code."
       (set-match-data (list start-header end-block start-src end-src (current-buffer)))
       lang)))
 
+(defcustom adoc-font-lock-extend-after-change-max 5000
+  "Number of chars scanned backwards for re-fontification of code block headers."
+  :type 'integer
+  :group 'adoc)
+
+(defun adoc-font-lock-extend-after-change-region (beg end _old-len)
+  "Enlarge region for re-fontification after edit.
+BEG is the beginning of the region and END its end.
+The region is extended if it includes a part of a source block.
+Returns a cons (BEG . END) with the updated limits of the region."
+  (save-match-data
+    (save-excursion
+      ;; Maybe edits in header line: Skip to body
+      (cl-case (char-after (line-beginning-position))
+	(?\[ (forward-line 2))
+	(?- (forward-line 1)))
+      ;; Search backward for header:
+      (let ((beg-block (re-search-backward adoc-code-block-begin-regexp (max 0 (- (point) adoc-font-lock-extend-after-change-max)) t))
+	    end-block)
+	(when beg-block
+	  (goto-char (match-end 0))
+	  (setq end-block (or (re-search-forward (format "\n%s$" (match-string 2)) (+ (point) adoc-font-lock-extend-after-change-max) t) end))
+	  (when (and end-block (> end-block beg)) ;; block reaches really into edited area
+	    (cons (min beg beg-block) (max end end-block))))))))
+
 (defun adoc-fontify-code-blocks (last)
   "Add text properties to next code block from point to LAST.
-Use matching function MATCHER."
+Uses as matching function MATCHER in `font-lock-keywords'."
   (let ((lang (adoc-search-forward-code-block last 'noError)))
     (when lang
       (save-excursion
@@ -3388,6 +3413,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
          (font-lock-mark-block-function . adoc-font-lock-mark-block-function)))
   (setq-local font-lock-extra-managed-props '(adoc-reserved adoc-attribute-list adoc-code-block))
   (setq-local font-lock-unfontify-region-function 'adoc-unfontify-region-function)
+  (setq-local font-lock-extend-after-change-region-function #'adoc-font-lock-extend-after-change-region)
 
   ;; outline mode
   ;; BUG: if there are many spaces\tabs after =, level becomes wrong
