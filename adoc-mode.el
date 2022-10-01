@@ -250,23 +250,26 @@ mode to use.  The language to mode mapping may be customized by
 setting the variable `adoc-code-lang-modes'."
   :group 'adoc
   :type 'boolean
-  :safe 'booleanp)
+  :safe 'booleanp
+  :package-version '(adoc-mode . "0.7.0"))
 
 ;; This is based on `org-src-lang-modes' from org-src.el
 (defcustom adoc-code-lang-modes
-  '(("ocaml" . tuareg-mode)
-    ("elisp" . emacs-lisp-mode)
-    ("ditaa" . artist-mode)
+  '(
     ("asymptote" . asy-mode)
-    ("dot" . fundamental-mode)
-    ("sqlite" . sql-mode)
-    ("calc" . fundamental-mode)
+    ("bash" . sh-mode)
     ("C" . c-mode)
     ("cpp" . c++-mode)
     ("C++" . c++-mode)
+    ("calc" . fundamental-mode)
+    ("ditaa" . artist-mode)
+    ("dot" . fundamental-mode)
+    ("elisp" . emacs-lisp-mode)
+    ("ocaml" . tuareg-mode)
     ("screen" . shell-script-mode)
     ("shell" . sh-mode)
-    ("bash" . sh-mode))
+    ("sqlite" . sql-mode)
+    )
   "Alist mapping languages to their major mode.
 The key is the language name, the value is the major mode.  For
 many languages this is simple, but for language where this is not
@@ -277,20 +280,23 @@ mode to use is `tuareg-mode'."
   :type '(repeat
           (cons
            (string "Language name")
-           (symbol "Major mode"))))
+           (symbol "Major mode")))
+  :package-version '(adoc-mode . "0.7.0"))
 
 (defcustom adoc-fontify-code-block-default-mode 'prog-mode
   "Default mode to use to fontify code blocks.
 This mode is used when automatic detection fails, such as for
 code blocks with no language specified."
   :group 'adoc
-  :type '(choice function (const :tag "None" nil)))
+  :type '(choice function (const :tag "None" nil))
+  :package-version '(adoc-mode . "0.7.0"))
 
 (defcustom adoc-font-lock-extend-after-change-max 5000
   "Number of chars scanned backwards for re-fontification of code block headers.
 Also used to delimit the scan for the end delimiter."
   :type 'integer
-  :group 'adoc)
+  :group 'adoc
+  :package-version '(adoc-mode . "0.7.0"))
 
 
 ;;;; faces / font lock
@@ -2136,13 +2142,11 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
 (defun adoc-get-font-lock-keywords ()
   "Return list of keywords for `adoc-mode'."
   (list
-
-   ;; Asciidoc BUG: Lex.next has a different order than the following extract
-   ;; from the documentation states.
-
    ;; Fontify code blocks first to mark these regions as fontified.
    '(adoc-fontify-code-blocks)
 
+   ;; Asciidoc BUG: Lex.next has a different order than the following extract
+   ;; from the documentation states.
 
    ;; When a block element is encountered asciidoc(1) determines the type of
    ;; block by checking in the following order (first to last):
