@@ -34,6 +34,7 @@ be easily ignored.
 Here are some of the main features of `adoc-mode`:
 
 - sophisticated highlighting
+- native fontification of code blocks
 - promote / demote title
 - toggle title type between one line title and two line title
 - adjust underline length of a two line title to match title text's length

@@ -257,15 +257,22 @@ See for example `tempo-template-adoc-title-1'."
                  (const :tag "tempo-snippets" tempo-snippets))
   :group 'adoc)
 
-(defcustom adoc-fontify-code-blocks-natively nil
+(defcustom adoc-fontify-code-blocks-natively 5000
   "When non-nil, fontify code in code blocks using the native major mode.
 This only works for code blocks where the language is
 specified where we can automatically determine the appropriate
 mode to use.  The language to mode mapping may be customized by
-setting the variable `adoc-code-lang-modes'."
+setting the variable `adoc-code-lang-modes'.
+
+The value can be a number that determines the size
+up to which code blocks are fontified natively.
+If the value is another non-nil value then code blocks
+are fontified natively regardless of their size."
   :group 'adoc
-  :type 'boolean
-  :safe 'booleanp
+  :type '(choice :tag "Fontify code blocks " :format "\n%{%t%}: %[Size%] %v"
+	  (integer :tag "limited to")
+	  (boolean :tag "unlimited"))
+  :safe '(lambda (x) (or (booleanp x) (numberp x)))
   :package-version '(adoc-mode . "0.7.0"))
 
 ;; This is based on `org-src-lang-modes' from org-src.el
@@ -1769,6 +1776,7 @@ The region is extended if it includes a part of a source block.
 Returns a cons (BEG . END) with the updated limits of the region."
   (save-match-data
     (save-excursion
+      (goto-char beg)
       ;; Maybe edits in header line: Skip to body
       (cl-case (char-after (line-beginning-position))
 	(?\[ (forward-line 2))
@@ -1793,11 +1801,14 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
 		 (end-block (match-end 0))
 		 (start-src (match-beginning 1))
 		 (end-src (match-end 1))
+		 (size (1+ (- end-src start-src)))
 		 (bol-prev (progn (goto-char start-block)
                                   (if (bolp) (line-beginning-position 0) (line-beginning-position))))
 		 (eol-next (progn (goto-char end-block)
                                   (if (bolp) (line-beginning-position 2) (line-beginning-position 3)))))
-            (if adoc-fontify-code-blocks-natively
+            (if (if (numberp adoc-fontify-code-blocks-natively)
+		    (<= size adoc-fontify-code-blocks-natively)
+		  adoc-fontify-code-blocks-natively)
 		(adoc-fontify-code-block-natively lang start-block end-block start-src end-src)
               (add-text-properties start-src end-src '(face markup-verbatim-face)))
             ;; Set background for block as well as opening and closing lines.
