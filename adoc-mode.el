@@ -47,6 +47,7 @@
 
 (require 'markup-faces) ; https://github.com/sensorflo/markup-faces
 (require 'subr-x)
+(require 'widget)
 
 (defun adoc-number-or-boolean-p (x)
   "Return non-nil if X is a number or a boolean."
