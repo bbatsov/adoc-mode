@@ -46,6 +46,17 @@
 ;;; Variables:
 
 (require 'markup-faces) ; https://github.com/sensorflo/markup-faces
+(require 'subr-x)
+
+(defun adoc-number-or-boolean-p (x)
+  "Return non-nil if X is a number or a boolean."
+  (or (booleanp x) (numberp x)))
+
+(define-widget 'adoc-widget-enable-maybe-limited 'choice
+  "Enable some option with t or limited by a number."
+  :args '((integer :tag "limited to")
+	  (boolean :tag "unlimited"))
+  :format "\n%{%t%}: %[Size%] %v")
 
 (defface markup-native-code-face ;; TODO: This should go into `markup-faces.el'
   '((((background light))
@@ -269,10 +280,8 @@ up to which code blocks are fontified natively.
 If the value is another non-nil value then code blocks
 are fontified natively regardless of their size."
   :group 'adoc
-  :type '(choice :tag "Fontify code blocks " :format "\n%{%t%}: %[Size%] %v"
-	  (integer :tag "limited to")
-	  (boolean :tag "unlimited"))
-  :safe '(lambda (x) (or (booleanp x) (numberp x)))
+  :type '(adoc-widget-enable-maybe-limited :tag "Fontify code blocks ")
+  :safe #'adoc-number-or-boolean-p
   :package-version '(adoc-mode . "0.7.0"))
 
 ;; This is based on `org-src-lang-modes' from org-src.el
@@ -319,6 +328,27 @@ Also used to delimit the scan for the end delimiter."
   :type 'integer
   :group 'adoc
   :package-version '(adoc-mode . "0.7.0"))
+
+
+;;;; Indentation
+
+(defcustom adoc-indent-line-functions
+  (list
+   #'adoc-indent-code-block-line
+   )
+  "Line indentation routines called in sequence until one succeeds."
+  :type '(repeat function)
+  :group 'adoc
+  :package-version '(adoc-mode "0.7.0"))
+
+(defcustom adoc-code-blocks-tab-acts-natively 5000
+  "Whether tab in a code block acts like in the major mode for its language.
+The value can be nil, t or an non-negative integer.
+An integer determines the number of chars scanned backwards for the
+code block header."
+  :type '(adoc-widget-enable-maybe-limited :tag "Tab acts natively in code block")
+  :group 'adoc
+  :package-version '(adoc-mode "0.7.0"))
 
 
 ;;;; faces / font lock
@@ -388,7 +418,8 @@ aligned.
 ;; profiling profes otherwise. Nevertheless I can't stop doing it.
 (defconst adoc-summarize-re-uolisti t
   "When non-nil, sumarize regexps for unordered list items into one regexp.
-To become a customizable variable when regexps for list items become customizable.")
+To become a customizable variable
+when regexps for list items become customizable.")
 
 (defconst adoc-summarize-re-olisti t
   "As `adoc-summarize-re-uolisti', but for ordered list items.")
@@ -1769,26 +1800,49 @@ actual source code."
       (set-match-data (list start-header end-block start-src end-src (current-buffer)))
       lang)))
 
+(defun adoc-code-block-at-point (&optional point inside limit)
+  "Return non-nil if POINT is within a code block.
+If INSIDE is nil return also non-nil if POINT
+is on the header line with the source block attributes
+or on one of the delimiter lines.
+
+Search only LIMIT chars backward and forward for
+the code block header line and the end delimiter.
+
+A non-nil return value is actually a list
+\(BEG-HEADER BEG-CODE END-CODE END-BLOCK)."
+  (save-match-data
+    (save-excursion
+      (if point (goto-char point)
+	(setq point (point)))
+      (unless inside
+	(cl-case (char-after (line-beginning-position))
+	  (?\[ (forward-line 2))
+	  (?- (forward-line 1))))
+      ;; Search backward for header:
+      (when-let ((beg-heading (re-search-backward adoc-code-block-begin-regexp (and limit (max 0 (- (point) limit))) t))
+		 (lang (match-string-no-properties 1))
+		 (beg-code (goto-char (match-end 0)))
+		 (end-block (re-search-forward (format "\n%s$" (match-string 2)) (and limit (+ (point) limit)) t))
+		 (end-code (match-beginning 0))
+		 ((if inside (<= point end-code) (<= point end-block))))
+	(list :language lang
+	      :begin beg-heading
+	      :begin-code beg-code
+	      :end-code end-code
+	      :end end-block)))))
+
 (defun adoc-font-lock-extend-after-change-region (beg end _old-len)
   "Enlarge region for re-fontification after edit.
 BEG is the beginning of the region and END its end.
 The region is extended if it includes a part of a source block.
 Returns a cons (BEG . END) with the updated limits of the region."
-  (save-match-data
-    (save-excursion
-      (goto-char beg)
-      ;; Maybe edits in header line: Skip to body
-      (cl-case (char-after (line-beginning-position))
-	(?\[ (forward-line 2))
-	(?- (forward-line 1)))
-      ;; Search backward for header:
-      (let ((beg-block (re-search-backward adoc-code-block-begin-regexp (max 0 (- (point) adoc-font-lock-extend-after-change-max)) t))
-	    end-block)
-	(when beg-block
-	  (goto-char (match-end 0))
-	  (setq end-block (or (re-search-forward (format "\n%s$" (match-string 2)) (+ (point) adoc-font-lock-extend-after-change-max) t) end))
-	  (when (and end-block (> end-block beg)) ;; block reaches really into edited area
-	    (cons (min beg beg-block) (max end end-block))))))))
+  (when-let ((code-block-limits (adoc-code-block-at-point beg nil adoc-font-lock-extend-after-change-max))
+	     (beg-block (plist-get code-block-limits :begin))
+	     (end-block (plist-get code-block-limits :end))
+	     ((> end-block beg)) ;; block reaches really into edited area
+	     )
+    (cons (min beg beg-block) (max end end-block))))
 
 (defun adoc-fontify-code-blocks (last)
   "Add text properties to next code block from point to LAST.
@@ -1816,6 +1870,43 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
              start-src end-src 'face 'markup-native-code-face)
 	    )))
       t)))
+
+
+;;;; Native indentation:
+
+(defun adoc-indent-line ()
+  "Run functions of `adoc-indent-line-functions' until one succeeds.
+If no of those functions succeeds run `indent-relative'."
+  (or
+   (run-hook-with-args-until-success 'adoc-indent-line-functions)
+   (indent-relative)))
+
+(defun adoc-indent-code-block-line ()
+  "Try to indent code block line at point.
+If there is a code block at point
+indent current line and return non-nil.
+
+Otherwise return nil."
+  (when-let ((code-block (adoc-code-block-at-point nil 'inside))
+	     (lang (plist-get code-block :language))
+	     (mode-command (adoc-get-lang-mode lang))
+	     (code-beg (plist-get code-block :begin-code))
+	     (code-end (plist-get code-block :end-code))
+	     (code (buffer-substring-no-properties code-beg code-end))
+	     (code-buf (get-buffer-create (format "adoc-indent:%s" lang)))
+	     (original-buf (current-buffer))
+	     (original-point (point))
+	     (code-point (1+ (- original-point code-beg))))
+    (indent-to
+     (with-current-buffer code-buf
+       (let ((tab-always-indent t))
+	 (erase-buffer)
+	 (insert code)
+	 (unless (derived-mode-p mode-command)
+	   (funcall mode-command))
+	 (goto-char code-point)
+	 (indent-for-tab-command current-prefix-arg)
+	 (current-indentation))))))
 
 
 ;;;; font lock
@@ -3114,6 +3205,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (setq-local font-lock-unfontify-region-function 'adoc-unfontify-region-function)
   (setq-local font-lock-extend-after-change-region-function #'adoc-font-lock-extend-after-change-region)
 
+  (setq-local indent-line-function #'adoc-indent-line)
   ;; outline mode
   ;; BUG: if there are many spaces\tabs after =, level becomes wrong
   ;; Ideas make it work for two line titles: Investigate into
