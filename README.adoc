@@ -96,6 +96,13 @@ or if you're into use-package
   `buffer-face-mode` is for you: `(add-hook 'adoc-mode-hook (lambda()
   (buffer-face-mode t)))`
 
+* Settings regarding native fontification of source blocks:
+** Native fontification of source blocks can be switched off by setting `adoc-fontify-code-blocks-natively` to `nil`.
+** Native fontification of lengthy code blocks can cause performance problems. If the value of `adoc-fontify-code-blocks-natively` is an integer only those code blocks are fontified natively whose length is less or equal to that value.
+** To avoid performance problems with code block beginnings that do not have a matching end yet the scanning for the code block end is delimited by `adoc-font-lock-extend-after-change-max`.
+** All programming languages `XYZ` that have an Emacs major mode `XYZ-mode` and use `font-lock` are automatically supported. Some other languages not fitting into that name scheme are supported through the alist `adoc-code-lang-modes`. You can add your own languages and modes there if they work based on `font-lock` and are not automatically supported.
+** The fall-back language mode is `prog-mode` without any fontification. You can set your own default by `adoc-fontify-code-block-default-mode`.
+
 === Coming features
 
 The next features I plan to implement
