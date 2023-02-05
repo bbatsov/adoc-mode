@@ -540,7 +540,376 @@ To become a customizable variable when regexps for list items become customizabl
   text containing inline substitutions use a plus character
   instead of a backtick.")
 
-
+;;; adoc Hiding ===============================================================
+(defconst adoc-markup-properties
+  '(face adoc-markup-face invisible adoc-markup)
+  "List of properties and values to apply to markup.")
+
+(defconst adoc-language-keyword-properties
+  '(face adoc-language-keyword-face invisible adoc-markup)
+  "List of properties and values to apply to code block language names.")
+
+(defconst adoc-language-info-properties
+  '(face adoc-language-info-face invisible adoc-markup)
+  "List of properties and values to apply to code block language info strings.")
+
+(defconst adoc-include-title-properties
+  '(face adoc-link-title-face invisible adoc-markup)
+  "List of properties and values to apply to included code titles.")
+
+;;; Font Lock =================================================================
+
+(require 'font-lock)
+
+(defgroup adoc-faces nil
+  "Faces used in Adoc Mode."
+  :group 'adoc
+  :group 'faces)
+
+(defface adoc-italic-face
+  '((t (:inherit italic)))
+  "Face for italic text."
+  :group 'adoc-faces)
+
+(defface adoc-bold-face
+  '((t (:inherit bold)))
+  "Face for bold text."
+  :group 'adoc-faces)
+
+(defface adoc-strike-through-face
+  '((t (:strike-through t)))
+  "Face for strike-through text."
+  :group 'adoc-faces)
+
+(defface adoc-markup-face
+  '((t (:inherit shadow :slant normal :weight normal)))
+  "Face for markup elements."
+  :group 'adoc-faces)
+
+(defface adoc-header-rule-face
+  '((t (:inherit adoc-markup-face)))
+  "Base face for headers rules."
+  :group 'adoc-faces)
+
+(defface adoc-header-delimiter-face
+  '((t (:inherit adoc-markup-face)))
+  "Base face for headers hash delimiter."
+  :group 'adoc-faces)
+
+(defface adoc-list-face
+  '((t (:inherit adoc-markup-face)))
+  "Face for list item markers."
+  :group 'adoc-faces)
+
+(defface adoc-blockquote-face
+  '((t (:inherit font-lock-doc-face)))
+  "Face for blockquote sections."
+  :group 'adoc-faces)
+
+(defface adoc-code-face
+  '((t (:inherit fixed-pitch)))
+  "Face for inline code and fenced code blocks.
+This may be used, for example, to add a contrasting background to
+inline code fragments and code blocks."
+  :group 'adoc-faces)
+
+(defface adoc-inline-code-face
+  '((t (:inherit (adoc-code-face font-lock-constant-face))))
+  "Face for inline code."
+  :group 'adoc-faces)
+
+(defface adoc-pre-face
+  '((t (:inherit (adoc-code-face font-lock-constant-face))))
+  "Face for preformatted text."
+  :group 'adoc-faces)
+
+(defface adoc-table-face
+  '((t (:inherit (adoc-code-face))))
+  "Face for tables."
+  :group 'adoc-faces)
+
+(defface adoc-language-keyword-face
+  '((t (:inherit font-lock-type-face)))
+  "Face for programming language identifiers."
+  :group 'adoc-faces)
+
+(defface adoc-language-info-face
+  '((t (:inherit font-lock-string-face)))
+  "Face for programming language info strings."
+  :group 'adoc-faces)
+
+(defface adoc-link-face
+  '((t (:inherit link)))
+  "Face for links"
+  :group 'adoc-faces)
+
+(defface adoc-missing-link-face
+  '((t (:inherit font-locl-warning-face)))
+  "Face for missing links."
+  :group 'adoc-faces)
+
+(defface adoc-reference-face
+  '((t (:inherit adoc-markup-face)))
+  "Face for link references."
+  :group 'adoc-faces)
+
+(defface adoc-footnote-marker-face
+  '((t (:inherit adoc-markup-face)))
+  "Face for footnote markers."
+  :group 'adoc-faces)
+
+(defface adoc-footnote-text-face
+  '((t (:inherit font-lock-comment-face)))
+  "Face for footnote text."
+  :group 'adoc-faces)
+
+(defface adoc-url-face
+  '((t (:inherit font-lock-string-face)))
+  "Face for URLs that are part of markup.
+For example, this applies to URLs in inline links:
+[link text](https://example.com/)."
+  :group 'adoc-faces)
+
+(defface adoc-plain-url-face
+  '((t (:inherit adoc-link-face)))
+  "Face for URLs that are also links.
+For Example, this applies to plain angle bracket URLs:
+<https://example.com>."
+  :group 'adoc-faces)
+
+(defface adoc-link-title-face
+  '((t (:inherit font-lock-comment-face)))
+  "Face for reference link titles."
+  :group 'adoc-faces)
+
+(defface adoc-line-break-face
+  '((t (:inherit font-lock-constant-face :underline t)))
+  "Face for hard line breaks."
+  :group 'adoc-faces)
+
+(defface adoc-comment-face
+  '((t (:inherit font-lock-comment-face)))
+  "Face for HTML comments."
+  :group 'adoc-faces)
+
+(defface adoc-math-face
+  '((t (:inherit font-lock-string-face)))
+  "Face for LaTeX expressions."
+  :group 'adoc-faces)
+
+(defface adoc-metadata-key-face
+  '((t (:inherit font-lock-variable-name-face)))
+  "Face for metadata keys."
+  :group 'adoc-faces)
+
+(defface adoc-metadata-value-face
+  '((t (:inherit font-lock-string-face)))
+  "Face for metadata values."
+  :group 'adoc-faces)
+
+(defface adoc-gfm-checkbox-face
+  '((t (:inherit font-lock-builtin-face)))
+  "Face for FGM checkboxes."
+  :group 'adoc-faces)
+
+(defface adoc-highlight-face
+  '((t (:inherit highlight)))
+  "Face for mouse highlighting."
+  :group 'adoc-faces)
+
+(defface adoc-hr-face
+  '((t (:inherit adoc-markup-face)))
+  "Face for horizontal rules."
+  :group 'adoc-faces)
+
+(defface adoc-html-tag-name-face
+  '((t (:inherit font-lock-type-face)))
+  "Face for HTML tag names."
+  :group 'adoc-faces)
+
+(defface adoc-html-tag-delimiter-face
+  '((t (:inherit adoc-markup-face)))
+  "Face for HTML tag delimiters."
+  :group 'adoc-faces)
+
+(defface adoc-html-attr-name-face
+  '((t (:inherit font-lock-variable-name-face)))
+  "Face for HTML attribute names."
+  :group 'adoc-faces)
+
+(defface adoc-html-attr-value-face
+  '((t (:inherit font-lock-string-face)))
+  "Face for HTML attrivute values."
+  :group 'adoc-faces)
+
+(defface adoc-html-entity-face
+  '((t (:inherit font-lock-variable-name-face)))
+  "Face for HTML entities."
+  :group 'adoc-faces)
+
+(defface adoc-highlighting-face
+  '((t (:background "yellow" :foreground "black")))
+  "Face for highlighting."
+  :group 'adoc-faces)
+
+(defface adoc-header-face
+  '((t (:inherit adoc-markdown-face :weight bold)))
+  "Base face for headers."
+  :group 'adoc-faces)
+
+(defface adoc-header-0-face
+  '((t (:inherit adoc-header-face :height 2.0)))
+  "Face for document's title."
+  :group 'adoc-faces)
+
+(defface adoc-header-1-face
+  '((t (:inherit adoc-header-face :height 1.8)))
+  "Face for level 1 titles."
+  :group 'adoc-faces)
+
+(defface adoc-header-2-face
+  '((t (:inherit adoc-header-face :height 1.6)))
+  "Face for level 2 titles."
+  :group 'adoc-faces)
+
+(defface adoc-header-3-face
+  '((t (:inherit adoc-header-face :height 1.4)))
+  "Face for level 3 titles."
+  :group 'adoc-faces)
+
+(defface adoc-header-4-face
+  '((t (:inherit adoc-header-face :height 1.2)))
+  "Face for level 4 titles."
+  :group 'adoc-faces)
+
+(defface adoc-header-5-face
+  '((t (:inherit adoc-header-face :height 1.0)))
+  "Face for level 5 titles."
+  :group 'adoc-faces)
+
+(defcustom adoc-list-item-bullters
+  '("●" "◎" "○" "◆" "◇" "►" "•")
+  "List of bullets to use for unordered lists.
+It can contain any number of symbols, which will be repeated.
+Depending on your font, some reasonable choices are:
+♥ ● ◇ ✚ ✜ ☯ ◆ ♠ ♣ ♦ ❀ ◆ ◖ ▶ ► • ★ ▸."
+  :group 'adoc
+  :type '(repeat (string :tag "Bullet character")))
+
+(defun adoc--pandoc-inline-footnote-properties ()
+  "Return a font-lock facespec experession for Pandoc inline footnote text."
+  `(face adoc-footnote-text-face
+         ,@(when adoc-hide-markup
+             `(display , adoc-footnote-display))))
+
+(defvar adoc-mode-font-lock-keywords
+  `((adoc-match-yaml-metadata-begin . ((1 'adoc-markup-face)))
+    (adoc-match-yaml-metadata-end . ((1 'adoc-markup-face)))
+    (adoc-match-yaml-metadata-key . ((1 'adoc-metadata-key-face)
+                                     (2 'adoc-markup-face)
+                                     (3 'adoc-metadata-value-face)))
+    (adoc-match-gfm-open-code-blocks . ((1 adoc-markup-properties)
+                                        (2 adoc-markup-properties nil t)
+                                        (3 adoc-language-keyword-properties nil t)
+                                        (4 adoc-language-info-properties nil t)
+                                        (5 adoc-markup-properties nil t)))
+    (adoc-match-gfm-close-code-blocks . ((0 adoc-markup-properties)))
+    (adoc-fontify-gfm-code-blocks)
+    (adoc-fontify-tables)
+    (adoc-match-fenced-start-code-block . ((1 adoc-markup-properties)
+                                           (2 adoc-markup-properties nil t)
+                                           (3 adoc-language-keyword-properties nil t)
+                                           (4 adoc-language-info-properties nil t)
+                                           (5 adoc-markup-properties nil t)))
+    (adoc-match-fenced-end-code-block . ((0 adoc-markup-properties)))
+    (adoc-fontify-fenced-code-blocks)
+    (adoc-match-pre-blocks . ((0 'adoc-pre-face)))
+    (adoc-fontify-headings)
+    (adoc-match-declarative-metadata . ((1 'adoc-metadata-key-face)
+                                        (2 'adoc-markup-face)
+                                        (3 'adoc-metadata-value-face)))
+    (adoc-match-pandoc-metadata . ((1 'adoc-markup-face)
+                                   (2 'adoc-markup-face)
+                                   (3 'adoc-metadata-value-face)))
+    (adoc-fontify-hrs)
+    (adoc-match-code . ((1 adoc-markup-properties prepend)
+                        (2 'adoc-inline-code-face prepend)
+                        (3 adoc-markup-properties prepend)))
+    (,adoc-regex-kbd . ((1 adoc-markup-properties)
+                        (2 'adoc-inline-code-face)
+                        (3 adoc-markup-properties)))
+    (adoc-fontify-angle-uris)
+    (,adoc-regex-email . 'adoc-plain-url-face)
+    (adoc-match-html-tag . ((1 'adoc-html-tag-delimiter-face t)
+                            (2 'adoc-html-tag-name-face t)
+                            (3 'adoc-html-tag-delimiter-face t)
+                            ;; Anchored matcher for HTML tag attributes
+                            (,adoc-regex-html-attr
+                             ;; Before searching, move past tag
+                             ;; name; set limit at tag close.
+                             (progn
+                               (goto-char (match-end 2)) (match-end 3))
+                             nil
+                             . ((1 'adoc-html-attr-name-face)
+                                (3 'adoc-html-tag-delimiter-face nil t)
+                                (4 'adoc-html-attr-value-face nil t)))))
+    (,adoc-regex-html-entity . 'adoc-html-entity-face)
+    (adoc-fontify-list-items)
+    (,adoc-regex-footnote . ((1 adoc-markup-properties)    ; [^
+                             (2 (adoc--footnote-marker-properties)) ; label
+                             (3 adoc-markup-properties)))  ; ]
+    (,adoc-regex-pandoc-inline-footnote . ((1 adoc-markup-properties)   ; ^
+                                           (2 adoc-markup-properties)   ; [
+                                           (3 (adoc--pandoc-inline-footnote-properties)) ; text
+                                           (4 adoc-markup-properties))) ; ]
+    (adoc-match-includes . ((1 adoc-markup-properties)
+                            (2 adoc-markup-properties nil t)
+                            (3 adoc-include-title-properties nil t)
+                            (4 adoc-markup-properties nil t)
+                            (5 adoc-markup-properties)
+                            (6 'adoc-url-face)
+                            (7 adoc-markup-properties)))
+    (adoc-fontify-inline-links)
+    (adoc-fontify-reference-links)
+    (,adoc-regex-reference-definition . ((1 'adoc-markup-face) ; [
+                                         (2 'adoc-reference-face) ; label
+                                         (3 'adoc-markup-face)    ; ]
+                                         (4 'adoc-markup-face)    ; :
+                                         (5 'adoc-url-face)       ; url
+                                         (6 'adoc-link-title-face))) ; "title" (optional)
+    (adoc-fontify-plain-uris)
+    ;; Math mode $..$
+    (adoc-match-math-single . ((1 'adoc-markup-face prepend)
+                               (2 'adoc-math-face append)
+                               (3 'adoc-markup-face prepend)))
+    ;; Math mode $$..$$
+    (adoc-match-math-double . ((1 'adoc-markup-face prepend)
+                               (2 'adoc-math-face append)
+                               (3 'adoc-markup-face prepend)))
+    ;; Math mode \[..\] and \\[..\\]
+    (adoc-match-math-display . ((1 'adoc-markup-face prepend)
+                                (3 'adoc-math-face append)
+                                (4 'adoc-markup-face prepend)))
+    (adoc-match-bold . ((1 adoc-markup-properties prepend)
+                        (2 'adoc-bold-face append)
+                        (3 adoc-markup-properties prepend)))
+    (adoc-match-italic . ((1 adoc-markup-properties prepend)
+                          (2 'adoc-italic-face append)
+                          (3 adoc-markup-properties prepend)))
+    (,adoc-regex-strike-through . ((3 adoc-markup-properties)
+                                   (4 'adoc-strike-through-face)
+                                   (5 adoc-markup-properties)))
+    (adoc--match-highlighting . ((3 adoc-markup-properties)
+                                 (4 'adoc-highlighting-face)
+                                 (5 adoc-markup-properties)))
+    (,adoc-regex-line-break . (1 'adoc-line-break-face prepend))
+    (adoc-fontify-sub-superscripts)
+    (adoc-match-inline-attributes . ((0 adoc-markup-properties prepend)))
+    (adoc-match-leanpub-sections . ((0 adoc-markup-properties)))
+    (adoc-fontify-blockquotes)
+    (adoc-match-wiki-link . ((0 'adoc-link-face prepend))))
+  "Syntax highlighting for Adoc files.")
+
 ;;; Code:
 
 ;;;; regexps
@@ -552,23 +921,35 @@ To become a customizable variable when regexps for list items become customizabl
 (defun adoc-re-attribute-entry ()
   (concat "^\\(:[a-zA-Z0-9_][^.\n]*?\\(?:\\..*?\\)?:[ \t]*\\)\\(.*?\\)$"))
 
+(defun adoc-update-header-faces (&optional scaling scaling-values)
+  "Update header faces, depending on if header SCALING is desired.
+If so, use given list of SCALING-VALUES relative to the baseline
+size of `markdown-header-face'."
+  (dotimes (num 6)
+    (let* ((face-name (intern (format "adoc-header-face-%s" (1+ num))))
+           (scale (cond ((not scaling) 1.0)
+                        (scaling-values (float (nth num scaling-values)))
+                        (t (float (nth num adoc-header-scaling-values))))))
+      (unless (get face-name 'saved-face) ; Don't update customized faces
+        (set-face-attribute face-name nil :height scale)))))
+
 ;; from asciidoc.conf: ^= +(?P<title>[\S].*?)( +=)?$
 ;; asciidoc src code: Title.isnext reads two lines, which are then parsed by
 ;; Title.parse. The second line is only for the underline of two line titles.
 (defun adoc-re-one-line-title (level)
   "Returns a regex matching a one line title of the given LEVEL.
-When LEVEL is nil, a one line title of any level is matched.
+  When LEVEL is nil, a one line title of any level is matched.
 
-match-data has these sub groups:
-1 leading delimiter inclusive whites between delimiter and title text
-2 title's text exclusive leading/trailing whites
-3 trailing delimiter with all whites
-4 trailing delimiter only inclusive whites between title text and delimiter
-0 only chars that belong to the title block element
+  match-data has these sub groups:
+  1 leading delimiter inclusive whites between delimiter and title text
+  2 title's text exclusive leading/trailing whites
+  3 trailing delimiter with all whites
+  4 trailing delimiter only inclusive whites between title text and delimiter
+  0 only chars that belong to the title block element
 
-==  my title  ==  n
----12------23------
-            4--4"
+  ==  my title  ==  n
+  ---12------23------
+  4--4"
   (let* ((del (if level
                   (make-string (+ level 1) ?=)
                 (concat "=\\{1," (+ adoc-title-max-level 1) "\\}"))))
@@ -590,11 +971,11 @@ match-data has these sub groups:
 (defun adoc-re-two-line-title-undlerline (&optional del)
   "Returns a regexp matching the underline of a two line title.
 
-DEL is an element of `adoc-two-line-title-del' or nil. If nil,
-any del is matched.
+  DEL is an element of `adoc-two-line-title-del' or nil. If nil,
+  any del is matched.
 
-Note that even if this regexp matches it still doesn't mean it is
-a two line title underline, see also `adoc-re-two-line-title'."
+  Note that even if this regexp matches it still doesn't mean it is
+  a two line title underline, see also `adoc-re-two-line-title'."
   (concat
    "\\("
    (mapconcat
@@ -614,19 +995,19 @@ a two line title underline, see also `adoc-re-two-line-title'."
 (defun adoc-re-two-line-title (del)
   "Returns a regexps that matches a two line title.
 
-Note that even if this regexp matches it still doesn't mean it is
-a two line title. You additionally have to test if the underline
-has the correct length.
+  Note that even if this regexp matches it still doesn't mean it is
+  a two line title. You additionally have to test if the underline
+  has the correct length.
 
-DEL is described in `adoc-re-two-line-title-undlerline'.
+  DEL is described in `adoc-re-two-line-title-undlerline'.
 
-match-data has these sub groups:
+  match-data has these sub groups:
 
-1 dummy, so that group 2 is the title's text as in
+  1 dummy, so that group 2 is the title's text as in
   adoc-re-one-line-title
-2 title's text
-3 delimiter
-0 only chars that belong to the title block element"
+  2 title's text
+  3 delimiter
+  0 only chars that belong to the title block element"
   (when (not (eq (length del) 2))
     (error "two line title delimiters must be 2 chars long"))
   (concat
@@ -638,13 +1019,13 @@ match-data has these sub groups:
 
 (defun adoc-make-two-line-title (level text)
   "Returns a two line title of given LEVEL containing given TEXT.
-LEVEL starts at 1."
+  LEVEL starts at 1."
   (concat text "\n" (adoc-make-two-line-title-underline level (length text))))
 
 (defun adoc-make-two-line-title-underline (level &optional length)
   "Returns a two line title underline.
-LEVEL is the level of the title, starting at 1. LENGTH is the
-line of the title's text. When nil it defaults to 4."
+  LEVEL is the level of the title, starting at 1. LENGTH is the
+  line of the title's text. When nil it defaults to 4."
   (unless length
     (setq length 4))
   (let* ((repetition-cnt (if (>= length 2) (/ length 2) 1))
@@ -660,13 +1041,13 @@ line of the title's text. When nil it defaults to 4."
 (defun adoc-re-oulisti (type &optional level sub-type)
   "Returns a regexp matching an (un)ordered list item.
 
-match-data his this sub groups:
-1 leading whites
-2 delimiter
-3 trailing whites between delimiter and item's text
-0 only chars belonging to delimiter/whites. I.e. none of text.
+  match-data his this sub groups:
+  1 leading whites
+  2 delimiter
+  3 trailing whites between delimiter and item's text
+  0 only chars belonging to delimiter/whites. I.e. none of text.
 
-WARNING: See warning about list item nesting level in `adoc-list-descriptor'."
+  WARNING: See warning about list item nesting level in `adoc-list-descriptor'."
   (cond
 
    ;;   ^\s*- +(?P<text>.+)$                     normal 0
