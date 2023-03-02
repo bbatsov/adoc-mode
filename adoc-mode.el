@@ -1,4 +1,4 @@
-;;; adoc-mode.el --- a major-mode for editing AsciiDoc files in Emacs
+;;; adoc-mode.el --- A major-mode for editing AsciiDoc files  -*- lexical-binding: t -*-
 ;;
 ;; Copyright 2009-2016 Florian Kaufmann <sensorflo@gmail.com>
 ;; Copyright 2022 Bozhidar Batsov <bozhidar@batsov.dev> and adoc-mode contributors
@@ -8,8 +8,8 @@
 ;; Maintainer: Bozhidar Batsov <bozhidar@batsov.dev>
 ;; Created: 2009
 ;; Version: 0.7.0-snapshot
-;; Package-Requires: ((emacs "26") (markup-faces "1.0.0"))
-;; Keywords: AsciiDoc
+;; Package-Requires: ((emacs "26"))
+;; Keywords: docs, wp
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
@@ -30,102 +30,134 @@
 
 ;;; Commentary:
 
-;; AsciiDoc is a text document format for
-;; writing short documents, articles, books and UNIX man pages.  AsciiDoc files
-;; can be translated to HTML and DocBook markups.
+;; AsciiDoc is a text document format for writing short documents, articles,
+;; books and UNIX man pages.  AsciiDoc files can be translated to HTML and
+;; DocBook markups.
 ;;
-;; adoc-mode is an Emacs major mode for editing AsciiDoc files.  It emphasizes on
-;; the idea that the document is highlighted so it pretty much looks like the
-;; final output.  What must be bold is bold, what must be italic is italic etc.
+;; `adoc-mode' is an Emacs major mode for editing AsciiDoc files.  It
+;; emphasizes on the idea that the document is highlighted so it pretty much
+;; looks like the final output.  What must be bold is bold, what must be italic
+;; is italic etc.
 ;; Meta characters are naturally still visible, but in a faint way, so they can
 ;; be easily ignored.
 
 ;;; Code:
 
-
 ;;; Variables:
 
-(require 'markup-faces) ; https://github.com/sensorflo/markup-faces
 (require 'cl-lib)
-;; tempo or tempo-snippet is required later below
+(require 'tempo)
+(eval-when-compile (require 'rx))
 
 
 (defconst adoc-mode-version "0.7.0-snapshot"
-  "adoc mode version number.
+  "ADOC MODE VERSION NUMBER.
 
 Based upon AsciiDoc version 8.5.2. I.e. regexeps and rules are
 taken from that version's asciidoc.conf / manual.")
 
-
 ;;;; customization
-(defgroup adoc nil
-  "Major-mode for editing AsciiDoc files in Emacs.
-
-Most faces adoc-mode uses belong to the markup-faces
-customization group, see link below, and have to be customized
-there.  adoc-mode has only a few faces of its own, which can be
-customized on this page."
+(defgroup adoc nil "Support for editing AsciiDoc files in GNU Emacs."
   :group 'text
   :prefix "adoc-"
+  :version "0.7.0"
   :link '(url-link "https://github.com/bbatsov/adoc-mode"))
+
+
+(defcustom adoc-mode-hook nil
+  "Hook run when `adoc-mode' is turned on.
+The hook for `text-mode' is run before this one."
+  :group 'adoc
+  :type '(hook))
+
 
 (defcustom adoc-script-raise '(-0.3 0.3)
   "How much to lower and raise subscript and superscript content.
 
-This is a list of two floats.  The first is negative and specifies
-how much subscript is lowered, the second is positive and
-specifies how much superscript is raised.  Heights are measured
-relative to that of the normal text.  The faces used are
-markup-superscript-face and markup-subscript-face respectively.
+  This is a list of two floats.  The first is negative and specifies
+  how much subscript is lowered, the second is positive and
+  specifies how much superscript is raised.  Heights are measured
+  relative to that of the normal text.  The faces used are
+  `adoc-superscript-face' and `adoc-subscript-face' respectively.
 
-You need to call `adoc-calc' after a change."
+  You need to call `adoc-calc' after a change."
   :type '(list (float :tag "Subscript")
                (float :tag "Superscript"))
   :group 'adoc)
 
 ;; Interacts very badly with minor-modes using overlays because
-;; adoc-unfontify-region-function removes ALL overlays, not only those which
-;; where insered by adoc-mode.
+;; `adoc-unfontify-region-function' removes ALL overlays, not only those which
+;; where insered by `adoc-mode'.
 (defcustom adoc-insert-replacement nil
-  "When non-nil the character/string a replacement/entity stands for is displayed.
+  "When non-nil the character/string a replacement/entity is displayed.
 
-E.g. after '&amp;' an '&' is displayed, after '(C)' the copy right
-sign is displayed.  It's only about display, neither the file nor
-the buffer content is affected.
+  E.g. after '&amp;' an '&' is displayed, after '(C)' the copy right sign is
+displayed.  It's only about display, neither the file nor the buffer content is
+affected.
 
-You need to call `adoc-calc' after you change
-`adoc-insert-replacement'.  For named character entities (e.g.
-'&amp;', in contrast to '&#20;' or '(C)' ) to be displayed you
-need to set `adoc-unichar-name-resolver'.
+You need to call `adoc-calc' after you change `adoc-insert-replacement'.  For
+named character entities (e.g. '&amp;', in contrast to '&#20;' or '(C)' ) to be
+displayed you need to set `adoc-unichar-name-resolver'.
 
-Setting it to non-nil interacts very badly with minor-modes using
-overlays."
+Setting it to non-nil interacts very badly with minor-modes using overlays."
   :type 'boolean
   :group 'adoc)
 
 (defcustom adoc-unichar-name-resolver nil
   "Function taking a unicode char name and returning it's codepoint.
 
-E.g. when given \"amp\" (as in the character entity reference
-\"&amp;\"), it shall return 38 (#x26). Is used to insert the
-character a character entity reference is referring to after the
-entity. When adoc-unichar-name-resolver is nil, or when its
-function returns nil, nothing is done with named character
-entities. Note that if `adoc-insert-replacement' is nil,
-adoc-unichar-name-resolver is not used.
+E.g. when given \"amp\" (as in the character entity reference \"&amp;\"), it
+shall return 38 (#x26).  Is used to insert the character a character entity
+reference is referring to after the entity.  When `adoc-unichar-name-resolver'
+is nil, or when its function returns nil, nothing is done with named character
+entities.  Note that if `adoc-insert-replacement' is nil,
+`adoc-unichar-name-resolver' is not used.
 
-You can set it to `adoc-unichar-by-name'; however it requires
-unichars.el (http://nwalsh.com/emacs/xmlchars/unichars.el). When
-you set adoc-unichar-name-resolver to adoc-unichar-by-name, you
-need to call `adoc-calc' for the change to take effect."
+You can set it to `adoc-unichar-by-name'; however it requires `unichars.el'
+\(http://nwalsh.com/emacs/xmlchars/unichars.el). When you set
+`adoc-unichar-name-resolver' to `adoc-unichar-by-name', you need to call
+`adoc-calc' for the change to take effect."
   :type '(choice (const nil)
                  (const adoc-unichar-by-name)
                  function)
   :group 'adoc)
 
+(defcustom adoc-hide-markup nil
+  "Determines whether markup in the buffer will be hidden.
+When set to nil, all markup is displayed in the buffer as it
+appears in the file.  An exception is when `adoc-hide-urls'
+is non-nil.
+Set this to a non-nil value to turn this feature on by default.
+You can interactively toggle the value of this variable with
+`adoc-toggle-markup-hiding', \\[adoc-toggle-markup-hiding],
+or from the Markdown > Show & Hide menu.
+Markup hiding works by adding text properties to positions in the
+buffer---either the `invisible' property or the `display' property
+in cases where alternative glyphs are used (e.g., list bullets).
+This does not, however, affect printing or other output.
+Functions such as `htmlfontify-buffer' and `ps-print-buffer' will
+not honor these text properties.  For printing, it would be better
+to first convert to HTML or PDF (e.g,. using Pandoc)."
+  :group 'adoc
+  :type 'boolean
+  :safe 'booleanp
+  :package-version '(adoc-mode . "0.7.0"))
+(make-variable-buffer-local 'adoc-hide-markup)
+
+(defcustom adoc-uri-types
+  '("acap" "cid" "data" "dav" "fax" "file" "ftp"
+    "geo" "gopher" "http" "https" "imap" "ldap" "mailto"
+    "mid" "message" "modem" "news" "nfs" "nntp"
+    "pop" "prospero" "rtsp" "service" "sip" "tel"
+    "telnet" "tip" "urn" "vemmi" "wais")
+  "Link types for syntax highlighting of URIs."
+  :group 'adoc
+  :type '(repeat (string :tag "URI scheme")))
+
 (defcustom adoc-two-line-title-del '("==" "--" "~~" "^^" "++")
   "Delimiter used for the underline of two line titles.
-Each string must be exactly 2 characters long. Corresponds to the
+
+Each string must be exactly 2 characters long.  Corresponds to the
 underlines element in the titles section of the asciidoc
 configuration file."
   :type '(list
@@ -133,7 +165,8 @@ configuration file."
           (string :tag "level 1")
           (string :tag "level 2")
           (string :tag "level 3")
-          (string :tag "level 4") )
+          (string :tag "level 4")
+          (string :tag "level 5"))
   :group 'adoc)
 
 (defcustom adoc-delimited-block-del
@@ -147,19 +180,19 @@ configuration file."
     "^--")               ; 7 open block
   "Regexp used for delimited blocks.
 
-WARNING: They should not contain a $. It is implied that they
+WARNING: They should not contain a $.  It is implied that they
 match up to end of the line;
 
 They correspond to delimiter variable blockdef-xxx sections in
 the AsciiDoc configuration file.
 
 However contrary to the AsciiDoc configuration file a separate
-regexp can be given for the start line and for the end line. You
-may want to do that because adoc-mode often can't properly
+regexp can be given for the start line and for the end line.  You
+may want to do that because `adoc-mode' often can't properly
 distinguish between a) a two line tile b) start of a delimited
-block and c) end of a delimited block. If you start a listing
+block and c) end of a delimited block.  If you start a listing
 delimited block with '>----' and end it with '<----', then all
-three cases can easily be distinguished. The regexp in your
+three cases can easily be distinguished.  The regexp in your
 AsciiDoc config file would the probably be '^[<>]-{4,}$'"
   :type '(list
           (choice :tag "comment"
@@ -218,32 +251,28 @@ AsciiDoc config file would the probably be '^[<>]-{4,}$'"
 (defcustom adoc-enable-two-line-title t
   "Wether or not two line titles shall be fontified.
 
-nil means never fontify. t means always fontify. A number means
-only fontify if the line below has NOT the length of the given
-number. You could use a number for example when all your
-delimited block lines have a certain length.
+nil means never fontify.  t means always fontify.  A number means only fontify
+if the line below has NOT the length of the given number.  You could use a
+number for example when all your delimited block lines have a certain length.
 
-This is useful because adoc-mode has troubles to properly
-distinguish between two line titles and a line of text before a
-delimited block. Note however that adoc-mode knows the AsciiDoc
-rule that the length of a two line title underline can differ at
-most 3 chars from the length of the title text."
+This is useful because `adoc-mode' has troubles to properly distinguish between
+two line titles and a line of text before a delimited block.  Note however that
+`adoc-mode' knows the AsciiDoc rule that the length of a two line title
+underline can differ at most 3 chars from the length of the title text."
   :type '(choice (const nil)
                  (const t)
                  number)
   :group 'adoc)
 
 (defcustom adoc-title-style 'adoc-title-style-one-line
-  "Title style used for title tempo templates.
-
-See for example `tempo-template-adoc-title-1'."
+  "Title style used for title tempo templates."
   :type '(choice (const :tag "== one line" adoc-title-style-one-line)
                  (const :tag "== one line enclosed ==" adoc-title-style-one-line-enclosed)
                  (const :tag "two line\\n--------" adoc-title-style-two-line))
   :group 'adoc)
 
 (defcustom adoc-tempo-frwk 'tempo-vanilla
-  "Tempo framework to be used by adoc's templates. "
+  "Tempo framework to be used by adoc's templates."
   :type '(choice (const :tag "tempo" tempo-vanilla)
                  (const :tag "tempo-snippets" tempo-snippets))
   :group 'adoc)
@@ -252,7 +281,7 @@ See for example `tempo-template-adoc-title-1'."
 ;;;; faces / font lock
 (define-obsolete-face-alias 'adoc-orig-default 'adoc-align "23.3")
 (defface adoc-align
-  '((t (:inherit (markup-meta-face))))
+  '((t (:inherit (adoc-meta-face))))
   "Face used so the text looks left aligned.
 
 Is applied to whitespaces at the beginning of a line. You want to
@@ -266,45 +295,27 @@ aligned.
   dolor ..."
   :group 'adoc)
 
-(define-obsolete-face-alias 'adoc-generic 'markup-gen-face "23.3")
-(define-obsolete-face-alias 'adoc-monospace 'markup-typewriter-face "23.3")
-(define-obsolete-face-alias 'adoc-strong 'markup-strong-face "23.3")
-(define-obsolete-face-alias 'adoc-emphasis 'markup-emphasis-face "23.3")
-(define-obsolete-face-alias 'adoc-superscript 'markup-superscript-face "23.3")
-(define-obsolete-face-alias 'adoc-subscript 'markup-subscript-face "23.3")
-(define-obsolete-face-alias 'adoc-secondary-text 'markup-secondary-text-face "23.3")
-(define-obsolete-face-alias 'adoc-replacement 'markup-replacement-face "23.3")
-(define-obsolete-face-alias 'adoc-complex-replacement 'markup-complex-replacement-face "23.3")
-(define-obsolete-face-alias 'adoc-list-item 'markup-list-face "23.3")
-(define-obsolete-face-alias 'adoc-table-del 'markup-table-face "23.3")
-(define-obsolete-face-alias 'adoc-reference 'markup-reference-face "23.3")
-(define-obsolete-face-alias 'adoc-delimiter 'markup-meta-face "23.3")
-(define-obsolete-face-alias 'adoc-hide-delimiter 'markup-hide-delimiter-face "23.3")
-(define-obsolete-face-alias 'adoc-anchor 'markup-anchor-face "23.3")
-(define-obsolete-face-alias 'adoc-comment 'markup-comment-face "23.3")
-(define-obsolete-face-alias 'adoc-warning 'markup-error-face "23.3")
-(define-obsolete-face-alias 'adoc-preprocessor 'markup-preprocessor-face "23.3")
 
 ;; Despite the comment in font-lock.el near 'defvar font-lock-comment-face', it
 ;; seems I still need variables to refer to faces in adoc-font-lock-keywords.
 ;; Not having variables and only referring to face names in
 ;; adoc-font-lock-keywords does not work.
 (defvar adoc-align 'adoc-align)
-(defvar adoc-generic 'markup-gen-face)
-(defvar adoc-monospace 'markup-typewriter-face)
-(defvar adoc-replacement 'markup-replacement-face)
-(defvar adoc-complex-replacement 'markup-complex-replacement-face)
-(defvar adoc-table-del 'markup-table-face)
-(defvar adoc-reference 'markup-reference-face)
-(defvar adoc-secondary-text 'markup-secondary-text-face)
-(defvar adoc-delimiter 'markup-meta-face)
-(defvar adoc-hide-delimiter 'markup-meta-hide-face)
-(defvar adoc-anchor 'markup-anchor-face)
-(defvar adoc-comment 'markup-comment-face)
-(defvar adoc-warning 'markup-error-face)
-(defvar adoc-preprocessor 'markup-preprocessor-face)
+(defvar adoc-generic 'adoc-gen-face)
+(defvar adoc-monospace 'adoc-typewriter-face)
+(defvar adoc-replacement 'adoc-replacement-face)
+(defvar adoc-complex-replacement 'adoc-complex-replacement-face)
+(defvar adoc-table-del 'adoc-table-face)
+(defvar adoc-reference 'adoc-reference-face)
+(defvar adoc-secondary-text 'adoc-secondary-text-face)
+(defvar adoc-delimiter 'adoc-meta-face)
+(defvar adoc-hide-delimiter 'adoc-meta-hide-face)
+(defvar adoc-anchor 'adoc-anchor-face)
+(defvar adoc-comment 'adoc-comment-face)
+(defvar adoc-warning 'adoc-error-face)
+(defvar adoc-preprocessor 'adoc-preprocessor-face)
 
-
+
 ;;;; misc
 (defconst adoc-title-max-level 4
   "Max title level, counting starts at 0.")
@@ -329,38 +340,38 @@ To become a customizable variable when regexps for list items become customizabl
 
 ;; although currently always the same face is used, I prefer an alist over a
 ;; list. It is faster to find out whether any attribute id is in the alist or
-;; not. And maybe markup-faces splits up markup-secondary-text-face into more
+;; not. And maybe adoc-faces splits up adoc-secondary-text-face into more
 ;; specific faces.
 (defvar adoc-attribute-face-alist
-  '(("id" . markup-anchor-face)
-    ("caption" . markup-secondary-text-face)
-    ("xreflabel" . markup-secondary-text-face)
-    ("alt" . markup-secondary-text-face)
-    ("title" . markup-secondary-text-face)
-    ("attribution" . markup-secondary-text-face)
-    ("citetitle" . markup-secondary-text-face)
-    ("text" . markup-secondary-text-face))
+  '(("id" . adoc-anchor-face)
+    ("caption" . adoc-secondary-text-face)
+    ("xreflabel" . adoc-secondary-text-face)
+    ("alt" . adoc-secondary-text-face)
+    ("title" . adoc-secondary-text-face)
+    ("attribution" . adoc-secondary-text-face)
+    ("citetitle" . adoc-secondary-text-face)
+    ("text" . adoc-secondary-text-face))
   "An alist, key=attribute id, value=face.")
 
 (defvar adoc-mode-abbrev-table nil
-  "Abbrev table in use in adoc-mode buffers.")
+  "Abbrev table in use in `adoc-mode' buffers.")
 
 (defvar adoc-font-lock-keywords nil
-  "Font lock keywords in adoc-mode buffers.")
+  "Font lock keywords in `adoc-mode' buffers.")
 
 (defvar adoc-replacement-failed nil )
 
 (define-abbrev-table 'adoc-mode-abbrev-table ())
 
-
-;;;; help text copied from asciidoc manual
+
+;;;; help text copied from AsciiDoc manual
 (defconst adoc-help-constrained-quotes
   "Constrained quotes must be bounded by white space or commonly
   adjoining punctuation characters. These are the most commonly
   used type of quote.")
 (defconst adoc-help-emphasis
   "Usually rendered italic")
-(defconst adoc-help-strong
+(defconst adoc-help-bold
   "Usually rendered bold")
 (defconst adoc-help-monospace
   "Aka typewritter. This does _not_ mean verbatim / literal")
@@ -368,6 +379,18 @@ To become a customizable variable when regexps for list items become customizabl
   "Single quotation marks around enclosed text.")
 (defconst adoc-help-double-quote
   "Quotation marks around enclosed text.")
+(defconst adoc-help-underline
+  "Applies an underline decoration to the span of text.")
+(defconst adoc-help-overline
+  "Applies an overline decoration to the span of text.")
+(defconst adoc-help-line-through
+  "Applies a line-through (aka strikethrough) decoration to the span of text.")
+(defconst adoc-help-nobreak
+  "Disables words within the span of text from being broken.")
+(defconst adoc-help-nowrap
+  "Prevents the span of text from wrapping at all.")
+(defconst adoc-help-pre-wrap
+  "Prevents sequences of space and space-like characters from being collapsed (i.e., all spaces are preserved).")
 (defconst adoc-help-attributed
   "A mechanism to allow inline attributes to be applied to
   otherwise unformatted text.")
@@ -421,6 +444,7 @@ To become a customizable variable when regexps for list items become customizabl
   formatting or substitutions within Listing blocks apart from
   Special Characters and Callouts. Listing blocks are often used
   for computer output and file listings.")
+(defconst adoc-help-strong "Bold.")
 (defconst adoc-help-delimited-block-literal
   "'LiteralBlocks' are rendered just like literal paragraphs.")
 (defconst adoc-help-delimited-block-quote
@@ -557,6 +581,374 @@ To become a customizable variable when regexps for list items become customizabl
   '(face adoc-link-title-face invisible adoc-markup)
   "List of properties and values to apply to included code titles.")
 
+;;; Markdown-Specific `rx' Macro ==============================================
+
+;; Based on python-rx from python.el.
+(eval-and-compile
+  (defconst adoc-rx-constituents
+    `((newline . ,(rx "\n"))
+      ;; Note: #405 not consider adoc-list-indent-width however this is never used
+      (indent . ,(rx (or (repeat 4 " ") "\t")))
+      (block-end . ,(rx (and (or (one-or-more (zero-or-more blank) "\n") line-end))))
+      (numeral . ,(rx (and (one-or-more (any "0-9#")) ".")))
+      (bullet . ,(rx (any "*+:-")))
+      (list-marker . ,(rx (or (and (one-or-more (any "0-9#")) ".")
+                              (any "*+:-"))))
+      (checkbox . ,(rx "[" (any " xX") "]")))
+    "AsciiDoc-specific sexps for `adoc-rx'")
+
+  (defun adoc-rx-to-string (form &optional no-group)
+    "Adoc mode specialized `rx-to-string' function.
+This variant supports named AsciiDoc expressions in FORM.
+NO-GROUP non-nil means don't put shy groups around the result."
+    (let ((rx-constituents (append adoc-rx-constituents rx-constituents)))
+      (rx-to-string form no-group)))
+
+  (defmacro adoc-rx (&rest regexps)
+    "Adoc mode specialized rx macro.
+This variant of `rx' supports common AsciiDoc named REGEXPS."
+    (cond ((null regexps)
+           (error "No regexp"))
+          ((cdr regexps)
+           (adoc-rx-to-string `(and ,@regexps) t))
+          (t
+           (adoc-rx-to-string (car regexps) t)))))
+
+
+;;; Regular Expressions =======================================================
+
+(defconst adoc-regex-comment-start
+  "<!--"
+  "Regular expression matches HTML comment opening.")
+
+(defconst adoc-regex-comment-end
+  "--[ \t]*>"
+  "Regular expression matches HTML comment closing.")
+
+(defconst adoc-regex-link-inline
+  "\\(?1:!\\)?\\(?2:\\[\\)\\(?3:\\^?\\(?:\\\\\\]\\|[^]]\\)*\\|\\)\\(?4:\\]\\)\\(?5:(\\)\\s-*\\(?6:[^)]*?\\)\\(?:\\s-+\\(?7:\"[^\"]*\"\\)\\)?\\s-*\\(?8:)\\)"
+  "Regular expression for a [text](file) or an image link ![text](file).
+Group 1 matches the leading exclamation point (optional).
+Group 2 matches the opening square bracket.
+Group 3 matches the text inside the square brackets.
+Group 4 matches the closing square bracket.
+Group 5 matches the opening parenthesis.
+Group 6 matches the URL.
+Group 7 matches the title (optional).
+Group 8 matches the closing parenthesis.")
+
+(defconst adoc-regex-link-reference
+  "\\(?1:!\\)?\\(?2:\\[\\)\\(?3:[^]^][^]]*\\|\\)\\(?4:\\]\\)[ ]?\\(?5:\\[\\)\\(?6:[^]]*?\\)\\(?7:\\]\\)"
+  "Regular expression for a reference link [text][id].
+Group 1 matches the leading exclamation point (optional).
+Group 2 matches the opening square bracket for the link text.
+Group 3 matches the text inside the square brackets.
+Group 4 matches the closing square bracket for the link text.
+Group 5 matches the opening square bracket for the reference label.
+Group 6 matches the reference label.
+Group 7 matches the closing square bracket for the reference label.")
+
+(defconst adoc-regex-reference-definition
+  "^ \\{0,3\\}\\(?1:\\[\\)\\(?2:[^]\n]+?\\)\\(?3:\\]\\)\\(?4::\\)\\s *\\(?5:.*?\\)\\s *\\(?6: \"[^\"]*\"$\\|$\\)"
+  "Regular expression for a reference definition.
+Group 1 matches the opening square bracket.
+Group 2 matches the reference label.
+Group 3 matches the closing square bracket.
+Group 4 matches the colon.
+Group 5 matches the URL.
+Group 6 matches the title attribute (optional).")
+
+(defconst adoc-regex-footnote
+  "\\(?1:\\[\\^\\)\\(?2:.+?\\)\\(?3:\\]\\)"
+  "Regular expression for a footnote marker [^fn].
+Group 1 matches the opening square bracket and carat.
+Group 2 matches only the label, without the surrounding markup.
+Group 3 matches the closing square bracket.")
+
+(defconst adoc-regex-header
+  "^\\(?:\\(?1:[^\r\n\t -].*\\)\n\\(?:\\(?2:=+\\)\\|\\(?3:-+\\)\\)\\|\\(?4:#+[ \t]+\\)\\(?5:.*?\\)\\(?6:[ \t]*#*\\)\\)$"
+  "Regexp identifying AsciiDoc headings.
+Group 1 matches the text of a setext heading.
+Group 2 matches the underline of a level-1 setext heading.
+Group 3 matches the underline of a level-2 setext heading.
+Group 4 matches the opening hash marks of an atx heading and whitespace.
+Group 5 matches the text, without surrounding whitespace, of an atx heading.
+Group 6 matches the closing whitespace and hash marks of an atx heading.")
+
+(defconst adoc-regex-header-setext
+  "^\\([^\r\n\t -].*\\)\n\\(=+\\|-+\\)$"
+  "Regular expression for generic setext-style (underline) headers.")
+
+(defconst adoc-regex-header-atx
+  "^\\(#+\\)[ \t]+\\(.*?\\)[ \t]*\\(#*\\)$"
+  "Regular expression for generic atx-style (hash mark) headers.")
+
+(defconst adoc-regex-hr
+  (rx line-start
+      (group (or (and (repeat 3 (and "*" (? " "))) (* (any "* ")))
+                 (and (repeat 3 (and "-" (? " "))) (* (any "- ")))
+                 (and (repeat 3 (and "_" (? " "))) (* (any "_ ")))))
+      line-end)
+  "Regular expression for matching AsciiDoc horizontal rules.")
+
+(defconst adoc-regex-code
+  "\\(?:\\`\\|[^\\]\\)\\(?1:\\(?2:`+\\)\\(?3:\\(?:.\\|\n[^\n]\\)*?[^`]\\)\\(?4:\\2\\)\\)\\(?:[^`]\\|\\'\\)"
+  "Regular expression for matching inline code fragments.
+Group 1 matches the entire code fragment including the backquotes.
+Group 2 matches the opening backquotes.
+Group 3 matches the code fragment itself, without backquotes.
+Group 4 matches the closing backquotes.
+The leading, unnumbered group ensures that the leading backquote
+character is not escaped.
+The last group, also unnumbered, requires that the character
+following the code fragment is not a backquote.
+Note that \\(?:.\\|\n[^\n]\\) matches any character, including newlines,
+but not two newlines in a row.")
+
+(defconst adoc-regex-kbd
+  "\\(?1:<kbd>\\)\\(?2:\\(?:.\\|\n[^\n]\\)*?\\)\\(?3:</kbd>\\)"
+  "Regular expression for matching <kbd> tags.
+Groups 1 and 3 match the opening and closing tags.
+Group 2 matches the key sequence.")
+
+(defconst adoc-regex-pre
+  "^\\(    \\|\t\\).*$"
+  "Regular expression for matching preformatted text sections.")
+
+(defconst adoc-regex-list
+  (adoc-rx line-start
+           ;; 1. Leading whitespace
+           (group (* blank))
+           ;; 2. List marker: a numeral, bullet, or colon
+           (group list-marker)
+           ;; 3. Trailing whitespace
+           (group (+ blank)))
+  "Regular expression for matching list items.")
+
+(defconst adoc-regex-bold
+  "\\(?1:^\\|[^\\]\\)\\(?2:\\(?3:\\*\\*\\|__\\)\\(?4:[^ \n\t\\]\\|[^ \n\t]\\(?:.\\|\n[^\n]\\)*?[^\\ ]\\)\\(?5:\\3\\)\\)"
+  "Regular expression for matching bold text.
+Group 1 matches the character before the opening asterisk or
+underscore, if any, ensuring that it is not a backslash escape.
+Group 2 matches the entire expression, including delimiters.
+Groups 3 and 5 matches the opening and closing delimiters.
+Group 4 matches the text inside the delimiters.")
+
+(defconst adoc-regex-italic
+  "\\(?:^\\|[^\\]\\)\\(?1:\\(?2:[*_]\\)\\(?3:[^ \n\t\\]\\|[^ \n\t*]\\(?:.\\|\n[^\n]\\)*?[^\\ ]\\)\\(?4:\\2\\)\\)"
+  "Regular expression for matching italic text.
+The leading unnumbered matches the character before the opening
+asterisk or underscore, if any, ensuring that it is not a
+backslash escape.
+Group 1 matches the entire expression, including delimiters.
+Groups 2 and 4 matches the opening and closing delimiters.
+Group 3 matches the text inside the delimiters.")
+
+(defconst adoc-regex-strike-through
+  "\\(?1:^\\|[^\\]\\)\\(?2:\\(?3:~~\\)\\(?4:[^ \n\t\\]\\|[^ \n\t]\\(?:.\\|\n[^\n]\\)*?[^\\ ]\\)\\(?5:~~\\)\\)"
+  "Regular expression for matching strike-through text.
+Group 1 matches the character before the opening tilde, if any,
+ensuring that it is not a backslash escape.
+Group 2 matches the entire expression, including delimiters.
+Groups 3 and 5 matches the opening and closing delimiters.
+Group 4 matches the text inside the delimiters.")
+
+(defconst adoc-regex-blockquote
+  "^[ \t]*\\(?1:[A-Z]?>\\)\\(?2:[ \t]*\\)\\(?3:.*\\)$"
+  "Regular expression for matching blockquote lines.
+Also accounts for a potential capital letter preceding the angle
+bracket, for use with Leanpub blocks (asides, warnings, info
+blocks, etc.).
+Group 1 matches the leading angle bracket.
+Group 2 matches the separating whitespace.
+Group 3 matches the text.")
+
+(defconst adoc-regex-line-break
+  "[^ \n\t][ \t]*\\(  \\)\n"
+  "Regular expression for matching line breaks.")
+
+(defconst adoc-regex-wiki-link
+  "\\(?:^\\|[^\\]\\)\\(?1:\\(?2:\\[\\[\\)\\(?3:[^]|]+\\)\\(?:\\(?4:|\\)\\(?5:[^]]+\\)\\)?\\(?6:\\]\\]\\)\\)"
+  "Regular expression for matching wiki links.
+This matches typical bracketed [[WikiLinks]] as well as \\='aliased
+wiki links of the form [[PageName|link text]].
+The meanings of the first and second components depend
+on the value of `adoc-wiki-link-alias-first'.
+Group 1 matches the entire link.
+Group 2 matches the opening square brackets.
+Group 3 matches the first component of the wiki link.
+Group 4 matches the pipe separator, when present.
+Group 5 matches the second component of the wiki link, when present.
+Group 6 matches the closing square brackets.")
+
+(defconst adoc-regex-uri
+  (concat "\\(" (regexp-opt adoc-uri-types) ":[^]\t\n\r<>; ]+\\)")
+  "Regular expression for matching inline URIs.")
+
+(defconst adoc-regex-angle-uri
+  (concat "\\(<\\)\\(" (regexp-opt adoc-uri-types) ":[^]\t\n\r<>,;()]+\\)\\(>\\)")
+  "Regular expression for matching inline URIs in angle brackets.")
+
+(defconst adoc-regex-email
+  "<\\(\\(?:\\sw\\|\\s_\\|\\s.\\)+@\\(?:\\sw\\|\\s_\\|\\s.\\)+\\)>"
+  "Regular expression for matching inline email addresses.")
+
+(defsubst adoc-make-regex-link-generic ()
+  "Make regular expression for matching any recognized link."
+  (concat "\\(?:" adoc-regex-link-inline
+          "\\|" adoc-regex-link-reference
+          "\\|" adoc-regex-angle-uri "\\)"))
+
+(defconst adoc-regex-blank-line
+  "^[[:blank:]]*$"
+  "Regular expression that matches a blank line.")
+
+(defconst adoc-regex-block-separator
+  "\n[\n\t\f ]*\n"
+  "Regular expression for matching block boundaries.")
+
+(defconst adoc-regex-block-separator-noindent
+  (concat "\\(\\`\\|\\(" adoc-regex-block-separator "\\)[^\n\t\f ]\\)")
+  "Regexp for block separators before lines with no indentation.")
+
+(defconst adoc-regex-math-inline-single
+  "\\(?:^\\|[^\\]\\)\\(?1:\\$\\)\\(?2:\\(?:[^\\$]\\|\\\\.\\)*\\)\\(?3:\\$\\)"
+  "Regular expression for itex $..$ math mode expressions.
+Groups 1 and 3 match the opening and closing dollar signs.
+Group 2 matches the mathematical expression contained within.")
+
+(defconst adoc-regex-math-inline-double
+  "\\(?:^\\|[^\\]\\)\\(?1:\\$\\$\\)\\(?2:\\(?:[^\\$]\\|\\\\.\\)*\\)\\(?3:\\$\\$\\)"
+  "Regular expression for itex $$..$$ math mode expressions.
+Groups 1 and 3 match opening and closing dollar signs.
+Group 2 matches the mathematical expression contained within.")
+
+(defconst adoc-regex-math-display
+  (rx line-start (* blank)
+      (group (group (repeat 1 2 "\\")) "[")
+      (group (*? anything))
+      (group (backref 2) "]")
+      line-end)
+  "Regular expression for \[..\] or \\[..\\] display math.
+Groups 1 and 4 match the opening and closing markup.
+Group 3 matches the mathematical expression contained within.
+Group 2 matches the opening slashes, and is used internally to
+match the closing slashes.")
+
+(defsubst adoc-make-tilde-fence-regex (num-tildes &optional end-of-line)
+  "Return regexp matching a tilde code fence at least NUM-TILDES long.
+END-OF-LINE is the regexp construct to indicate end of line; $ if
+missing."
+  (format "%s%d%s%s" "^[[:blank:]]*\\([~]\\{" num-tildes ",\\}\\)"
+          (or end-of-line "$")))
+
+(defconst adoc-regex-tilde-fence-begin
+  (adoc-make-tilde-fence-regex
+   3 "\\([[:blank:]]*{?\\)[[:blank:]]*\\([^[:space:]]+?\\)?\\(?:[[:blank:]]+\\(.+?\\)\\)?\\([[:blank:]]*}?[[:blank:]]*\\)$")
+  "Regular expression for matching tilde-fenced code blocks.
+Group 1 matches the opening tildes.
+Group 2 matches (optional) opening brace and surrounding whitespace.
+Group 3 matches the language identifier (optional).
+Group 4 matches the info string (optional).
+Group 5 matches the closing brace (optional) and any surrounding whitespace.
+Groups need to agree with `adoc-regex-gfm-code-block-open'.")
+
+(defconst adoc-regex-declarative-metadata
+  "^[ \t]*\\(?:-[ \t]*\\)?\\([[:alpha:]][[:alpha:] _-]*?\\)\\([:=][ \t]*\\)\\(.*\\)$"
+  "Regular expression for matching declarative metadata statements.
+This matches MultiMarkdown metadata as well as YAML and TOML
+assignments such as the following:
+    variable: value
+or
+    variable = value")
+
+(defconst adoc-regex-pandoc-metadata
+  "^\\(%\\)\\([ \t]*\\)\\(.*\\(?:\n[ \t]+.*\\)*\\)"
+  "Regular expression for matching Pandoc metadata.")
+
+(defconst adoc-regex-yaml-metadata-border
+  "\\(-\\{3\\}\\)$"
+  "Regular expression for matching YAML metadata.")
+
+(defconst adoc-regex-yaml-pandoc-metadata-end-border
+  "^\\(\\.\\{3\\}\\|\\-\\{3\\}\\)$"
+  "Regular expression for matching YAML metadata end borders.")
+
+(defconst adoc-regex-inline-attributes
+  "[ \t]*\\(?:{:?\\)[ \t]*\\(?:\\(?:#[[:alpha:]_.:-]+\\|\\.[[:alpha:]_.:-]+\\|\\w+=['\"]?[^\n'\"}]*['\"]?\\),?[ \t]*\\)+\\(?:}\\)[ \t]*$"
+  "Regular expression for matching inline identifiers or attribute lists.
+Compatible with Pandoc, Python Markdown, PHP Markdown Extra, and Leanpub.")
+
+(defconst adoc-regex-leanpub-sections
+  (concat
+   "^\\({\\)\\("
+   (regexp-opt '("frontmatter" "mainmatter" "backmatter" "appendix" "pagebreak"))
+   "\\)\\(}\\)[ \t]*\n")
+  "Regular expression for Leanpub section markers and related syntax.")
+
+(defconst adoc-regex-sub-superscript
+  "\\(?:^\\|[^\\~^]\\)\\(?1:\\(?2:[~^]\\)\\(?3:[+-\u2212]?[[:alnum:]]+\\)\\(?4:\\2\\)\\)"
+  "The regular expression matching a sub- or superscript.
+The leading un-numbered group matches the character before the
+opening tilde or carat, if any, ensuring that it is not a
+backslash escape, carat, or tilde.
+Group 1 matches the entire expression, including markup.
+Group 2 matches the opening markup--a tilde or carat.
+Group 3 matches the text inside the delimiters.
+Group 4 matches the closing markup--a tilde or carat.")
+
+(defconst adoc-regex-include
+  "^\\(?1:<<\\)\\(?:\\(?2:\\[\\)\\(?3:.*\\)\\(?4:\\]\\)\\)?\\(?:\\(?5:(\\)\\(?6:.*\\)\\(?7:)\\)\\)?\\(?:\\(?8:{\\)\\(?9:.*\\)\\(?10:}\\)\\)?$"
+  "Regular expression matching common forms of include syntax.
+Marked 2, Leanpub, and other processors support some of these forms:
+<<[sections/section1.md]
+<<(folder/filename)
+<<[Code title](folder/filename)
+<<{folder/raw_file.html}
+Group 1 matches the opening two angle brackets.
+Groups 2-4 match the opening square bracket, the text inside,
+and the closing square bracket, respectively.
+Groups 5-7 match the opening parenthesis, the text inside, and
+the closing parenthesis.
+Groups 8-10 match the opening brace, the text inside, and the brace.")
+
+(defconst adoc-regex-pandoc-inline-footnote
+  "\\(?1:\\^\\)\\(?2:\\[\\)\\(?3:\\(?:.\\|\n[^\n]\\)*?\\)\\(?4:\\]\\)"
+  "Regular expression for Pandoc inline footnote^[footnote text].
+Group 1 matches the opening caret.
+Group 2 matches the opening square bracket.
+Group 3 matches the footnote text, without the surrounding markup.
+Group 4 matches the closing square bracket.")
+
+(defconst adoc-regex-html-attr
+  "\\(\\<[[:alpha:]:-]+\\>\\)\\(\\s-*\\(=\\)\\s-*\\(\".*?\"\\|'.*?'\\|[^'\">[:space:]]+\\)?\\)?"
+  "Regular expression for matching HTML attributes and values.
+Group 1 matches the attribute name.
+Group 2 matches the following whitespace, equals sign, and value, if any.
+Group 3 matches the equals sign, if any.
+Group 4 matches single-, double-, or un-quoted attribute values.")
+
+(defconst adoc-regex-html-tag
+  (concat "\\(</?\\)\\(\\w+\\)\\(\\(\\s-+" adoc-regex-html-attr
+          "\\)+\\s-*\\|\\s-*\\)\\(/?>\\)")
+  "Regular expression for matching HTML tags.
+Groups 1 and 9 match the beginning and ending angle brackets and slashes.
+Group 2 matches the tag name.
+Group 3 matches all attributes and whitespace following the tag name.")
+
+(defconst adoc-regex-html-entity
+  "\\(&#?[[:alnum:]]+;\\)"
+  "Regular expression for matching HTML entities.")
+
+(defconst adoc-regex-highlighting
+  "\\(?1:^\\|[^\\]\\)\\(?2:\\(?3:==\\)\\(?4:[^ \n\t\\]\\|[^ \n\t]\\(?:.\\|\n[^\n]\\)*?[^\\ ]\\)\\(?5:==\\)\\)"
+"Regular expression for matching highlighting text.
+Group 1 matches the character before the opening equal, if any,
+ensuring that it is not a backslash escape.
+Group 2 matches the entire expression, including delimiters.
+Groups 3 and 5 matches the opening and closing delimiters.
+Group 4 matches the text inside the delimiters.")
+
 ;;; Font Lock =================================================================
 
 (require 'font-lock)
@@ -566,77 +958,212 @@ To become a customizable variable when regexps for list items become customizabl
   :group 'adoc
   :group 'faces)
 
+(defface adoc-gen-face
+  '((((background light))
+     (:foreground "medium blue"))
+    (((background dark))
+     (:foreground "skyblue")))
+  "Generic/base face for text with special formatting.
+
+Typically `adoc-title-0-face', `adoc-bold-face' etc.
+inherit from it. Also used for generic text thas hasn't got it's
+own dedicated face, e.g. if a markup command imposes arbitrary
+colors/sizes/fonts upon it."
+  :group 'adoc-faces)
+(defvar adoc-gen-face 'adoc-gen-face)
+
+(defface adoc-meta-face
+  '((default (
+              :family "Monospace" ; emacs's faces.el also directly uses "Monospace", so I assume it is safe to do so
+              :stipple nil
+              :inverse-video nil
+              :box nil
+              :strike-through nil
+              :overline nil
+              :underline nil
+              :slant normal
+              :weight normal
+              :width normal
+              :foundry "unknown"))
+    (((background light)) (:foreground "gray65"))
+    (((background dark)) (:foreground "gray30")))
+  "Face for general meta characters and base for special meta characters.
+The default sets all face properties to a value because then it's
+easier for major mode to write font lock regular expressions."
+  ;; For example in '<b>...<foo>...</b>', if <foo> is fontified before <b>, <b>
+  ;; might then make <foo> bold, which is not the intend.
+  :group 'adoc-faces)
+(defvar adoc-meta-face 'adoc-meta-face)
+
 (defface adoc-italic-face
   '((t (:inherit italic)))
   "Face for italic text."
   :group 'adoc-faces)
+(defvar adoc-italic-face 'adoc-italic-face)
 
 (defface adoc-bold-face
   '((t (:inherit bold)))
   "Face for bold text."
   :group 'adoc-faces)
+(defvar adoc-bold-face 'adoc-bold-face)
+
+(defface adoc-emphasis-face
+  '((t :inherit adoc-gen-face :slant italic))
+  "For emphasized text."
+  :group 'adoc-faces)
+(defvar adoc-emphasis-face 'adoc-emphasis-face)
 
 (defface adoc-strike-through-face
   '((t (:strike-through t)))
   "Face for strike-through text."
   :group 'adoc-faces)
+(defvar adoc-strike-through-face 'adoc-strike-through-face)
 
 (defface adoc-markup-face
   '((t (:inherit shadow :slant normal :weight normal)))
   "Face for markup elements."
   :group 'adoc-faces)
+(defvar adoc-markup-face 'adoc-markup-face)
+
+(defface adoc-meta-hide-face
+  '((default (:inherit markup-meta-face))
+    (((background light)) :foreground "gray75")
+    (((background dark)) :foreground "gray25"))
+  "For meta characters which can be 'hidden'.
+Hidden in the sense of *almost* not visible. They don't need to
+be properly seen because one knows what these characters must be;
+deduced from the highlighting of the near context. E.g in
+AsciiDocs '_important_', the underlines would be highlighted with
+markup-hide-delimiter-face, and the text 'important' would be
+highlighted with markup-emphasis-face. Because 'important' is
+highlighted, one knows that it must be surrounded with the meta
+characters '_', and thus the meta characters don't need to be
+properly seen.
+For example:
+AsciiDoc: *strong emphasis text* or _emphasis text_
+          ^                    ^    ^             ^"
+  :group 'adoc-faces)
+(defvar adoc-meta-hide-face 'adoc-meta-hide-face)
 
 (defface adoc-header-rule-face
   '((t (:inherit adoc-markup-face)))
   "Base face for headers rules."
   :group 'adoc-faces)
+(defvar adoc-header-rule-face 'adoc-header-rule-face)
 
 (defface adoc-header-delimiter-face
   '((t (:inherit adoc-markup-face)))
   "Base face for headers hash delimiter."
   :group 'adoc-faces)
+(defvar adoc-header-delimiter-face 'adoc-header-delimiter-face)
+
+(defface adoc-anchor-face
+  '((t :inherid adoc-meta-face :overline t))
+  "For the name/id of an anchor."
+  :group 'adoc-faces)
+(defvar adoc-anchor-face 'adoc-anchor-face)
 
 (defface adoc-list-face
   '((t (:inherit adoc-markup-face)))
   "Face for list item markers."
   :group 'adoc-faces)
+(defvar adoc-list-face 'adoc-list-face)
 
 (defface adoc-blockquote-face
   '((t (:inherit font-lock-doc-face)))
   "Face for blockquote sections."
   :group 'adoc-faces)
+(defvar adoc-blockquote-face 'adoc-blockquote-face)
 
 (defface adoc-code-face
   '((t (:inherit fixed-pitch)))
   "Face for inline code and fenced code blocks.
-This may be used, for example, to add a contrasting background to
-inline code fragments and code blocks."
+  This may be used, for example, to add a contrasting background to
+  inline code fragments and code blocks."
   :group 'adoc-faces)
+(defvar adoc-code-face 'adoc-code-face)
+
+(defface adoc-command-face
+  '((default (:inherit adoc-meta-face
+                       :weight bold
+                       :box(:line-width 2 :style released-button)))
+    (((background light))(:background "#f5f5f5" :foreground "black" :box (:color "#dcdcdc")))
+    (((background dark))(:background "#272822" :foreground "#e6db74" :box (:color "#e6db74"))))
+  "Face for command names."
+  :group 'adoc-faces)
+(defvar adoc-command-face 'adoc-command-face)
+
+(defface adoc-complex-replacement-face
+  '((default (:inherit adoc-meta-face
+                       :box (:line-width 2 :style released-button)))
+    (((background light)) (:background "plum1" :foreground "purple3" :box (:color "plum1")))
+    (((background dark)) (:background "purple3" :foreground "plum1" :box (:color "purple3"))))
+  "Markup that is replaced by something complex.
+  For example an image, or a table of contents.
+  AsciiDoc: image:...[...]"
+  :group 'adoc-faces)
+(defvar adoc-complex-replacement-face 'adoc-complex-replacement-face)
 
 (defface adoc-inline-code-face
   '((t (:inherit (adoc-code-face font-lock-constant-face))))
   "Face for inline code."
   :group 'adoc-faces)
+(defvar adoc-inline-code-face 'adoc-inline-code-face)
+
+(defface adoc-passthrough-face
+  '((t :inherit (fixed-pitch adoc-gen-face)))
+  "For text that is passed through yet another marser/renderer.
+
+  Since this text is passed to an arbitrary renderer, it is unknown
+  wich of its chars are meta characters and which are literal characters."
+  :group 'adoc-faces)
+(defvar adoc-passthrough-face 'adoc-passthrough-face)
+
+
+(defface adoc-verbatim-face
+  '((((background light))
+     (:background "cornsilk"))
+    (((background dark))
+     (:background "saddlebrown")))
+  "For verbatim text.
+
+  Verbatim in a sense that all its characters are to be taken
+  literally. Note that doesn't necessarily mean that that it is in
+  a typewritter font.
+  For example 'foo' in the following examples. In parantheses is a
+  summary what the command is for according to the given markup
+  language.
+  HTML: <pre>foo</pre>             (verbatim and typewriter font)
+  LaTeX: verb|foo|                 (verbatim and typewriter font)
+  MediaWiki: <nowiki>foo</nowiki>  (only verbatim)
+  AsciiDoc: `foo`                  (verbatim and typewriter font)
+  AsciiDoc: +++foo+++              (only verbatim)"
+  :group 'adoc-faces)
+(defvar adoc-verbatim-face 'adoc-verbatim-face)
 
 (defface adoc-pre-face
   '((t (:inherit (adoc-code-face font-lock-constant-face))))
   "Face for preformatted text."
   :group 'adoc-faces)
+(defvar adoc-pre-face 'adoc-pre-face)
 
 (defface adoc-table-face
   '((t (:inherit (adoc-code-face))))
   "Face for tables."
   :group 'adoc-faces)
+(defvar adoc-table-face 'adoc-table-face)
 
 (defface adoc-language-keyword-face
   '((t (:inherit font-lock-type-face)))
   "Face for programming language identifiers."
   :group 'adoc-faces)
+(defvar adoc-language-keyword-face 'adoc-language-keyword-face)
 
 (defface adoc-language-info-face
   '((t (:inherit font-lock-string-face)))
   "Face for programming language info strings."
   :group 'adoc-faces)
+(defvar adoc-language-info-face 'adoc-language-info-face)
 
 (defface adoc-link-face
   '((t (:inherit link)))
@@ -666,15 +1193,15 @@ inline code fragments and code blocks."
 (defface adoc-url-face
   '((t (:inherit font-lock-string-face)))
   "Face for URLs that are part of markup.
-For example, this applies to URLs in inline links:
-[link text](https://example.com/)."
+  For example, this applies to URLs in inline links:
+  [link text](https://example.com/)."
   :group 'adoc-faces)
 
 (defface adoc-plain-url-face
   '((t (:inherit adoc-link-face)))
   "Face for URLs that are also links.
-For Example, this applies to plain angle bracket URLs:
-<https://example.com>."
+  For Example, this applies to plain angle bracket URLs:
+  <https://example.com>."
   :group 'adoc-faces)
 
 (defface adoc-link-title-face
@@ -691,6 +1218,7 @@ For Example, this applies to plain angle bracket URLs:
   '((t (:inherit font-lock-comment-face)))
   "Face for HTML comments."
   :group 'adoc-faces)
+(defvar adoc-comment-face 'adoc-comment-face)
 
 (defface adoc-math-face
   '((t (:inherit font-lock-string-face)))
@@ -705,11 +1233,6 @@ For Example, this applies to plain angle bracket URLs:
 (defface adoc-metadata-value-face
   '((t (:inherit font-lock-string-face)))
   "Face for metadata values."
-  :group 'adoc-faces)
-
-(defface adoc-gfm-checkbox-face
-  '((t (:inherit font-lock-builtin-face)))
-  "Face for FGM checkboxes."
   :group 'adoc-faces)
 
 (defface adoc-highlight-face
@@ -756,45 +1279,87 @@ For Example, this applies to plain angle bracket URLs:
   '((t (:inherit adoc-markdown-face :weight bold)))
   "Base face for headers."
   :group 'adoc-faces)
+(defvar adoc-header-face 'adoc-header-face)
 
 (defface adoc-header-0-face
   '((t (:inherit adoc-header-face :height 2.0)))
   "Face for document's title."
   :group 'adoc-faces)
+(defvar adoc-header-0-face 'adoc-header-0-face)
 
 (defface adoc-header-1-face
   '((t (:inherit adoc-header-face :height 1.8)))
   "Face for level 1 titles."
   :group 'adoc-faces)
+(defvar adoc-header-1-face 'adoc-header-1-face)
 
 (defface adoc-header-2-face
   '((t (:inherit adoc-header-face :height 1.6)))
   "Face for level 2 titles."
   :group 'adoc-faces)
+(defvar adoc-header-2-face 'adoc-header-2-face)
 
 (defface adoc-header-3-face
   '((t (:inherit adoc-header-face :height 1.4)))
   "Face for level 3 titles."
   :group 'adoc-faces)
+(defvar adoc-header-3-face 'adoc-header-3-face)
 
 (defface adoc-header-4-face
   '((t (:inherit adoc-header-face :height 1.2)))
   "Face for level 4 titles."
   :group 'adoc-faces)
+(defvar adoc-header-4-face 'adoc-header-4-face)
 
 (defface adoc-header-5-face
   '((t (:inherit adoc-header-face :height 1.0)))
   "Face for level 5 titles."
   :group 'adoc-faces)
+(defvar adoc-header-5-face 'adoc-header-5-face)
+
+(defface adoc-typewriter-face
+  '((t :inherit (fixed-pitch adoc-gen-face)))
+  "For text in typewriter/monospaced font.
+
+  For example 'foo' in the following examples:
+  +foo+ (only typewriter font)
+  `foo` (verbatim and typewriter font)"
+  :group 'adoc-faces)
+(defvar adoc-typewriter-face 'adoc-typewriter-face)
+
+(defface adoc-internal-reference-face
+  '((t :inherit adoc-meta-face :underline t))
+  "For an internal reference."
+  :group 'adoc-faces)
+(defvar adoc-internal-reference-face 'adoc-internal-reference-face)
+
+(defface adoc-secondary-text-face
+  '((t :inherit adoc-gen-face :foreground "firebrick" :height 0.9))
+  "For text that is not part of the running text.
+  For example for captions of tables or images, or for footnotes, or for floating text."
+  :group 'adoc-faces)
+(defvar adoc-secondary-text-face 'adoc-secondary-text-face)
 
 (defcustom adoc-list-item-bullters
   '("●" "◎" "○" "◆" "◇" "►" "•")
   "List of bullets to use for unordered lists.
+
 It can contain any number of symbols, which will be repeated.
 Depending on your font, some reasonable choices are:
-♥ ● ◇ ✚ ✜ ☯ ◆ ♠ ♣ ♦ ❀ ◆ ◖ ▶ ► • ★ ▸."
+  ♥ ● ◇ ✚ ✜ ☯ ◆ ♠ ♣ ♦ ❀ ◆ ◖ ▶ ► • ★ ▸."
   :group 'adoc
   :type '(repeat (string :tag "Bullet character")))
+
+
+(defcustom adoc-footnote-display '((raise 0.2) (height 0.8))
+  "Display specification for footnote markers and inline footnotes.
+By default, footnote text is reduced in size and raised.  Set to
+nil to disable this."
+  :group 'adoc
+  :type '(choice (sexp :tag "Display specification")
+                 (const :tag "Don't set display property" nil))
+  :package-version '(adoc-mode . "0.7.0"))
+
 
 (defun adoc--pandoc-inline-footnote-properties ()
   "Return a font-lock facespec experession for Pandoc inline footnote text."
@@ -808,13 +1373,6 @@ Depending on your font, some reasonable choices are:
     (adoc-match-yaml-metadata-key . ((1 'adoc-metadata-key-face)
                                      (2 'adoc-markup-face)
                                      (3 'adoc-metadata-value-face)))
-    (adoc-match-gfm-open-code-blocks . ((1 adoc-markup-properties)
-                                        (2 adoc-markup-properties nil t)
-                                        (3 adoc-language-keyword-properties nil t)
-                                        (4 adoc-language-info-properties nil t)
-                                        (5 adoc-markup-properties nil t)))
-    (adoc-match-gfm-close-code-blocks . ((0 adoc-markup-properties)))
-    (adoc-fontify-gfm-code-blocks)
     (adoc-fontify-tables)
     (adoc-match-fenced-start-code-block . ((1 adoc-markup-properties)
                                            (2 adoc-markup-properties nil t)
@@ -921,26 +1479,15 @@ Depending on your font, some reasonable choices are:
 (defun adoc-re-attribute-entry ()
   (concat "^\\(:[a-zA-Z0-9_][^.\n]*?\\(?:\\..*?\\)?:[ \t]*\\)\\(.*?\\)$"))
 
-(defun adoc-update-header-faces (&optional scaling scaling-values)
-  "Update header faces, depending on if header SCALING is desired.
-If so, use given list of SCALING-VALUES relative to the baseline
-size of `markdown-header-face'."
-  (dotimes (num 6)
-    (let* ((face-name (intern (format "adoc-header-face-%s" (1+ num))))
-           (scale (cond ((not scaling) 1.0)
-                        (scaling-values (float (nth num scaling-values)))
-                        (t (float (nth num adoc-header-scaling-values))))))
-      (unless (get face-name 'saved-face) ; Don't update customized faces
-        (set-face-attribute face-name nil :height scale)))))
-
 ;; from asciidoc.conf: ^= +(?P<title>[\S].*?)( +=)?$
 ;; asciidoc src code: Title.isnext reads two lines, which are then parsed by
 ;; Title.parse. The second line is only for the underline of two line titles.
 (defun adoc-re-one-line-title (level)
-  "Returns a regex matching a one line title of the given LEVEL.
+  "Return a regex matching a one line title of the given LEVEL.
+
   When LEVEL is nil, a one line title of any level is matched.
 
-  match-data has these sub groups:
+  `match-data' has these sub groups:
   1 leading delimiter inclusive whites between delimiter and title text
   2 title's text exclusive leading/trailing whites
   3 trailing delimiter with all whites
@@ -962,16 +1509,16 @@ size of `markdown-header-face'."
      "\\(\\([ \t]+" del "\\)?[ \t]*\\(?:\n\\|\\'\\)\\)" ))) ; 3 & 4
 
 (defun adoc-make-one-line-title (sub-type level text)
-  "Returns a one line title of LEVEL and SUB-TYPE containing the given text."
+  "Return a one line title of LEVEL and SUB-TYPE containing the given text."
   (let ((del (make-string (+ level 1) ?=)))
     (concat del " " text (when (eq sub-type 2) (concat " " del)))))
 
 ;; AsciiDoc handles that by source code, there is no regexp in AsciiDoc.  See
 ;; also adoc-re-one-line-title.
 (defun adoc-re-two-line-title-undlerline (&optional del)
-  "Returns a regexp matching the underline of a two line title.
+  "Return a regexp matching the underline of a two line title.
 
-  DEL is an element of `adoc-two-line-title-del' or nil. If nil,
+  DEL is an element of `adoc-two-line-title-del' or nil.  If nil,
   any del is matched.
 
   Note that even if this regexp matches it still doesn't mean it is
@@ -993,23 +1540,22 @@ size of `markdown-header-face'."
 ;; asciidoc.conf: regexp for _first_ line
 ;; ^(?P<title>.*?)$  additionally, must contain (?u)\w, see Title.parse
 (defun adoc-re-two-line-title (del)
-  "Returns a regexps that matches a two line title.
+  "Return a regexps that match a two line title.
 
   Note that even if this regexp matches it still doesn't mean it is
-  a two line title. You additionally have to test if the underline
+  a two line title.  You additionally have to test if the underline
   has the correct length.
 
   DEL is described in `adoc-re-two-line-title-undlerline'.
 
-  match-data has these sub groups:
+  Match-data has these sub groups:
 
-  1 dummy, so that group 2 is the title's text as in
-  adoc-re-one-line-title
+  1 dummy, so that group 2 is the title's text as in `adoc-re-one-line-title'
   2 title's text
   3 delimiter
   0 only chars that belong to the title block element"
   (when (not (eq (length del) 2))
-    (error "two line title delimiters must be 2 chars long"))
+    (error "Two line title delimiters must be 2 chars long"))
   (concat
    ;; 1st line: title text must contain at least one \w character, see
    ;; asciidoc src, Title.parse,
@@ -1018,14 +1564,14 @@ size of `markdown-header-face'."
    (adoc-re-two-line-title-undlerline del)))
 
 (defun adoc-make-two-line-title (level text)
-  "Returns a two line title of given LEVEL containing given TEXT.
-  LEVEL starts at 1."
+  "Return a two line title of given LEVEL containing given TEXT.
+LEVEL starts at 1."
   (concat text "\n" (adoc-make-two-line-title-underline level (length text))))
 
 (defun adoc-make-two-line-title-underline (level &optional length)
-  "Returns a two line title underline.
-  LEVEL is the level of the title, starting at 1. LENGTH is the
-  line of the title's text. When nil it defaults to 4."
+  "Return a two line title underline.
+LEVEL is the level of the title, starting at 1. LENGTH is the
+line of the title's text.  When nil it defaults to 4."
   (unless length
     (setq length 4))
   (let* ((repetition-cnt (if (>= length 2) (/ length 2) 1))
@@ -1039,17 +1585,16 @@ size of `markdown-header-face'."
     result))
 
 (defun adoc-re-oulisti (type &optional level sub-type)
-  "Returns a regexp matching an (un)ordered list item.
+  "Return a regexp matching an (un)ordered list item.
 
-  match-data his this sub groups:
-  1 leading whites
-  2 delimiter
-  3 trailing whites between delimiter and item's text
-  0 only chars belonging to delimiter/whites. I.e. none of text.
+Match-data his this sub groups:
+1 leading whites
+2 delimiter
+3 trailing whites between delimiter and item's text
+0 only chars belonging to delimiter/whites.  I.e. none of text.
 
-  WARNING: See warning about list item nesting level in `adoc-list-descriptor'."
+WARNING: See warning about list item nesting level in `adoc-list-descriptor'."
   (cond
-
    ;;   ^\s*- +(?P<text>.+)$                     normal 0
    ;;   ^\s*\* +(?P<text>.+)$                    normal 1
    ;;   ...                                      ...
@@ -1060,11 +1605,11 @@ size of `markdown-header-face'."
      ((or (eq sub-type 'adoc-normal) (null sub-type))
       (let ((r (cond ((numberp level) (if (eq level 0) "-" (make-string level ?\*)))
                      ((or (null level) (eq level 'adoc-all-levels)) "-\\|\\*\\{1,5\\}")
-                     (t (error "adoc-unordered/adoc-normal: invalid level")))))
+                     (t (error "Adoc-unordered/adoc-normal: invalid level")))))
         (concat "^\\([ \t]*\\)\\(" r "\\)\\([ \t]+\\)")))
      ((and (eq sub-type 'adoc-bibliography) (null level))
       "^\\(\\)\\(\\+\\)\\([ \t]+\\)")
-     (t (error "adoc-unordered: invalid sub-type/level combination"))))
+     (t (error "Adoc-unordered: invalid sub-type/level combination"))))
 
    ;;   ^\s*(?P<index>\d+\.) +(?P<text>.+)$      decimal = 0
    ;;   ^\s*(?P<index>[a-z]\.) +(?P<text>.+)$    lower alpha = 1
@@ -1072,11 +1617,11 @@ size of `markdown-header-face'."
    ;;   ^\s*(?P<index>[ivx]+\)) +(?P<text>.+)$   lower roman = 3
    ;;   ^\s*(?P<index>[IVX]+\)) +(?P<text>.+)$   upper roman = 4
    ((eq type 'adoc-explicitly-numbered)
-    (when level (error "adoc-explicitly-numbered: invalid level"))
+    (when level (error "Adoc-explicitly-numbered: invalid level"))
     (let* ((l '("[0-9]+\\." "[a-z]\\." "[A-Z]\\." "[ivx]+)" "[IVX]+)"))
            (r (cond ((numberp sub-type) (nth sub-type l))
                     ((or (null sub-type) (eq sub-type 'adoc-all-subtypes)) (mapconcat 'identity l "\\|"))
-                    (t (error "adoc-explicitly-numbered: invalid subtype")))))
+                    (t (error "Adoc-explicitly-numbered: invalid subtype")))))
       (concat "^\\([ \t]*\\)\\(" r "\\)\\([ \t]+\\)")))
 
    ;;   ^\s*\. +(?P<text>.+)$                    normal 0
@@ -1085,19 +1630,19 @@ size of `markdown-header-face'."
    ((eq type 'adoc-implicitly-numbered)
     (let ((r (cond ((numberp level) (number-to-string (+ level 1)))
                    ((or (null level) (eq level 'adoc-all-levels)) "1,5")
-                   (t (error "adoc-implicitly-numbered: invalid level")))))
+                   (t (error "Adoc-implicitly-numbered: invalid level")))))
       (concat "^\\([ \t]*\\)\\(\\.\\{" r "\\}\\)\\([ \t]+\\)")))
 
    ;;   ^<?(?P<index>\d*>) +(?P<text>.+)$        callout
    ((eq type 'adoc-callout)
-    (when (or level sub-type) (error "adoc-callout invalid level/sub-type"))
+    (when (or level sub-type) (error "Adoc-callout invalid level/sub-type"))
     "^\\(\\)\\(<?[0-9]*>\\)\\([ \t]+\\)")
 
    ;; invalid
-   (t (error "invalid (un)ordered list type"))))
+   (t (error "Invalid (un)ordered list type"))))
 
 (defun adoc-make-uolisti (level is-1st-line)
-  "Returns a regexp matching a unordered list item."
+  "Return a regexp matching a unordered list item."
   (let* ((del (if (eq level 0) "-" (make-string level ?\*)))
          (white-1st (if indent-tabs-mode
                         (make-string (/ (* level standard-indent) tab-width) ?\t)
@@ -1108,16 +1653,17 @@ size of `markdown-header-face'."
       white-rest)))
 
 (defun adoc-re-llisti (type level)
-  "Returns a regexp matching a labeled list item.
+  "Return a regexp matching a labeled list item.
+
 Subgroups:
 1 leading blanks
 2 label text, incl whites before delimiter
 3 delimiter incl trailing whites
 4 delimiter only
 
-  foo :: bar
+foo :: bar
 -12--23-3
-      44"
+44"
   (cond
    ;; ^\s*(?P<label>.*[^:])::(\s+(?P<text>.+))?$    normal 0
    ;; ^\s*(?P<label>.*[^;]);;(\s+(?P<text>.+))?$    normal 1
@@ -1125,12 +1671,12 @@ Subgroups:
    ;; ^\s*(?P<label>.*[^:]):{4}(\s+(?P<text>.+))?$  normal 3
    ((eq type 'adoc-labeled-normal)
     (let* ((deluq (nth level '("::" ";;" ":::" "::::"))) ; unqutoed
-           (del (regexp-quote deluq))
-           (del1st (substring deluq 0 1)))
-      (concat
-       "^\\([ \t]*\\)"                  ; 1
-       "\\(.*[^" del1st "\n]\\)"        ; 2
-       "\\(\\(" del "\\)\\(?:[ \t]+\\|$\\)\\)"))) ; 3 & 4
+  (del (regexp-quote deluq))
+  (del1st (substring deluq 0 1)))
+  (concat
+   "^\\([ \t]*\\)"                  ; 1
+   "\\(.*[^" del1st "\n]\\)"        ; 2
+   "\\(\\(" del "\\)\\(?:[ \t]+\\|$\\)\\)"))) ; 3 & 4
 
    ;; glossary (DEPRECATED)
    ;; ^(?P<label>.*\S):-$
@@ -1158,9 +1704,9 @@ Subgroups:
     adoc-delimited-block-del "\\|")
    "\\)"))
 
-;; KLUDGE: Contrary to what the AsciiDoc manual specifies, adoc-mode does not
+;; KLUDGE: Contrary to what the AsciiDoc manual specifies, `adoc-mode' does not
 ;; allow that either the first or the last line within a delmited block is
-;; blank. That shall help to prevent the case that adoc-mode wrongly
+;; blank.  That shall help to prevent the case that adoc-mode wrongly
 ;; interprets the end of a delimited block as the beginning, and the beginning
 ;; of a following delimited block as the ending, thus wrongly interpreting the
 ;; text between two adjacent delimited blocks as delimited block.  It is
@@ -1214,12 +1760,12 @@ Subgroups:
 ;; insertion: so that this whole regex doesn't mistake a line starting with a
 ;; cell specifier like .2+| as a block title
 (defun adoc-re-block-title ()
-  "Returns a regexp matching an block title
+  "Return a regexp matching an block title.
 
 Subgroups:
 1 delimiter
 2 title's text incl trailing whites
-3 newline or end-of-buffer anchor
+3 newline or `end-of-buffer' anchor
 
 .foo n
 12--23"
@@ -1235,9 +1781,10 @@ Subgroups:
 ;; still can spawn multiple lines. Probably asciidoc removes newlines before
 ;; it applies the regexp above
 (defun adoc-re-block-macro (&optional cmd-name)
-  "Returns a regexp matching an attribute list element.
+  "Return a regexp matching an attribute list element.
+
 Subgroups:
-1 cmd name
+1 CMD-NAME
 2 target
 3 attribute list, exclusive brackets []"
   (concat
@@ -1249,17 +1796,17 @@ Subgroups:
 
 ;; ?P<id>[\w\-_]+
 (defun adoc-re-id ()
-  "Returns a regexp matching an id used by anchors/xrefs"
+  "Return a regexp matching an id used by anchors/xrefs."
   "\\(?:[-a-zA-Z0-9_]+\\)")
 
 (defun adoc-re-anchor (&optional type id)
-  "Returns a regexp matching an anchor.
+  "Return a regexp matching an anchor.
 
-If TYPE is non-nil, only that type is matched. If TYPE is nil,
+If TYPE is non-nil, only that type is matched.  If TYPE is nil,
 all types are matched.
 
 If ID is non-nil, the regexp matches an anchor defining exactly
-this id. If ID is nil, the regexp matches any anchor."
+this id.  If ID is nil, the regexp matches any anchor."
   (cond
    ((eq type 'block-id)
     ;; ^\[\[(?P<id>[\w\-_]+)(,(?P<reftext>.*?))?\]\]$
@@ -1293,9 +1840,9 @@ this id. If ID is nil, the regexp matches any anchor."
     (error "Unknown type"))))
 
 (defun adoc-re-xref (&optional type for-kw)
-  "Returns a regexp matching a reference.
+  "Return a regexp matching a reference.
 
-If TYPE is nil, any type is matched. If FOR-KW is true, the
+If TYPE is nil, any type is matched.  If FOR-KW is true, the
 regexp is intended for a font lock keyword, which has to make
 further tests to find a proper xref."
   (cond
@@ -1320,10 +1867,11 @@ further tests to find a proper xref."
      '(inline-special-with-caption inline-special-no-caption inline-general-macro)
      "\\|"))
 
-   (t (error "unknown type"))))
+   (t (error "Unknown reference type"))))
 
 (defun adoc-re-attribute-list-elt ()
-  "Returns a regexp matching an attribute list element.
+  "Return a regexp matching an attribute list element.
+
 Subgroups:
 1 attribute name
 2 attribute value if given as string
@@ -1351,7 +1899,7 @@ Subgroups:
    "\\)"))
 
 (defun adoc-re-quote-precondition (not-allowed-chars)
-  "Regexp that matches before a (un)constrained quote delimiter.
+  "Regexp that match before a (un)constrained quote delimiter.
 
 NOT-ALLOWED-CHARS are chars not allowed before the quote."
   (concat
@@ -1397,12 +1945,13 @@ NOT-ALLOWED-CHARS are chars not allowed before the quote."
 ;;     + r'(?:' + re.escape(lq) + r')' \
 ;;     + r'(?P<content>\S|\S.*?\S)(?:'+re.escape(rq)+r')(?=\W|$)')
 (defun adoc-re-constrained-quote (ldel &optional rdel)
-  "
+  "AsciiDoc src for constrained quotes.
+
 subgroups:
 1 attribute list [optional]
-2 starting del
+2 starting LDEL
 3 enclosed text
-4 closing del"
+4 closing RDEL"
   (unless rdel (setq rdel ldel))
   (let ((qldel (regexp-quote ldel))
         (qrdel (regexp-quote rdel)))
@@ -1434,13 +1983,13 @@ subgroups:
 ;; implemented. It _would_ be
 ;; (?su)[\\]?(?P<name>\w(\w|-)*?):(?P<target>\S*?)\[(?P<passtext>.*?)(?<!\\)\]=
 (defun adoc-re-inline-macro (&optional cmd-name target unconstrained attribute-list-constraints)
-  "Returns regex matching an inline macro.
+  "Return regex matching an inline macro.
 
-Id CMD-NAME is nil, any command is matched. It maybe a regexp
-itself in order to match multiple commands. If TARGET is nil, any
-target is matched. When UNCONSTRAINED is nil, the returned regexp
+Id CMD-NAME is nil, any command is matched.  It maybe a regexp
+itself in order to match multiple commands.  If TARGET is nil, any
+target is matched.  When UNCONSTRAINED is nil, the returned regexp
 begins with '\<', i.e. it will _not_ match when CMD-NAME is part
-of a previous word. When ATTRIBUTE-LIST-CONSTRAINTS is 'empty,
+of a previous word.  When ATTRIBUTE-LIST-CONSTRAINTS is 'empty,
 only an empty attribute list is matched, if it's
 'single-attribute, only an attribute list with exactly one
 attribute is matched.
@@ -1517,16 +2066,14 @@ Subgroups of returned regexp:
 
    ;; one line titles
    "\\|"
-   "[=.].*$"
-
-   ))
+   "[=.].*$"))
 
 (defun adoc-re-aor(e1 e2)
-  "all or: Returns a regex matching \(e1\|e2\|e1e2\)? "
+  "All or return a regex matching \(E1\|E2\|E1E2\)?"
   (concat "\\(?:" e1 "\\)?\\(?:" e2 "\\)?"))
 
 (defun adoc-re-ror(e1 e2)
-  "real or: Returns a regex matching \(e1\|e2\|e1e2\)"
+  "Real or return a regex matching \(E1\|E2\|E1E2\)."
   (concat "\\(?:\\(?:" e1 "\\)\\|\\(?:" e2 "\\)\\|\\(?:" e1 "\\)\\(?:" e2 "\\)\\)"))
 
 ;; ((?<!\S)((?P<span>[\d.]+)(?P<op>[*+]))?(?P<align>[<\^>.]{,3})?(?P<style>[a-z])?)?\|'
@@ -1544,7 +2091,7 @@ Subgroups of returned regexp:
 ;;       Reader.skip_blank_lines. Python uses [ \t\n\r\f\v] for it's \s . So
 ;;       the horizontal spaces are [ \t].
 (defun adoc-re-content (&optional qualifier)
-  "Matches content, possibly spawning multiple non-blank lines"
+  "Match content, possibly spawning multiple non-blank lines."
   (concat
    "\\(?:"
    ;; content on initial line
@@ -1558,16 +2105,16 @@ Subgroups of returned regexp:
    "\\)??"
    "\\)"))
 
-
+
 ;;;; font lock keywords
 (defun adoc-kwf-std (end regexp &optional must-free-groups no-block-del-groups)
-  "Standard function for keywords
+  "Standard function for keywords.
 
-Intendent to be called from font lock keyword functions. END is
-the limit of the search. REXEXP the regexp to be searched.
+Intendent to be called from font lock keyword functions.  END is
+the limit of the search.  REGEXP the regexp to be searched.
 MUST-FREE-GROUPS a list of regexp group numbers which may not
 match text that has an adoc-reserved text-property with a non-nil
-value. Likewise, groups in NO-BLOCK-DEL-GROUPS may not contain
+value.  Likewise, groups in NO-BLOCK-DEL-GROUPS may not contain
 text having adoc-reserved set to 'block-del."
   (let ((found t) (prevented t) saved-point)
     (while (and found prevented (<= (point) end) (not (eobp)))
@@ -1593,7 +2140,7 @@ text having adoc-reserved set to 'block-del."
     (and found (not prevented))))
 
 (defun adoc-kwf-attribute-list (end)
-  ;; for each attribute list before END
+  "Function for attributes."
   (while (< (point) end)
     (goto-char (or (text-property-not-all (point) end 'adoc-attribute-list nil)
                    end))
@@ -1623,7 +2170,7 @@ text having adoc-reserved set to 'block-del."
                     (buffer-substring-no-properties (match-beginning 1) (match-end 1)))
               ;; fontify the attribute's name with markup-attribute-face
               (put-text-property
-               (match-beginning 1) (match-end 1) 'face markup-attribute-face))
+               (match-beginning 1) (match-end 1) 'face-attribute-face))
 
             ;; fontify the attribute's value
             (let ((match-group-of-attribute-value (if (match-beginning 2) 2 3))
@@ -1671,10 +2218,10 @@ text having adoc-reserved set to 'block-del."
   "Creates a keyword for font-lock which highlights one line titles"
   (list
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-one-line-title level) '(0)))
-   '(1 '(face markup-meta-hide-face adoc-reserved block-del) t)
+   '(1 '(face adoc-meta-hide-face adoc-reserved block-del) t)
    `(2 ,text-face t)
    '(3  '(face nil adoc-reserved block-del) t)
-   '(4 '(face markup-meta-hide-face) t t)))
+   '(4 '(face adoc-meta-hide-face) t t)))
 
 ;; TODO: highlight bogous 'two line titles' with warning face
 ;; TODO: completely remove keyword when adoc-enable-two-line-title is nil
@@ -1691,7 +2238,7 @@ text having adoc-reserved set to 'block-del."
            (not (text-property-not-all (match-beginning 0) (match-end 0) 'adoc-reserved nil))))
    ;; highlighers
    `(2 ,text-face t)
-   `(3 '(face markup-meta-hide-face adoc-reserved block-del) t)))
+   `(3 '(face adoc-meta-hide-face adoc-reserved block-del) t)))
 
 ;; (defun adoc-?????-attributes (endpos enddelchar)
 ;;   (list
@@ -1699,8 +2246,8 @@ text having adoc-reserved set to 'block-del."
 ;;     ",?[ \t\n]*"
 ;;     "\\(?:\\([a-zA-Z_]+\\)[ \t\n]*=[ \t\n]*\\)?" ; attribute name
 ;;     "\\([^" enddelchar ",]*\\|" (adoc-re-string) "\\)"))                                           ; attribute value
-;;    '(1 markup-attribute-face t)
-;;    '(2 markup-value-face t)))
+;;    '(1 adoc-attribute-face t)
+;;    '(2 adoc-value-face t)))
 
 (defun adoc-kw-oulisti (type &optional level sub-type)
   "Creates a keyword for font-lock which highlights both (un)ordered list item.
@@ -1708,7 +2255,7 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-oulisti'"
   (list
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-oulisti type level sub-type) '(0)))
    '(0 '(face nil adoc-reserved block-del) t)
-   '(2 markup-list-face t)
+   '(2 adoc-list-face t)
    '(3 adoc-align t)))
 
 (defun adoc-kw-llisti (sub-type &optional level)
@@ -1722,27 +2269,27 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
             (put-text-property (1- pos) pos 'adoc-reserved 'block-del)))
         t))
    '(1 '(face nil adoc-reserved block-del) t)
-   '(2 markup-gen-face t)
+   '(2 adoc-gen-face t)
    '(3 '(face adoc-align adoc-reserved block-del) t)
-   '(4 markup-list-face t)))
+   '(4 adoc-list-face t)))
 
 (defun adoc-kw-list-continuation ()
   (list
    ;; see also regexp of forced line break, which is similar. it is not directly
    ;; obvious from asciidoc sourcecode what the exact rules are.
    '(lambda (end) (adoc-kwf-std end "^\\(\\+\\)[ \t]*$" '(1)))
-   '(1 '(face markup-meta-face adoc-reserved block-del) t)))
+   '(1 '(face adoc-meta-face adoc-reserved block-del) t)))
 
 (defun adoc-kw-delimited-block (del &optional text-face inhibit-text-reserved)
-  "Creates a keyword for font-lock which highlights a delimited block."
+  "Create a keyword for font-lock which highlight a delimited block."
   (list
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-delimited-block del) '(1 3)))
    '(0 '(face nil font-lock-multiline t) t)
-   '(1 '(face markup-meta-hide-face adoc-reserved block-del) t)
+   '(1 '(face adoc-meta-hide-face adoc-reserved block-del) t)
    (if (not inhibit-text-reserved)
-       `(2 '(face ,text-face face markup-verbatim-face adoc-reserved t) t t)
+       `(2 '(face ,text-face face adoc-verbatim-face adoc-reserved t) t t)
      `(2 ,text-face t t))
-   '(3 '(face markup-meta-hide-face adoc-reserved block-del) t)))
+   '(3 '(face adoc-meta-hide-face adoc-reserved block-del) t)))
 
 ;; if adoc-kw-delimited-block, adoc-kw-two-line-title don't find the whole
 ;; delimited block / two line title, at least 'use up' the delimiter line so it
@@ -1750,12 +2297,12 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
 (defun adoc-kw-delimiter-line-fallback ()
   (list
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-delimited-block-line) '(0)))
-   '(0 '(face markup-meta-face adoc-reserved block-del) t)))
+   '(0 '(face adoc-meta-face adoc-reserved block-del) t)))
 
 ;; admonition paragraph. Note that there is also the style with the leading attribute list.
 ;; (?s)^\s*(?P<style>NOTE|TIP|IMPORTANT|WARNING|CAUTION):\s+(?P<text>.+)
 (defmacro adoc-kw-admonition-paragraph ()
-  "Creates a keyword which highlights admonition paragraphs"
+  "Create a keyword which highlights admonition paragraphs."
   `(list
     ;; matcher function
     (lambda (end)
@@ -1766,7 +2313,7 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
     '(2 '(face adoc-align adoc-reserved t))))
 
 (defun adoc-kw-verbatim-paragraph-sequence ()
-  "Creates a keyword which highlights a sequence of verbatim paragraphs."
+  "Create a keyword which highlight a sequence of verbatim paragraphs."
   (list
    ;; matcher function
    `(lambda (end)
@@ -1778,49 +2325,47 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
 (defun adoc-kw-block-title ()
   (list
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-block-title) '(1)))
-   '(1 '(face markup-meta-face adoc-reserved block-del))
-   '(2 markup-gen-face)
+   '(1 '(face adoc-meta-face adoc-reserved block-del))
+   '(2 adoc-gen-face)
    '(3 '(face nil adoc-reserved block-del))))
 
 (defun adoc-kw-quote (type ldel text-face-spec &optional del-face rdel literal-p)
-  "Return a keyword which highlights (un)constrained quotes.
+  "Return a keyword which highlight (un)constrained quotes.
 When LITERAL-P is non-nil, the contained text is literal text."
   (list
    ;; matcher function
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-quote type ldel rdel) '(1 2 4) '(3)))
    ;; highlighers
-   '(1 '(face markup-meta-face adoc-reserved t) t t)                    ; attribute list
-   `(2 '(face ,(or del-face markup-meta-hide-face) adoc-reserved t) t)  ; open del
+   '(1 '(face adoc-meta-face adoc-reserved t) t t)                    ; attribute list
+   `(2 '(face ,(or del-face adoc-meta-hide-face) adoc-reserved t) t)  ; open del
    `(3 ,text-face-spec append)                                               ; text
    (if literal-p
-       `(3 '(face ,markup-verbatim-face adoc-reserved t) append)
+       `(3 '(face ,adoc-verbatim-face adoc-reserved t) append)
      '(3 nil)) ; grumbl, I don't know how to get rid of it
-   `(4 '(face ,(or del-face markup-meta-hide-face) adoc-reserved t) t))); close del
+   `(4 '(face ,(or del-face adoc-meta-hide-face) adoc-reserved t) t))); close del
 
 (defun adoc-kw-inline-macro (&optional cmd-name unconstrained attribute-list-constraints cmd-face target-faces target-meta-p attribute-list)
-  "Returns a kewyword which highlights an inline macro.
+  "Return a keyword which highlight an inline macro.
 
-For CMD-NAME and UNCONSTRAINED see
-`adoc-re-inline-macro'. CMD-FACE determines face for the command
-text. If nil, `markup-command-face' is used.  TARGET-FACES
-determines face for the target text. If nil `markup-meta-face' is
-used. If a list, the first is used if the attribute list is the
-empty string, the second is used if its not the empty string. If
-TARGET-META-P is non-nil, the target text is considered to be
-meta characters."
+For CMD-NAME and UNCONSTRAINED see `adoc-re-inline-macro'.  CMD-FACE determines
+face for the command text.  If nil, `adoc-command-face' is used.  TARGET-FACES
+determines face for the target text.  If nil `adoc-meta-face' is used.  If a
+list, the first is used if the attribute list is the empty string, the second
+is used if its not the empty string.  If TARGET-META-P is non-nil, the target
+text is considered to be meta characters."
   (list
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name nil unconstrained attribute-list-constraints) '(1 2 4 5) '(0)))
-   `(1 '(face ,(or cmd-face markup-command-face) adoc-reserved t) t) ; cmd-name
-   '(2 '(face markup-meta-face adoc-reserved t) t)                   ; :
-   `(3 ,(cond ((not target-faces) markup-meta-face)                  ; target
+   `(1 '(face ,(or cmd-face adoc-command-face) adoc-reserved t) t) ; cmd-name
+   '(2 '(face adoc-meta-face adoc-reserved t) t)                   ; :
+   `(3 ,(cond ((not target-faces) adoc-meta-face)                  ; target
               ((listp target-faces) `(if (string= (match-string 5) "") ; 5=attribute-list
                                          ,(car target-faces)
                                        ,(cadr target-faces)))
               (t target-faces))
        ,(if target-meta-p t 'append))
-   '(4 '(face markup-meta-face adoc-reserved t) t) ; [
-   `(5 '(face markup-meta-face adoc-attribute-list ,(or attribute-list t)) t)
-   '(6 '(face markup-meta-face adoc-reserved t) t))) ; ]
+   '(4 '(face adoc-meta-face adoc-reserved t) t) ; [
+   `(5 '(face adoc-meta-face adoc-attribute-list ,(or attribute-list t)) t)
+   '(6 '(face adoc-meta-face adoc-reserved t) t))) ; ]
 
 ;; largely copied from adoc-kw-inline-macro
 ;; TODO: output text should be affected by quotes & co, e.g. bold, emph, ...
@@ -1828,23 +2373,23 @@ meta characters."
   (let ((cmd-name (regexp-opt '("http" "https" "ftp" "file" "irc" "mailto" "callto" "link"))))
     (list
      `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name) '(0) '(0)))
-     `(1 '(face markup-internal-reference-face adoc-reserved t) t) ; cmd-name
-     `(2 '(face markup-internal-reference-face adoc-reserved t) t) ; :
-     `(3 '(face markup-internal-reference-face adoc-reserved t) t) ; target
-     '(4 '(face markup-meta-face adoc-reserved t) t)               ; [
-     `(5 '(face markup-reference-face adoc-attribute-list markup-reference-face) append)
-     '(6 '(face markup-meta-face adoc-reserved t) t))))            ; ]
+     `(1 '(face adoc-internal-reference-face adoc-reserved t) t) ; cmd-name
+     `(2 '(face adoc-internal-reference-face adoc-reserved t) t) ; :
+     `(3 '(face adoc-internal-reference-face adoc-reserved t) t) ; target
+     '(4 '(face adoc-meta-face adoc-reserved t) t)               ; [
+     `(5 '(face adoc-reference-face adoc-attribute-list adoc-reference-face) append)
+     '(6 '(face adoc-meta-face adoc-reserved t) t))))            ; ]
 
 (defun adoc-kw-inline-macro-urls-no-attribute-list ()
   (let ((cmd-name (regexp-opt '("http" "https" "ftp" "file" "irc" "mailto" "callto" "link"))))
     (list
      `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name nil nil 'empty) '(0) '(0)))
-     '(1 '(face markup-reference-face adoc-reserved t) append) ; cmd-name
-     '(2 '(face markup-reference-face adoc-reserved t) append)               ; :
-     '(3 '(face markup-reference-face adoc-reserved t) append)               ; target
-     '(4 '(face markup-meta-face adoc-reserved t) t) ; [
+     '(1 '(face adoc-reference-face adoc-reserved t) append) ; cmd-name
+     '(2 '(face adoc-reference-face adoc-reserved t) append)               ; :
+     '(3 '(face adoc-reference-face adoc-reserved t) append)               ; target
+     '(4 '(face adoc-meta-face adoc-reserved t) t) ; [
                                         ; 5 = attriblist is empty
-     '(6 '(face markup-meta-face adoc-reserved t) t)))) ; ]
+     '(6 '(face adoc-meta-face adoc-reserved t) t)))) ; ]
 
 ;; standalone url
 ;; From asciidoc.conf:
@@ -1882,7 +2427,7 @@ meta characters."
          (both (concat "\\(?:" url "\\)\\|\\(?:" url<> "\\)\\|\\(?:" email "\\)")))
     (list
      `(lambda (end) (adoc-kwf-std end ,both '(0) '(0)))
-     '(0 '(face markup-reference-face adoc-reserved t) append t))))
+     '(0 '(face adoc-reference-face adoc-reserved t) append t))))
 
 ;; bug: escapes are not handled yet
 ;; TODO: give the inserted character a specific face. But I fear that is not
@@ -1939,10 +2484,10 @@ meta characters."
   (and (re-search-forward "\\(^[ \t]+\\)[^ \t\n]" end t)
        ;; don't replace a face with with adoc-align which already is a fixed with
        ;; font (most probably), because then it also won't look aligned
-       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-typewriter-face)
-       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-code-face)
-       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-passthrough-face)
-       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-comment-face)))
+       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-typewriter-face)
+       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-code-face)
+       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-passthrough-face)
+       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-comment-face)))
 
 ;; See adoc-flf-first-whites-fixed-width
 (defun adoc-kw-first-whites-fixed-width ()
@@ -1950,8 +2495,8 @@ meta characters."
    'adoc-flf-first-whites-fixed-width
    '(1 adoc-align t)))
 
-;; ensures that faces from the markup-text group don't overwrite faces from the
-;; markup-meta group
+;; ensures that faces from the adoc-text group don't overwrite faces from the
+;; adoc-meta group
 (defun adoc-flf-meta-face-cleanup (end)
   (while (< (point) end)
     (let* ((next-pos (next-single-property-change (point) 'face nil end))
@@ -1960,11 +2505,11 @@ meta characters."
            newfaces
            meta-p)
       (while faces
-        (if (member (car faces) '(markup-meta-hide-face markup-command-face markup-attribute-face markup-value-face markup-complex-replacement-face markup-list-face markup-table-face markup-table-row-face markup-table-cell-face markup-anchor-face markup-internal-reference-face markup-comment-face markup-preprocessor-face))
+        (if (member (car faces) '(adoc-meta-hide-face adoc-command-face adoc-attribute-face adoc-value-face adoc-complex-replacement-face adoc-list-face adoc-table-face adoc-table-row-face adoc-table-cell-face adoc-anchor-face adoc-internal-reference-face adoc-comment-face adoc-preprocessor-face))
             (progn
               (setq meta-p t)
               (setq newfaces (cons (car faces) newfaces)))
-          (if (not (string-match "markup-" (symbol-name (car faces))))
+          (if (not (string-match "adoc-" (symbol-name (car faces))))
               (setq newfaces (cons (car faces) newfaces))))
         (setq faces (cdr faces)))
       (if meta-p
@@ -1976,7 +2521,6 @@ meta characters."
 
 ;;;; font lock
 (defun adoc-unfontify-region-function (beg end)
-  ;;
   (font-lock-default-unfontify-region beg end)
 
   ;; remove overlays. Currently only used by AsciiDoc replacements
@@ -2002,28 +2546,39 @@ meta characters."
   (forward-paragraph -1))
 
 (defun adoc-get-font-lock-keywords ()
+  "Return list of keywords for `adoc-mode'."
   (list
 
-   ;; Asciidoc BUG: Lex.next has a different order than the following extract
+   ;; AsciiDoc BUG: Lex.next has a different order than the following extract
    ;; from the documentation states.
 
    ;; When a block element is encountered asciidoc(1) determines the type of
-   ;; block by checking in the following order (first to last): (section)
-   ;; Titles, BlockMacros, Lists, DelimitedBlocks, Tables, AttributeEntrys,
-   ;; AttributeLists, BlockTitles, Paragraphs.
+   ;; block by checking in the following order (first to last):
+   ;; 1. (section)
+   ;; 2. Titles,
+   ;; 3. BlockMacros,
+   ;; 4. Lists,
+   ;; 5. DelimitedBlocks,
+   ;; 6. Tables,
+   ;; 7. AttributeEntrys,
+   ;; 8. AttributeLists,
+   ;; 9. BlockTitles,
+   ;; 10. Paragraphs.
 
    ;; sections / document structure
    ;; ------------------------------
-   (adoc-kw-one-line-title 0 markup-title-0-face)
-   (adoc-kw-one-line-title 1 markup-title-1-face)
-   (adoc-kw-one-line-title 2 markup-title-2-face)
-   (adoc-kw-one-line-title 3 markup-title-3-face)
-   (adoc-kw-one-line-title 4 markup-title-4-face)
-   (adoc-kw-two-line-title (nth 0 adoc-two-line-title-del) markup-title-0-face)
-   (adoc-kw-two-line-title (nth 1 adoc-two-line-title-del) markup-title-1-face)
-   (adoc-kw-two-line-title (nth 2 adoc-two-line-title-del) markup-title-2-face)
-   (adoc-kw-two-line-title (nth 3 adoc-two-line-title-del) markup-title-3-face)
-   (adoc-kw-two-line-title (nth 4 adoc-two-line-title-del) markup-title-4-face)
+   (adoc-kw-one-line-title 0 adoc-header-0-face)
+   (adoc-kw-one-line-title 1 adoc-header-1-face)
+   (adoc-kw-one-line-title 2 adoc-header-2-face)
+   (adoc-kw-one-line-title 3 adoc-header-3-face)
+   (adoc-kw-one-line-title 4 adoc-header-4-face)
+   (adoc-kw-one-line-title 5 adoc-header-5-face)
+   (adoc-kw-two-line-title (nth 0 adoc-two-line-title-del) adoc-header-0-face)
+   (adoc-kw-two-line-title (nth 1 adoc-two-line-title-del) adoc-header-1-face)
+   (adoc-kw-two-line-title (nth 2 adoc-two-line-title-del) adoc-header-2-face)
+   (adoc-kw-two-line-title (nth 3 adoc-two-line-title-del) adoc-header-3-face)
+   (adoc-kw-two-line-title (nth 4 adoc-two-line-title-del) adoc-header-4-face)
+   ;; (adoc-kw-two-line-title (nth 5 adoc-two-line-title-del) adoc-header-5-face) ;; TODO: don't work now
 
 
    ;; block macros
@@ -2066,23 +2621,23 @@ meta characters."
    ;; (?mu)^[\\]?//(?P<passtext>[^/].*|)$
    ;; I don't know what the [\\]? should mean
    (list "^\\(//\\(?:[^/].*\\|\\)\\(?:\n\\|\\'\\)\\)"
-         '(1 '(face markup-comment-face adoc-reserved block-del)))
+         '(1 '(face adoc-comment-face adoc-reserved block-del)))
    ;; image. The first positional attribute is per definition 'alt', see
    ;; asciidoc manual, sub chapter 'Image macro attributes'.
    (list `(lambda (end) (adoc-kwf-std end ,(adoc-re-block-macro "image") '(0)))
-         '(0 '(face markup-meta-face adoc-reserved block-del) t) ; whole match
-         '(1 markup-complex-replacement-face t) ; 'image'
-         '(2 markup-internal-reference-face t)  ; file name
-         '(3 '(face markup-meta-face adoc-reserved nil adoc-attribute-list ("alt")) t)) ; attribute list
+         '(0 '(face adoc-meta-face adoc-reserved block-del) t) ; whole match
+         '(1 adoc-complex-replacement-face t) ; 'image'
+         '(2 adoc-internal-reference-face t)  ; file name
+         '(3 '(face adoc-meta-face adoc-reserved nil adoc-attribute-list ("alt")) t)) ; attribute list
 
    ;; passthrough: (?u)^(?P<name>pass)::(?P<subslist>\S*?)(\[(?P<passtext>.*?)\])$
    ;; todo
 
    ;; -- general block macro
    (list `(lambda (end) (adoc-kwf-std end ,(adoc-re-block-macro) '(0)))
-         '(0 '(face markup-meta-face adoc-reserved block-del)) ; whole match
-         '(1 markup-command-face t)                            ; command name
-         '(3 '(face markup-meta-face adoc-reserved nil adoc-attribute-list t) t)) ; attribute list
+         '(0 '(face adoc-meta-face adoc-reserved block-del)) ; whole match
+         '(1 adoc-command-face t)                            ; command name
+         '(3 '(face adoc-meta-face adoc-reserved nil adoc-attribute-list t) t)) ; attribute list
 
    ;; lists
    ;; ------------------------------
@@ -2127,10 +2682,10 @@ meta characters."
 
    ;; Delimited blocks
    ;; ------------------------------
-   (adoc-kw-delimited-block 0 markup-comment-face)   ; comment
-   (adoc-kw-delimited-block 1 markup-passthrough-face) ; passthrough
-   (adoc-kw-delimited-block 2 markup-code-face) ; listing
-   (adoc-kw-delimited-block 3 markup-verbatim-face) ; literal
+   (adoc-kw-delimited-block 0 adoc-comment-face)   ; comment
+   (adoc-kw-delimited-block 1 adoc-passthrough-face) ; passthrough
+   (adoc-kw-delimited-block 2 adoc-code-face) ; listing
+   (adoc-kw-delimited-block 3 adoc-verbatim-face) ; literal
    (adoc-kw-delimited-block 4 nil t) ; quote
    (adoc-kw-delimited-block 5 nil t) ; example
    (adoc-kw-delimited-block 6 adoc-secondary-text t) ; sidebar
@@ -2182,15 +2737,15 @@ meta characters."
          '(1 '(face adoc-complex-replacement adoc-reserved block-del)))
    ;; block id
    (list `(lambda (end) (adoc-kwf-std end ,(adoc-re-anchor 'block-id) '(0)))
-         '(0 '(face markup-meta-face adoc-reserved block-del))
-         '(1 markup-anchor-face t)
-         '(2 markup-secondary-text-face t t))
+         '(0 '(face adoc-meta-face adoc-reserved block-del))
+         '(1 adoc-anchor-face t)
+         '(2 adoc-secondary-text-face t t))
 
    ;; --- general attribute list block element
    ;; ^\[(?P<attrlist>.*)\]$
    (list '(lambda (end) (adoc-kwf-std end "^\\(\\[\\(.*\\)\\]\\)[ \t]*$" '(0)))
-         '(1 '(face markup-meta-face adoc-reserved block-del))
-         '(2 '(face markup-meta-face adoc-attribute-list t)))
+         '(1 '(face adoc-meta-face adoc-reserved block-del))
+         '(2 '(face adoc-meta-face adoc-attribute-list t)))
 
 
    ;; block title
@@ -2227,14 +2782,14 @@ meta characters."
    ;; AsciiDoc Manual: constitutes an inline literal passthrough. The enclosed
    ;; text is rendered in a monospaced font and is only subject to special
    ;; character substitution.
-   (adoc-kw-quote 'adoc-constrained "`" markup-typewriter-face nil nil t)     ;1)
+   (adoc-kw-quote 'adoc-constrained "`" adoc-typewriter-face nil nil t)     ;1)
    ;; AsciiDoc Manual: The triple-plus passthrough is functionally identical to
    ;; the pass macro but you don’t have to escape ] characters and you can
    ;; prefix with quoted attributes in the inline version
-   (adoc-kw-quote 'adoc-unconstrained "+++" markup-typewriter-face nil nil t) ;2)
+   (adoc-kw-quote 'adoc-unconstrained "+++" adoc-typewriter-face nil nil t) ;2)
    ;;The double-dollar passthrough is functionally identical to the triple-plus
    ;;passthrough with one exception: special characters are escaped.
-   (adoc-kw-quote 'adoc-unconstrained "$$" markup-typewriter-face nil nil t)  ;2)
+   (adoc-kw-quote 'adoc-unconstrained "$$" adoc-typewriter-face nil nil t)  ;2)
    ;; TODO: add pass:[...], latexmath:[...], asciimath[...]
 
    ;; special characters
@@ -2246,18 +2801,18 @@ meta characters."
    ;; quotes: unconstrained and constrained
    ;; order given by asciidoc.conf
    ;; ------------------------------
-   (adoc-kw-quote 'adoc-unconstrained "**" markup-strong-face)
-   (adoc-kw-quote 'adoc-constrained "*" markup-strong-face)
+   (adoc-kw-quote 'adoc-unconstrained "**" adoc-bold-face)
+   (adoc-kw-quote 'adoc-constrained "*" adoc-bold-face)
    (adoc-kw-quote 'adoc-constrained "``" nil adoc-replacement "''") ; double quoted text
-   (adoc-kw-quote 'adoc-constrained "'" markup-emphasis-face)      ; single quoted text
+   (adoc-kw-quote 'adoc-constrained "'" adoc-emphasis-face)      ; single quoted text
    (adoc-kw-quote 'adoc-constrained "`" nil adoc-replacement "'")
    ;; `...` , +++...+++, $$...$$ are within passthrough stuff above
-   (adoc-kw-quote 'adoc-unconstrained "++" markup-typewriter-face) ; AsciiDoc manual: really only '..are rendered in a monospaced font.'
-   (adoc-kw-quote 'adoc-constrained "+" markup-typewriter-face)
-   (adoc-kw-quote 'adoc-unconstrained  "__" markup-emphasis-face)
-   (adoc-kw-quote 'adoc-constrained "_" markup-emphasis-face)
-   (adoc-kw-quote 'adoc-unconstrained "##" markup-gen-face) ; unquoted text
-   (adoc-kw-quote 'adoc-constrained "#" markup-gen-face)    ; unquoted text
+   (adoc-kw-quote 'adoc-unconstrained "++" adoc-typewriter-face) ; AsciiDoc manual: really only '..are rendered in a monospaced font.'
+   (adoc-kw-quote 'adoc-constrained "+" adoc-typewriter-face)
+   (adoc-kw-quote 'adoc-unconstrained  "__" adoc-emphasis-face)
+   (adoc-kw-quote 'adoc-constrained "_" adoc-emphasis-face)
+   (adoc-kw-quote 'adoc-unconstrained "##" adoc-gen-face) ; unquoted text
+   (adoc-kw-quote 'adoc-constrained "#" adoc-gen-face)    ; unquoted text
    (adoc-kw-quote 'adoc-unconstrained "~" (adoc-facespec-subscript)) ; subscript
    (adoc-kw-quote 'adoc-unconstrained "^" (adoc-facespec-superscript)) ; superscript
 
@@ -2272,9 +2827,9 @@ meta characters."
    ;; Asciidoc.conf surrounds em dash with thin spaces. I think that does not
    ;; make sense here, all that spaces you would see in the buffer would at best
    ;; be confusing.
-   (adoc-kw-replacement "\\((C)\\)" "\u00A9")
-   (adoc-kw-replacement "\\((R)\\)" "\u00AE")
-   (adoc-kw-replacement "\\((TM)\\)" "\u2122")
+   (adoc-kw-replacement "\\((C)\\)" "\u00A9")  ;; ©
+   (adoc-kw-replacement "\\((R)\\)" "\u00AE")  ;; ®
+   (adoc-kw-replacement "\\((TM)\\)" "\u2122") ;; ™
    ;; (^-- )=&#8212;&#8201;
    ;; (\n-- )|( -- )|( --\n)=&#8201;&#8212;&#8201;
    ;; (\w)--(\w)=\1&#8212;\2
@@ -2310,14 +2865,14 @@ meta characters."
    ;; Macros using default syntax, but having special highlighting in adoc-mode
    (adoc-kw-inline-macro-urls-no-attribute-list)
    (adoc-kw-inline-macro-urls-attribute-list)
-   (adoc-kw-inline-macro "anchor" nil nil nil markup-anchor-face t '("xreflabel"))
-   (adoc-kw-inline-macro "image" nil nil markup-complex-replacement-face markup-internal-reference-face t
+   (adoc-kw-inline-macro "anchor" nil nil nil adoc-anchor-face t '("xreflabel"))
+   (adoc-kw-inline-macro "image" nil nil adoc-complex-replacement-face adoc-internal-reference-face t
                          '("alt"))
-   (adoc-kw-inline-macro "xref" nil nil nil '(markup-reference-face markup-internal-reference-face) t
-                         '(("caption") (("caption" . markup-reference-face))))
-   (adoc-kw-inline-macro "footnote" t nil nil nil nil markup-secondary-text-face)
+   (adoc-kw-inline-macro "xref" nil nil nil '(adoc-reference-face adoc-internal-reference-face) t
+                         '(("caption") (("caption" . adoc-reference-face))))
+   (adoc-kw-inline-macro "footnote" t nil nil nil nil adoc-secondary-text-face)
    (adoc-kw-inline-macro "footnoteref" t 'single-attribute nil nil nil
-                         '(("id") (("id" . markup-internal-reference-face))))
+                         '(("id") (("id" . adoc-internal-reference-face))))
    (adoc-kw-inline-macro "footnoteref" t nil nil nil nil '("id" "text"))
    (adoc-kw-standalone-urls)
 
@@ -2329,14 +2884,14 @@ meta characters."
    ;; attribute list, for simplicity adoc-mode doesn't really treat it as such.
    ;; The attrib list can only contain one element anyway.
    (list `(lambda (end) (adoc-kwf-std end ,(adoc-re-anchor 'biblio) '(1 3) '(0)))
-         '(1 '(face markup-meta-face adoc-reserved t) t)  ; [[
-         '(2 markup-gen-face)                             ; [id]
-         '(3 '(face markup-meta-face adoc-reserved t) t)) ; ]]
+         '(1 '(face adoc-meta-face adoc-reserved t) t)  ; [[
+         '(2 adoc-gen-face)                             ; [id]
+         '(3 '(face adoc-meta-face adoc-reserved t) t)) ; ]]
    ;; anchor ala [[id]] or [[id,xreflabel]]
    (list `(lambda (end) (adoc-kwf-std end ,(adoc-re-anchor 'inline-special) '(1 3) '(0)))
-         '(1 '(face markup-meta-face adoc-reserved t) t)
-         '(2 '(face markup-meta-face adoc-attribute-list ("id" "xreflabel")) t)
-         '(3 '(face markup-meta-face adoc-reserved t) t))
+         '(1 '(face adoc-meta-face adoc-reserved t) t)
+         '(2 '(face adoc-meta-face adoc-attribute-list ("id" "xreflabel")) t)
+         '(3 '(face adoc-meta-face adoc-reserved t) t))
 
    ;; see also xref: within inline macros
    ;; reference with own/explicit caption
@@ -2412,10 +2967,8 @@ meta characters."
    (list 'adoc-kwf-attribute-list)
 
    ;; cleanup
-   (list 'adoc-flf-meta-face-cleanup)
-   ))
+   (list 'adoc-flf-meta-face-cleanup)))
 
-
 ;;;; interactively-callable commands
 (defun adoc-show-version ()
   "Show the version number in the minibuffer."
@@ -2445,12 +2998,11 @@ meta characters."
 (defun adoc-promote (&optional arg)
   "Promotes the structure at point ARG levels.
 
-When ARG is nil (i.e. when no prefix arg is given), it defaults
-to 1. When ARG is negative, level is demoted that many levels.
+When ARG is nil (i.e. when no prefix arg is given), it defaults to 1. When ARG
+is negative, level is demoted that many levels.
 
-The intention is that the structure can be a title or a list
-element or anything else which has a 'level'. However currently
-it works only for titles."
+The intention is that the structure can be a title or a list element or
+anything else which has a 'level'.  However currently it works only for titles."
   (interactive "p")
   (adoc-promote-title arg))
 
@@ -2464,9 +3016,8 @@ Analogous to `adoc-promote', see there."
 (defun adoc-promote-title (&optional arg)
   "Promotes the title at point ARG levels.
 
-When ARG is nil (i.e. when no prefix arg is given), it defaults
-to 1. When ARG is negative, level is demoted that many levels. If
-ARG is 0, see `adoc-adjust-title-del'."
+When ARG is nil (i.e. when no prefix arg is given), it defaults to 1.  When ARG
+is negative, level is demoted that many levels.  If ARG is 0, see `adoc-adjust-title-del'."
   (interactive "p")
   (adoc-modify-title arg))
 
@@ -2489,24 +3040,26 @@ the underline has the correct length."
   (adoc-modify-title))
 
 (defun adoc-toggle-title-type (&optional type-type)
-  "Toggles title's type.
+  "Toggle title's type.
 
-If TYPE-TYPE is nil, title's type is toggled. If TYPE-TYPE is
-non-nil, the sub type is toggled."
+If TYPE-TYPE is nil, title's type is toggled.  If TYPE-TYPE is non-nil, the sub
+type is toggled."
   (interactive "P")
   (when type-type
     (setq type-type t))
   (adoc-modify-title nil nil (not type-type) type-type))
 
 (defun adoc-calc ()
-  "(Re-)calculates variables used in adoc-mode.
+  "(Re-)calculates variables used in `adoc-mode'.
 Needs to be called after changes to certain (customization)
-variables. Mostly in order font lock highlighting works as the
+variables.  Mostly in order font lock highlighting works as the
 new customization demands."
   (interactive)
 
-  (when (and (null adoc-insert-replacement)
-             adoc-unichar-name-resolver)
+  (when
+      (and
+       (null adoc-insert-replacement)
+       adoc-unichar-name-resolver)
     (message "Warning: adoc-unichar-name-resolver is non-nil, but is adoc-insert-replacement is nil"))
   (when (and (eq adoc-unichar-name-resolver 'adoc-unichar-by-name)
              (null adoc-unichar-alist))
@@ -2517,7 +3070,7 @@ new customization demands."
     (font-lock-flush)
     (font-lock-ensure)))
 
-
+
 ;;;; tempos
 ;; TODO: tell user to make use of tempo-interactive
 ;; TODO: tell user to how to use tempo-snippets?? that there are clear methods
@@ -2537,7 +3090,7 @@ new customization demands."
     (apply 'tempo-define-template args)))
 
 (defun adoc-template-str-title (&optional level title-text)
-  "Returns the string tempo-template-adoc-title-x would insert"
+  "Return the string tempo-template-adoc-title-x would insert."
   (with-temp-buffer
     (insert (or title-text "foo"))
     (set-mark (point-min))
@@ -2547,7 +3100,7 @@ new customization demands."
 
 ;; Text formatting - constrained quotes
 (adoc-tempo-define "adoc-emphasis" '("_" (r "text" text) "_") nil adoc-help-emphasis)
-(adoc-tempo-define "adoc-strong" '("*" (r "text" text) "*") nil adoc-help-strong)
+(adoc-tempo-define "adoc-bold" '("*" (r "text" text) "*") nil adoc-help-strong)
 (adoc-tempo-define "adoc-monospace" '("+" (r "text" text) "+") nil adoc-help-monospace)
 (adoc-tempo-define "adoc-monospace-literal" '("`" (r "text" text) "`"))
 (adoc-tempo-define "adoc-single-quote" '("`" (r "text" text) "'") nil adoc-help-single-quote)
@@ -2556,7 +3109,7 @@ new customization demands."
 
 ;; Text formatting - unconstrained quotes
 (adoc-tempo-define "adoc-emphasis-uc" '("__" (r "text" text) "__") nil adoc-help-emphasis)
-(adoc-tempo-define "adoc-strong-uc" '("**" (r "text" text) "**") nil adoc-help-strong)
+(adoc-tempo-define "adoc-bold-uc" '("**" (r "text" text) "**") nil adoc-help-bold)
 (adoc-tempo-define "adoc-monospace-uc" '("++" (r "text" text) "++") nil adoc-help-monospace)
 (adoc-tempo-define "adoc-attributed-uc" '("[" p "]##" (r "text" text) "##") nil adoc-help-attributed)
 (adoc-tempo-define "adoc-superscript" '("^" (r "text" text) "^"))
@@ -2692,19 +3245,19 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 
 ;;;; misc
 (defun adoc-insert-indented (str indent-level)
-  "Indents and inserts STR such that point is at INDENT-LEVEL."
+  "Indent and insert STR such that point is at INDENT-LEVEL."
   (indent-to (- (* tab-width indent-level) (length str)))
   (insert str))
 
 (defun adoc-repeat-string (str n)
-  "Returns str n times concatenated"
+  "Return STR N times concatenated."
   (let ((retval ""))
     (dotimes (i n)
       (setq retval (concat retval str)))
     retval))
 
 (defun adoc-tempo-handler (element)
-  "Tempo user element handler, see `tempo-user-elements'."
+  "Tempo user ELEMENT handler, see `tempo-user-elements'."
   (let ((on-region (adoc-tempo-on-region)))
     (cond
 
@@ -2729,7 +3282,7 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 (add-to-list 'tempo-user-elements 'adoc-tempo-handler)
 
 (defun adoc-tempo-on-region ()
-  "Guesses the on-region argument `tempo-insert' is given.
+  "Guess the on-region argument `tempo-insert' is given.
 
 Is a workaround the problem that tempo's user handlers don't get
 passed the on-region argument."
@@ -2757,7 +3310,7 @@ passed the on-region argument."
 (defun adoc-forward-xref (&optional bound)
   "Move forward to next xref and return it's id.
 
-Match data is the one of the found xref. Returns nil if there was
+Match data is the one of the found xref.  Returns nil if there was
 no xref found."
   (cond
    ((or (re-search-forward (adoc-re-xref 'inline-special-with-caption) bound t)
@@ -2768,7 +3321,7 @@ no xref found."
    (t nil)))
 
 (defun adoc-xref-id-at-point ()
-  "Returns id referenced by the xref point is at.
+  "Return id referenced by the xref point is at.
 
 Returns nil if there was no xref found."
   (save-excursion
@@ -2784,7 +3337,7 @@ Returns nil if there was no xref found."
       id)))
 
 (defun adoc-title-descriptor (&optional strict-match )
-  "Returns title descriptor of title point is in.
+  "Return title descriptor of title point is in.
 
 When STRICT-MATCH is t, and 2 line title is used, the lengths of the underline
 text and title must not differ by more than 2 characters.
@@ -2793,12 +3346,11 @@ Title descriptor looks like this: (TYPE SUB-TYPE LEVEL TEXT START END)
 
 0 TYPE: 1 fore one line title, 2 for two line title.
 
-1 SUB-TYPE: Only applicable for one line title: 1 for only
-starting delimiter ('== my title'), 2 for both starting and
-trailing delimiter ('== my title ==').
+1 SUB-TYPE: Only applicable for one line title: 1 for only starting delimiter
+\('== my title'), 2 for both starting and trailing delimiter ('== my title ==').
 
-2 LEVEL: Level of title. A value between 0 and
-`adoc-title-max-level' inclusive.
+2 LEVEL: Level of title.  A value between 0 and `adoc-title-max-level'
+inclusive.
 
 3 TEXT: Title's text
 
@@ -2850,27 +3402,25 @@ trailing delimiter ('== my title ==').
 (defun adoc-modify-title (&optional new-level-rel new-level-abs new-type new-sub-type create)
   "Modify properties of title point is on.
 
-NEW-LEVEL-REL defines the new title level relative to the current
-one. Negative values are allowed. 0 or nil means don't change.
-NEW-LEVEL-ABS defines the new level absolutely. When both
-NEW-LEVEL-REL and NEW-LEVEL-ABS are non-nil, NEW-LEVEL-REL takes
-precedence. When both are nil, level is not affected.
+NEW-LEVEL-REL defines the new title level relative to the current one.
+Negative values are allowed.  0 or nil means don't change.
+NEW-LEVEL-ABS defines the new level absolutely.  When both NEW-LEVEL-REL and
+NEW-LEVEL-ABS are non-nil, NEW-LEVEL-REL takes precedence.  When both are nil,
+level is not affected.
 
-When NEW-TYPE is nil, the title type is unaffected. If NEW-TYPE
-is t, the type is toggled. If it's 1 or 2, the new type is one
-line title or two line title respectively.
+When NEW-TYPE is nil, the title type is unaffected.  If NEW-TYPE is t, the type
+is toggled.  If it's 1 or 2, the new type is one line title or two line title
+respectively.
 
-NEW-SUB-TYPE is analogous to NEW-TYPE. However when the actual
-title has no sub type, only the absolute values of NEW-SUB-TYPE
-apply, otherwise the new sub type becomes
-`adoc-default-title-sub-type'.
+NEW-SUB-TYPE is analogous to NEW-TYPE.  However when the actual title has no
+sub type, only the absolute values of NEW-SUB-TYPE apply, otherwise the new sub
+type becomes `adoc-default-title-sub-type'.
 
-If CREATE is nil, an error is signaled if point is not on a
-title. If CREATE is non-nil a new title is created if point is
-currently not on a title.
+If CREATE is nil, an error is signaled if point is not on a title.  If CREATE
+is non-nil a new title is created if point is currently not on a title.
 
-BUG: In one line title case: number of spaces between delimiters
-and title's text are not preserved, afterwards its always one space."
+BUG: In one line title case: number of spaces between delimiters and title's
+text are not preserved, afterwards its always one space."
   (let ((descriptor (adoc-title-descriptor)))
     (if (or create (not descriptor))
         (error "Point is not on a title"))
@@ -2939,7 +3489,7 @@ and title's text are not preserved, afterwards its always one space."
 (defvar unicode-character-list) ;; From unichars.el
 
 (defun adoc-make-unichar-alist()
-  "Creates `adoc-unichar-alist' from `unicode-character-list'"
+  "Create `adoc-unichar-alist' from `unicode-character-list'."
   (unless (boundp 'unicode-character-list)
     (load "unichars"))
   (let ((i unicode-character-list))
@@ -2952,16 +3502,16 @@ and title's text are not preserved, afterwards its always one space."
         (setq i (cdr i))))))
 
 (defun adoc-unichar-by-name (name)
-  "Returns unicode codepoint of char with the given NAME"
+  "Return unicode codepoint of char with the given NAME."
   (cdr (assoc name adoc-unichar-alist)))
 
 (defun adoc-entity-to-string (entity)
-  "Returns a string containing the character referenced by ENTITY.
+  "Return a string containing the character referenced by ENTITY.
 
-ENTITY is a string containing a character entity reference like
-e.g. '&#38;' or '&amp;'. nil is returned if its an invalid
-entity, or when customizations prevent `adoc-entity-to-string' from
-knowing it. E.g. when `adoc-unichar-name-resolver' is nil."
+ENTITY is a string containing a character entity reference like e.g. '&#38;' or
+'&amp;'.  nil is returned if its an invalid entity, or when customizations
+prevent `adoc-entity-to-string' from knowing it.  E.g. when
+`adoc-unichar-name-resolver' is nil."
   (save-match-data
     (let (ch)
       (setq ch
@@ -2980,17 +3530,15 @@ knowing it. E.g. when `adoc-unichar-name-resolver' is nil."
       (when (characterp ch) (make-string 1 ch)))))
 
 (defun adoc-face-for-attribute (pos-or-name &optional attribute-list-prop-val)
-  "Returns the face to be used for the given attribute.
+  "Return the face to be used for the given attribute.
 
-The face to be used is looked up in `adoc-attribute-face-alist',
-unless that alist is overwritten by the content of
-ATTRIBUTE-LIST-PROP-VAL.
+The face to be used is looked up in `adoc-attribute-face-alist', unless that
+alist is overwritten by the content of ATTRIBUTE-LIST-PROP-VAL.
 
-POS-OR-NAME identifies the attribute for which the face is
-returned. When POS-OR-NAME satisfies numberp, it is the number of
-the positional attribute, where as the first positinal attribute
-has position 0. Otherwise POS-OR-NAME is the name of the named
-attribute.
+POS-OR-NAME identifies the attribute for which the face is returned.  When
+POS-OR-NAME satisfies numberp, it is the number of the positional attribute,
+where as the first positinal attribute has position 0. Otherwise POS-OR-NAME is
+the name of the named attribute.
 
 The value of ATTRIBUTE-LIST-PROP-VAL is one of the following:
 - nil
@@ -2998,18 +3546,16 @@ The value of ATTRIBUTE-LIST-PROP-VAL is one of the following:
 - POS-TO-NAME
 - (POS-TO-NAME LOCAL-ATTRIBUTE-FACE-ALIST)
 
-POS-TO-NAME is a list of strings mapping positions to attribute
-names. E.g. (\"foo\" \"bar\") means that the first positional
-attribute corresponds to the named attribute foo, and the 2nd
-positional attribute corresponds to the named attribute bar.
+POS-TO-NAME is a list of strings mapping positions to attribute names.  E.g.
+\(\"foo\" \"bar\") means that the first positional attribute corresponds to the
+named attribute foo, and the 2nd positional attribute corresponds to the named
+attribute bar.
 
-FACE is something that satisfies facep; in that case the whole
-attribute list is fontified with that face. However that case is
-handled outside this function.
+FACE is something that satisfies facep; in that case the whole attribute list
+is fontified with that face. However that case is handled outside this function.
 
-An attribute name is first looked up in
-LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
-`adoc-attribute-face-alist'."
+An attribute name is first looked up in LOCAL-ATTRIBUTE-FACE-ALIST before it is
+looked up in `adoc-attribute-face-alist'."
   (let* ((has-pos-to-name (listp attribute-list-prop-val))
          (has-local-alist (and has-pos-to-name (listp (car-safe attribute-list-prop-val))))
          (pos-to-name (cond ((not has-pos-to-name) nil)
@@ -3020,7 +3566,7 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
                      ((numberp pos-or-name) (nth pos-or-name pos-to-name)))))
     (or (when name (or (cdr (assoc name local-attribute-face-alist))
                        (cdr (assoc name adoc-attribute-face-alist))))
-        markup-value-face)))
+        adoc-value-face)))
 
 (defun adoc-imenu-create-index ()
   (let* ((index-alist)
@@ -3068,180 +3614,191 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
     (modify-syntax-entry ?| "." table)
     (modify-syntax-entry ?_ "." table)
     table)
-  "Syntax table to use in adoc-mode.")
+  "Syntax table to use in `adoc-mode'.")
 
 (defvar adoc-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "\C-c\C-d" 'adoc-demote)
     (define-key map "\C-c\C-p" 'adoc-promote)
     (define-key map "\C-c\C-t" 'adoc-toggle-title-type)
-    (define-key map "\C-c\C-g" 'adoc-goto-ref-label)
+    (define-key map "\C-c\C-a" 'adoc-goto-ref-label)
     (easy-menu-define adoc-mode-menu map "Menu for adoc mode"
-    `("AsciiDoc"
-      ["Promote" adoc-promote]
-      ["Demote" adoc-demote]
-      ["Toggle title type" adoc-toggle-title-type]
-      ["Adjust title underline" adoc-adjust-title-del]
-      ["Goto anchor" adoc-goto-ref-label]
-      "---"
-      ;; names|wording / rough order/ help texts are from asciidoc manual
-      ("Templates / cheat sheet"
-       ("Text formatting - constrained quotes"
-        :help ,adoc-help-constrained-quotes
-        ["_Emphasis_" tempo-template-adoc-emphasis
-         :help ,adoc-help-emphasis ]
-        ["*Strong*" tempo-template-adoc-strong
-         :help ,adoc-help-strong ]
-        ["+Monospaced+" tempo-template-adoc-monospace
-         :help ,adoc-help-monospace]
-        ["`Monospaced literal`" tempo-template-adoc-monospace-literal ; redundant to the one in the passthrough section
-         :help ,adoc-help-monospace-literal]
-        ["`Single quote'" tempo-template-adoc-single-quote
-         :help ,adoc-help-single-quote]
-        ["``Double quote''" tempo-template-adoc-double-quote
-         :help ,adoc-help-double-quote]
-        ;; TODO: insert underline, overline, strikethrough, big, small
-        ["[attributes]##text##" tempo-template-adoc-attributed
-         :help ,adoc-help-attributed])
-       ("Text formatting - unconstrained quotes"
-        :help ,adoc-help-unconstrained-quotes
-        ["^Superscript^" tempo-template-adoc-superscript]
-        ["~Subscript~" tempo-template-adoc-subscript]
-        ["__Emphasis__" tempo-template-adoc-emphasis-uc
-         :help ,adoc-help-emphasis ]
-        ["**Strong**" tempo-template-adoc-strong-uc
-         :help ,adoc-help-strong ]
-        ["++Monospaced++" tempo-template-adoc-monospace-uc
-         :help ,adoc-help-monospace]
-        ["[attributes]##text##" tempo-template-adoc-attributed-uc
-         :help ,adoc-help-attributed])
-       ("Text formatting - misc"
-        ["Line break: <SPC>+<NEWLINE>" tempo-template-adoc-line-break
-         :help ,adoc-help-line-break]
-        ["Page break: <<<" tempo-template-adoc-page-break
-         :help ,adoc-help-page-break]
-        ["Ruler line: ---" tempo-template-adoc-ruler-line
-         :help ,adoc-help-ruler-line])
-       ("Text formatting - replacements"
-        ["Copyright: (C) \u2192 \u00A9" tempo-template-adoc-copyright]
-        ["Trademark: (TM) \u2192 \u2122" tempo-template-adoc-trademark]
-        ["Registered trademark: (R) \u2192 \u00AE" tempo-template-adoc-registered-trademark]
-        ["Dash: -- \u2192 \u2014" tempo-template-adoc-dash]
-        ["Ellipsis: ... \u2192 \u2026" tempo-template-adoc-ellipsis]
-        ["Right arrow: -> \u2192 \u2192" tempo-template-adoc-right-arrow]
-        ["Left arrow: <- \u2192 \u2190" tempo-template-adoc-left-arrow]
-        ["Right double arrow: => \u2192 \u21D2" tempo-template-adoc-right-double-arrow]
-        ["Left double arrow: <= \u2192 \u21D0" tempo-template-adoc-left-double-arrow]
+      `("AsciiDoc"
+        ["Promote" adoc-promote]
+        ["Demote" adoc-demote]
+        ["Toggle title type" adoc-toggle-title-type]
+        ["Adjust title underline" adoc-adjust-title-del]
+        ["Goto anchor" adoc-goto-ref-label]
         "---"
-        ["Character entity reference: &...;" tempo-template-adoc-entity-reference
-         :help ,adoc-help-entity-reference])
-       ("Titles"
-        [,(concat "Document title (level 0): " (adoc-template-str-title 0))
-         tempo-template-adoc-title-1]
-        [,(concat "Section title (level 1): " (adoc-template-str-title 1))
-         tempo-template-adoc-title-2]
-        [,(concat "Section title (level 2): " (adoc-template-str-title 2))
-         tempo-template-adoc-title-3]
-        [,(concat "Section title (level 3): " (adoc-template-str-title 3))
-         tempo-template-adoc-title-4]
-        [,(concat "Section title (level 4): " (adoc-template-str-title 4))
-         tempo-template-adoc-title-5]
-        ["Block title: .foo" tempo-template-adoc-block-title]
-        ["BlockId: [[id]]" tempo-template-adoc-anchor]) ; redundant to anchor below
-       ("Paragraphs"
-        ["Literal paragraph" tempo-template-adoc-literal-paragraph
-         :help ,adoc-help-literal-paragraph]
-        "---"
-        ["TIP: " tempo-template-adoc-paragraph-tip]
-        ["NOTE: " tempo-template-adoc-paragraph-note]
-        ["IMPORTANT: " tempo-template-adoc-paragraph-important]
-        ["WARNING: " tempo-template-adoc-paragraph-warning]
-        ["CAUTION: " tempo-template-adoc-paragraph-caution])
-       ("Delimited blocks"
-        :help ,adoc-help-delimited-block
-        ;; BUG: example does not reflect the content of adoc-delimited-block-del
-        ["Comment: ////" tempo-template-adoc-delimited-block-comment
-         :help ,adoc-help-delimited-block-comment]
-        ["Passthrough: ++++" tempo-template-adoc-delimited-block-passthrough
-         :help ,adoc-help-delimited-block-passthrouh]
-        ["Listing: ----" tempo-template-adoc-delimited-block-listing
-         :help ,adoc-help-delimited-block-listing]
-        ["Literal: ...." tempo-template-adoc-delimited-block-literal
-         :help ,adoc-help-delimited-block-literal]
-        ["Quote: ____" tempo-template-adoc-delimited-block-quote
-         :help ,adoc-help-delimited-block-quote]
-        ["Example: ====" tempo-template-adoc-delimited-block-example
-         :help ,adoc-help-delimited-block-example]
-        ["Sidebar: ****" tempo-template-adoc-delimited-block-sidebar
-         :help ,adoc-help-delimited-block-sidebar]
-        ["Open: --" tempo-template-adoc-delimited-block-open-block
-         :help ,adoc-help-delimited-block-open-block])
-       ("Lists"
-        :help ,adoc-help-list
-        ("Bulleted"
-         :help ,adoc-help-bulleted-list
-         ["Item: -" tempo-template-adoc-bulleted-list-item-1]
-         ["Item: **" tempo-template-adoc-bulleted-list-item-2]
-         ["Item: ***" tempo-template-adoc-bulleted-list-item-3]
-         ["Item: ****" tempo-template-adoc-bulleted-list-item-4]
-         ["Item: *****" tempo-template-adoc-bulleted-list-item-5])
-        ("Numbered - explicit"
-         ["Arabic (decimal) numbered item: 1." tempo-template-adoc-numbered-list-item]
-         ["Lower case alpha (letter) numbered item: a." tempo-template-adoc-numbered-list-item]
-         ["Upper case alpha (letter) numbered item: A." tempo-template-adoc-numbered-list-item]
-         ["Lower case roman numbered list item: i)" tempo-template-adoc-numbered-list-item-roman]
-         ["Upper case roman numbered list item: I)" tempo-template-adoc-numbered-list-item-roman])
-        ("Numbered - implicit"
-         ["Arabic (decimal) numbered item: ." tempo-template-adoc-implicit-numbered-list-item-1]
-         ["Lower case alpha (letter) numbered item: .." tempo-template-adoc-implicit-numbered-list-item-2]
-         ["Upper case alpha (letter)numbered item: ..." tempo-template-adoc-implicit-numbered-list-item-3]
-         ["Lower case roman numbered list item: ...." tempo-template-adoc-implicit-numbered-list-item-4]
-         ["Upper case roman numbered list item: ....." tempo-template-adoc-implicit-numbered-list-item-5])
-        ["Labeled item: label:: text" tempo-template-adoc-labeled-list-item]
-        ["List item continuation: <NEWLINE>+<NEWLINE>" tempo-template-adoc-list-item-continuation
-         :help ,adoc-help-list-item-continuation])
-       ("Tables"
-        :help ,adoc-help-table
-        ["Example table" tempo-template-adoc-example-table])
-       ("Macros (inline & block)"
-        :help ,adoc-help-macros
-        ["URL: http://foo.com" tempo-template-adoc-url
-         :help ,adoc-help-url]
-        ["URL with caption: http://foo.com[caption]" tempo-template-adoc-url-caption
-         :help ,adoc-help-url]
-        ["EMail: bob@foo.com" tempo-template-adoc-email
-         :help ,adoc-help-url]
-        ["EMail with caption: mailto:address[caption]" tempo-template-adoc-email-caption
-         :help ,adoc-help-url]
-        ["Anchor aka BlockId (syntax 1): [[id,xreflabel]]" tempo-template-adoc-anchor
-         :help ,adoc-help-anchor]
-        ["Anchor (syntax 2): anchor:id[xreflabel]" tempo-template-adoc-anchor-default-syntax
-         :help ,adoc-help-anchor]
-        ["Xref (syntax 1): <<id,caption>>" adoc-xref
-         :help ,adoc-help-xref]
-        ["Xref (syntax 2): xref:id[caption]" adoc-xref-default-syntax
-         :help ,adoc-help-xref]
-        ["Image: image:target-path[caption]" adoc-image]
-        ["Comment: //" tempo-template-adoc-comment
-         :help ,adoc-help-comment]
-        ("Passthrough macros"
-         :help adoc-help-passthrough-macros
-         ["pass:[text]" tempo-template-adoc-pass
-          :help ,adoc-help-pass]
-         ["ASCIIMath: asciimath:[text]" tempo-template-adoc-asciimath
-          :help ,adoc-help-asciimath]
-         ["LaTeX math: latexmath[text]" tempo-template-adoc-latexmath
-          :help ,adoc-help-latexmath]
-         ["+++text+++" tempo-template-adoc-pass-+++
-          :help ,adoc-help-pass-+++]
-         ["$$text$$" tempo-template-pass-$$
-          :help ,adoc-help-pass-$$]
-         ["`text`" tempo-template-monospace-literal ; redundant to the one in the quotes section
-          :help ,adoc-help-monospace-literal])))))
+        ;; names|wording / rough order/ help texts are from asciidoc manual
+        ("Templates / cheat sheet"
+         ("Text formatting - constrained quotes"
+          :help ,adoc-help-constrained-quotes
+          ["_Emphasis_" tempo-template-adoc-emphasis
+           :help ,adoc-help-emphasis ]
+          ["*Strong*" tempo-template-adoc-bold
+           :help ,adoc-help-bold ]
+          ["+Monospaced+" tempo-template-adoc-monospace
+           :help ,adoc-help-monospace]
+          ["`Monospaced literal`" tempo-template-adoc-monospace-literal ; redundant to the one in the passthrough section
+           :help ,adoc-help-monospace-literal]
+          ["`Single quote'" tempo-template-adoc-single-quote
+           :help ,adoc-help-single-quote]
+          ["``Double quote''" tempo-template-adoc-double-quote
+           :help ,adoc-help-double-quote]
+          ["The text [.underline]#underline me# is underlined." tempo-template-doc-underline
+           :help ,adoc-help-underline]
+          ["The text [.overline]#overline me# is overlined." tempo-template-doc-overline
+           :help ,adoc-help-overline]
+          ["The text [.line-through]#line-through me# is line-through." tempo-template-doc-line-through
+           :help ,adoc-help-line-through]
+          ["The text [.nobreak]#no break me# is non-breakable." tempo-template-doc-nobreak
+           :help ,adoc-help-nobreak]
+          ["The text [.nowrap]#no wrap me# is non-wrapable." tempo-template-doc-nowrap
+           :help ,adoc-help-nowrap]
+          ["The text [.pre-wrap]#pre-wrap me# is pre-wrapped." tempo-template-doc-pre-wrap
+           :help ,adoc-help-pre-wrap]
+          ["[attributes]##text##" tempo-template-adoc-attributed
+           :help ,adoc-help-attributed])
+         ("Text formatting - unconstrained quotes"
+          :help ,adoc-help-unconstrained-quotes
+          ["^Superscript^" tempo-template-adoc-superscript]
+          ["~Subscript~" tempo-template-adoc-subscript]
+          ["__Emphasis__" tempo-template-adoc-emphasis-uc
+           :help ,adoc-help-emphasis ]
+          ["**Strong**" tempo-template-adoc-bold-uc
+           :help ,adoc-help-bold ]
+          ["++Monospaced++" tempo-template-adoc-monospace-uc
+           :help ,adoc-help-monospace]
+          ["[attributes]##text##" tempo-template-adoc-attributed-uc
+           :help ,adoc-help-attributed])
+         ("Text formatting - misc"
+          ["Line break: <SPC>+<NEWLINE>" tempo-template-adoc-line-break
+           :help ,adoc-help-line-break]
+          ["Page break: <<<" tempo-template-adoc-page-break
+           :help ,adoc-help-page-break]
+          ["Ruler line: ---" tempo-template-adoc-ruler-line
+           :help ,adoc-help-ruler-line])
+         ("Text formatting - replacements"
+          ["Copyright: (C) \u2192 \u00A9" tempo-template-adoc-copyright]
+          ["Trademark: (TM) \u2192 \u2122" tempo-template-adoc-trademark]
+          ["Registered trademark: (R) \u2192 \u00AE" tempo-template-adoc-registered-trademark]
+          ["Dash: -- \u2192 \u2014" tempo-template-adoc-dash]
+          ["Ellipsis: ... \u2192 \u2026" tempo-template-adoc-ellipsis]
+          ["Right arrow: -> \u2192 \u2192" tempo-template-adoc-right-arrow]
+          ["Left arrow: <- \u2192 \u2190" tempo-template-adoc-left-arrow]
+          ["Right double arrow: => \u2192 \u21D2" tempo-template-adoc-right-double-arrow]
+          ["Left double arrow: <= \u2192 \u21D0" tempo-template-adoc-left-double-arrow]
+          "---"
+          ["Character entity reference: &...;" tempo-template-adoc-entity-reference
+           :help ,adoc-help-entity-reference])
+         ("Titles"
+          [,(concat "Document title (level 0): " (adoc-template-str-title 0))
+           tempo-template-adoc-title-1]
+          [,(concat "Section title (level 1): " (adoc-template-str-title 1))
+           tempo-template-adoc-title-2]
+          [,(concat "Section title (level 2): " (adoc-template-str-title 2))
+           tempo-template-adoc-title-3]
+          [,(concat "Section title (level 3): " (adoc-template-str-title 3))
+           tempo-template-adoc-title-4]
+          [,(concat "Section title (level 4): " (adoc-template-str-title 4))
+           tempo-template-adoc-title-5]
+          ["Block title: .foo" tempo-template-adoc-block-title]
+          ["BlockId: [[id]]" tempo-template-adoc-anchor]) ; redundant to anchor below
+         ("Paragraphs"
+          ["Literal paragraph" tempo-template-adoc-literal-paragraph
+           :help ,adoc-help-literal-paragraph]
+          "---"
+          ["TIP: " tempo-template-adoc-paragraph-tip]
+          ["NOTE: " tempo-template-adoc-paragraph-note]
+          ["IMPORTANT: " tempo-template-adoc-paragraph-important]
+          ["WARNING: " tempo-template-adoc-paragraph-warning]
+          ["CAUTION: " tempo-template-adoc-paragraph-caution])
+         ("Delimited blocks"
+          :help ,adoc-help-delimited-block
+          ;; BUG: example does not reflect the content of adoc-delimited-block-del
+          ["Comment: ////" tempo-template-adoc-delimited-block-comment
+           :help ,adoc-help-delimited-block-comment]
+          ["Passthrough: ++++" tempo-template-adoc-delimited-block-passthrough
+           :help ,adoc-help-delimited-block-passthrouh]
+          ["Listing: ----" tempo-template-adoc-delimited-block-listing
+           :help ,adoc-help-delimited-block-listing]
+          ["Literal: ...." tempo-template-adoc-delimited-block-literal
+           :help ,adoc-help-delimited-block-literal]
+          ["Quote: ____" tempo-template-adoc-delimited-block-quote
+           :help ,adoc-help-delimited-block-quote]
+          ["Example: ====" tempo-template-adoc-delimited-block-example
+           :help ,adoc-help-delimited-block-example]
+          ["Sidebar: ****" tempo-template-adoc-delimited-block-sidebar
+           :help ,adoc-help-delimited-block-sidebar]
+          ["Open: --" tempo-template-adoc-delimited-block-open-block
+           :help ,adoc-help-delimited-block-open-block])
+         ("Lists"
+          :help ,adoc-help-list
+          ("Bulleted"
+           :help ,adoc-help-bulleted-list
+           ["Item: -" tempo-template-adoc-bulleted-list-item-1]
+           ["Item: **" tempo-template-adoc-bulleted-list-item-2]
+           ["Item: ***" tempo-template-adoc-bulleted-list-item-3]
+           ["Item: ****" tempo-template-adoc-bulleted-list-item-4]
+           ["Item: *****" tempo-template-adoc-bulleted-list-item-5])
+          ("Numbered - explicit"
+           ["Arabic (decimal) numbered item: 1." tempo-template-adoc-numbered-list-item]
+           ["Lower case alpha (letter) numbered item: a." tempo-template-adoc-numbered-list-item]
+           ["Upper case alpha (letter) numbered item: A." tempo-template-adoc-numbered-list-item]
+           ["Lower case roman numbered list item: i)" tempo-template-adoc-numbered-list-item-roman]
+           ["Upper case roman numbered list item: I)" tempo-template-adoc-numbered-list-item-roman])
+          ("Numbered - implicit"
+           ["Arabic (decimal) numbered item: ." tempo-template-adoc-implicit-numbered-list-item-1]
+           ["Lower case alpha (letter) numbered item: .." tempo-template-adoc-implicit-numbered-list-item-2]
+           ["Upper case alpha (letter)numbered item: ..." tempo-template-adoc-implicit-numbered-list-item-3]
+           ["Lower case roman numbered list item: ...." tempo-template-adoc-implicit-numbered-list-item-4]
+           ["Upper case roman numbered list item: ....." tempo-template-adoc-implicit-numbered-list-item-5])
+          ["Labeled item: label:: text" tempo-template-adoc-labeled-list-item]
+          ["List item continuation: <NEWLINE>+<NEWLINE>" tempo-template-adoc-list-item-continuation
+           :help ,adoc-help-list-item-continuation])
+         ("Tables"
+          :help ,adoc-help-table
+          ["Example table" tempo-template-adoc-example-table])
+         ("Macros (inline & block)"
+          :help ,adoc-help-macros
+          ["URL: http://foo.com" tempo-template-adoc-url
+           :help ,adoc-help-url]
+          ["URL with caption: http://foo.com[caption]" tempo-template-adoc-url-caption
+           :help ,adoc-help-url]
+          ["EMail: bob@foo.com" tempo-template-adoc-email
+           :help ,adoc-help-url]
+          ["EMail with caption: mailto:address[caption]" tempo-template-adoc-email-caption
+           :help ,adoc-help-url]
+          ["Anchor aka BlockId (syntax 1): [[id,xreflabel]]" tempo-template-adoc-anchor
+           :help ,adoc-help-anchor]
+          ["Anchor (syntax 2): anchor:id[xreflabel]" tempo-template-adoc-anchor-default-syntax
+           :help ,adoc-help-anchor]
+          ["Xref (syntax 1): <<id,caption>>" adoc-xref
+           :help ,adoc-help-xref]
+          ["Xref (syntax 2): xref:id[caption]" adoc-xref-default-syntax
+           :help ,adoc-help-xref]
+          ["Image: image:target-path[caption]" adoc-image]
+          ["Comment: //" tempo-template-adoc-comment
+           :help ,adoc-help-comment]
+          ("Passthrough macros"
+           :help adoc-help-passthrough-macros
+           ["pass:[text]" tempo-template-adoc-pass
+            :help ,adoc-help-pass]
+           ["ASCIIMath: asciimath:[text]" tempo-template-adoc-asciimath
+            :help ,adoc-help-asciimath]
+           ["LaTeX math: latexmath[text]" tempo-template-adoc-latexmath
+            :help ,adoc-help-latexmath]
+           ["+++text+++" tempo-template-adoc-pass-+++
+            :help ,adoc-help-pass-+++]
+           ["$$text$$" tempo-template-pass-$$
+            :help ,adoc-help-pass-$$]
+           ["`text`" tempo-template-monospace-literal ; redundant to the one in the quotes section
+            :help ,adoc-help-monospace-literal])))))
     map)
   "Keymap used in adoc mode.")
 
-
+
 ;;;###autoload
 (define-derived-mode adoc-mode text-mode "adoc"
   "Major mode for editing AsciiDoc text files.
@@ -3260,10 +3817,10 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
 
   ;; font lock
   (setq-local font-lock-defaults
-       '(adoc-font-lock-keywords
-         nil nil nil nil
-         (font-lock-multiline . t)
-         (font-lock-mark-block-function . adoc-font-lock-mark-block-function)))
+              '(adoc-font-lock-keywords
+                nil nil nil nil
+                (font-lock-multiline . t)
+                (font-lock-mark-block-function . adoc-font-lock-mark-block-function)))
   (setq-local font-lock-extra-managed-props '(adoc-reserved adoc-attribute-list))
   (setq-local font-lock-unfontify-region-function 'adoc-unfontify-region-function)
 
@@ -3296,11 +3853,13 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.a\\(?:scii\\)?doc\\'" . adoc-mode))
 
-
 ;;;; non-definitions evaluated during load
 (adoc-calc)
 
-
 (provide 'adoc-mode)
 
+;; Local Variables:
+;; indent-tabs-mode: nil
+;; coding: utf-8
+;; End:
 ;;; adoc-mode.el ends here
