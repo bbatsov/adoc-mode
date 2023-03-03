@@ -1,4 +1,4 @@
-;;; adoc-mode.el --- A major-mode for editing AsciiDoc files  -*- lexical-binding: t -*-
+;;; adoc-mode.el --- a major-mode for editing AsciiDoc files
 ;;
 ;; Copyright 2009-2016 Florian Kaufmann <sensorflo@gmail.com>
 ;; Copyright 2022 Bozhidar Batsov <bozhidar@batsov.dev> and adoc-mode contributors
@@ -30,28 +30,27 @@
 
 ;;; Commentary:
 
-;; AsciiDoc is a text document format for writing short documents, articles,
-;; books and UNIX man pages.  AsciiDoc files can be translated to HTML and
-;; DocBook markups.
+;; AsciiDoc is a text document format for
+;; writing short documents, articles, books and UNIX man pages.  AsciiDoc files
+;; can be translated to HTML and DocBook markups.
 ;;
-;; `adoc-mode' is an Emacs major mode for editing AsciiDoc files.  It
-;; emphasizes on the idea that the document is highlighted so it pretty much
-;; looks like the final output.  What must be bold is bold, what must be italic
-;; is italic etc.
+;; `adoc-mode' is an Emacs major mode for editing AsciiDoc files.  It emphasizes on
+;; the idea that the document is highlighted so it pretty much ;; looks like the
+;; final output.  What must be bold is bold, what must be italic is italic etc.
 ;; Meta characters are naturally still visible, but in a faint way, so they can
 ;; be easily ignored.
 
 ;;; Code:
 
+
 ;;; Variables:
 
 (require 'cl-lib)
 (require 'tempo)
-(eval-when-compile (require 'rx))
 
 
 (defconst adoc-mode-version "0.7.0-snapshot"
-  "ADOC MODE VERSION NUMBER.
+  "adoc mode version number.
 
 Based upon AsciiDoc version 8.5.2. I.e. regexeps and rules are
 taken from that version's asciidoc.conf / manual.")
@@ -74,13 +73,13 @@ The hook for `text-mode' is run before this one."
 (defcustom adoc-script-raise '(-0.3 0.3)
   "How much to lower and raise subscript and superscript content.
 
-  This is a list of two floats.  The first is negative and specifies
-  how much subscript is lowered, the second is positive and
-  specifies how much superscript is raised.  Heights are measured
-  relative to that of the normal text.  The faces used are
-  `adoc-superscript-face' and `adoc-subscript-face' respectively.
+This is a list of two floats.  The first is negative and specifies
+how much subscript is lowered, the second is positive and
+specifies how much superscript is raised.  Heights are measured
+relative to that of the normal text.  The faces used are
+`adoc-superscript-face' and `adoc-subscript-face' respectively.
 
-  You need to call `adoc-calc' after a change."
+You need to call `adoc-calc' after a change."
   :type '(list (float :tag "Subscript")
                (float :tag "Superscript"))
   :group 'adoc)
@@ -89,34 +88,37 @@ The hook for `text-mode' is run before this one."
 ;; `adoc-unfontify-region-function' removes ALL overlays, not only those which
 ;; where insered by `adoc-mode'.
 (defcustom adoc-insert-replacement nil
-  "When non-nil the character/string a replacement/entity is displayed.
+  "When non-nil the character/string a replacement/entity stands for is displayed.
 
-  E.g. after '&amp;' an '&' is displayed, after '(C)' the copy right sign is
-displayed.  It's only about display, neither the file nor the buffer content is
-affected.
+E.g. after '&amp;' an '&' is displayed, after '(C)' the copy right
+sign is displayed.  It's only about display, neither the file nor
+the buffer content is affected.
 
-You need to call `adoc-calc' after you change `adoc-insert-replacement'.  For
-named character entities (e.g. '&amp;', in contrast to '&#20;' or '(C)' ) to be
-displayed you need to set `adoc-unichar-name-resolver'.
+You need to call `adoc-calc' after you change
+`adoc-insert-replacement'.  For named character entities (e.g.
+'&amp;', in contrast to '&#20;' or '(C)' ) to be displayed you
+need to set `adoc-unichar-name-resolver'.
 
-Setting it to non-nil interacts very badly with minor-modes using overlays."
+Setting it to non-nil interacts very badly with minor-modes using
+overlays."
   :type 'boolean
   :group 'adoc)
 
 (defcustom adoc-unichar-name-resolver nil
   "Function taking a unicode char name and returning it's codepoint.
 
-E.g. when given \"amp\" (as in the character entity reference \"&amp;\"), it
-shall return 38 (#x26).  Is used to insert the character a character entity
-reference is referring to after the entity.  When `adoc-unichar-name-resolver'
-is nil, or when its function returns nil, nothing is done with named character
-entities.  Note that if `adoc-insert-replacement' is nil,
-`adoc-unichar-name-resolver' is not used.
+E.g. when given \"amp\" (as in the character entity reference
+\"&amp;\"), it shall return 38 (#x26). Is used to insert the
+character a character entity reference is referring to after the
+entity.  When adoc-unichar-name-resolver is nil, or when its
+function returns nil, nothing is done with named character
+entities. Note that if `adoc-insert-replacement' is nil,
+adoc-unichar-name-resolver is not used.
 
-You can set it to `adoc-unichar-by-name'; however it requires `unichars.el'
-\(http://nwalsh.com/emacs/xmlchars/unichars.el). When you set
-`adoc-unichar-name-resolver' to `adoc-unichar-by-name', you need to call
-`adoc-calc' for the change to take effect."
+You can set it to `adoc-unichar-by-name'; however it requires
+unichars.el (http://nwalsh.com/emacs/xmlchars/unichars.el). When
+you set adoc-unichar-name-resolver to adoc-unichar-by-name, you
+need to call `adoc-calc' for the change to take effect."
   :type '(choice (const nil)
                  (const adoc-unichar-by-name)
                  function)
@@ -156,8 +158,7 @@ to first convert to HTML or PDF (e.g,. using Pandoc)."
 
 (defcustom adoc-two-line-title-del '("==" "--" "~~" "^^" "++")
   "Delimiter used for the underline of two line titles.
-
-Each string must be exactly 2 characters long.  Corresponds to the
+Each string must be exactly 2 characters long. Corresponds to the
 underlines element in the titles section of the asciidoc
 configuration file."
   :type '(list
@@ -180,19 +181,19 @@ configuration file."
     "^--")               ; 7 open block
   "Regexp used for delimited blocks.
 
-WARNING: They should not contain a $.  It is implied that they
+WARNING: They should not contain a $. It is implied that they
 match up to end of the line;
 
 They correspond to delimiter variable blockdef-xxx sections in
 the AsciiDoc configuration file.
 
 However contrary to the AsciiDoc configuration file a separate
-regexp can be given for the start line and for the end line.  You
-may want to do that because `adoc-mode' often can't properly
+regexp can be given for the start line and for the end line. You
+may want to do that because adoc-mode often can't properly
 distinguish between a) a two line tile b) start of a delimited
-block and c) end of a delimited block.  If you start a listing
+block and c) end of a delimited block. If you start a listing
 delimited block with '>----' and end it with '<----', then all
-three cases can easily be distinguished.  The regexp in your
+three cases can easily be distinguished. The regexp in your
 AsciiDoc config file would the probably be '^[<>]-{4,}$'"
   :type '(list
           (choice :tag "comment"
@@ -251,28 +252,32 @@ AsciiDoc config file would the probably be '^[<>]-{4,}$'"
 (defcustom adoc-enable-two-line-title t
   "Wether or not two line titles shall be fontified.
 
-nil means never fontify.  t means always fontify.  A number means only fontify
-if the line below has NOT the length of the given number.  You could use a
-number for example when all your delimited block lines have a certain length.
+nil means never fontify. t means always fontify. A number means
+only fontify if the line below has NOT the length of the given
+number. You could use a number for example when all your
+delimited block lines have a certain length.
 
-This is useful because `adoc-mode' has troubles to properly distinguish between
-two line titles and a line of text before a delimited block.  Note however that
-`adoc-mode' knows the AsciiDoc rule that the length of a two line title
-underline can differ at most 3 chars from the length of the title text."
+This is useful because adoc-mode has troubles to properly
+distinguish between two line titles and a line of text before a
+delimited block. Note however that adoc-mode knows the AsciiDoc
+rule that the length of a two line title underline can differ at
+most 3 chars from the length of the title text."
   :type '(choice (const nil)
                  (const t)
                  number)
   :group 'adoc)
 
 (defcustom adoc-title-style 'adoc-title-style-one-line
-  "Title style used for title tempo templates."
+  "Title style used for title tempo templates.
+
+See for example `tempo-template-adoc-title-1'."
   :type '(choice (const :tag "== one line" adoc-title-style-one-line)
                  (const :tag "== one line enclosed ==" adoc-title-style-one-line-enclosed)
                  (const :tag "two line\\n--------" adoc-title-style-two-line))
   :group 'adoc)
 
 (defcustom adoc-tempo-frwk 'tempo-vanilla
-  "Tempo framework to be used by adoc's templates."
+  "Tempo framework to be used by adoc's templates. "
   :type '(choice (const :tag "tempo" tempo-vanilla)
                  (const :tag "tempo-snippets" tempo-snippets))
   :group 'adoc)
@@ -354,17 +359,17 @@ To become a customizable variable when regexps for list items become customizabl
   "An alist, key=attribute id, value=face.")
 
 (defvar adoc-mode-abbrev-table nil
-  "Abbrev table in use in `adoc-mode' buffers.")
+  "Abbrev table in use in adoc-mode buffers.")
 
 (defvar adoc-font-lock-keywords nil
-  "Font lock keywords in `adoc-mode' buffers.")
+  "Font lock keywords in adoc-mode buffers.")
 
 (defvar adoc-replacement-failed nil )
 
 (define-abbrev-table 'adoc-mode-abbrev-table ())
 
 
-;;;; help text copied from AsciiDoc manual
+;;;; help text copied from asciidoc manual
 (defconst adoc-help-constrained-quotes
   "Constrained quotes must be bounded by white space or commonly
   adjoining punctuation characters. These are the most commonly
@@ -581,39 +586,6 @@ To become a customizable variable when regexps for list items become customizabl
   '(face adoc-link-title-face invisible adoc-markup)
   "List of properties and values to apply to included code titles.")
 
-;;; Markdown-Specific `rx' Macro ==============================================
-
-;; Based on python-rx from python.el.
-(eval-and-compile
-  (defconst adoc-rx-constituents
-    `((newline . ,(rx "\n"))
-      ;; Note: #405 not consider adoc-list-indent-width however this is never used
-      (indent . ,(rx (or (repeat 4 " ") "\t")))
-      (block-end . ,(rx (and (or (one-or-more (zero-or-more blank) "\n") line-end))))
-      (numeral . ,(rx (and (one-or-more (any "0-9#")) ".")))
-      (bullet . ,(rx (any "*+:-")))
-      (list-marker . ,(rx (or (and (one-or-more (any "0-9#")) ".")
-                              (any "*+:-"))))
-      (checkbox . ,(rx "[" (any " xX") "]")))
-    "AsciiDoc-specific sexps for `adoc-rx'")
-
-  (defun adoc-rx-to-string (form &optional no-group)
-    "Adoc mode specialized `rx-to-string' function.
-This variant supports named AsciiDoc expressions in FORM.
-NO-GROUP non-nil means don't put shy groups around the result."
-    (let ((rx-constituents (append adoc-rx-constituents rx-constituents)))
-      (rx-to-string form no-group)))
-
-  (defmacro adoc-rx (&rest regexps)
-    "Adoc mode specialized rx macro.
-This variant of `rx' supports common AsciiDoc named REGEXPS."
-    (cond ((null regexps)
-           (error "No regexp"))
-          ((cdr regexps)
-           (adoc-rx-to-string `(and ,@regexps) t))
-          (t
-           (adoc-rx-to-string (car regexps) t)))))
-
 ;;; Font Lock =================================================================
 
 (require 'font-lock)
@@ -722,6 +694,12 @@ AsciiDoc: *strong emphasis text* or _emphasis text_
   :group 'adoc-faces)
 (defvar adoc-header-delimiter-face 'adoc-header-delimiter-face)
 
+(defface adoc-attribute-face
+  '((t :inherit adoc-meta-face :slant italic))
+  "For attribute names"
+  :group 'adoc-faces)
+(defvar adoc-attribute-face 'adoc-attribute-face)
+
 (defface adoc-anchor-face
   '((t :inherid adoc-meta-face :overline t))
   "For the name/id of an anchor."
@@ -792,17 +770,14 @@ AsciiDoc: *strong emphasis text* or _emphasis text_
      (:background "saddlebrown")))
   "For verbatim text.
 
-  Verbatim in a sense that all its characters are to be taken
-  literally. Note that doesn't necessarily mean that that it is in
-  a typewritter font.
-  For example 'foo' in the following examples. In parantheses is a
-  summary what the command is for according to the given markup
-  language.
-  HTML: <pre>foo</pre>             (verbatim and typewriter font)
-  LaTeX: verb|foo|                 (verbatim and typewriter font)
-  MediaWiki: <nowiki>foo</nowiki>  (only verbatim)
-  AsciiDoc: `foo`                  (verbatim and typewriter font)
-  AsciiDoc: +++foo+++              (only verbatim)"
+Verbatim in a sense that all its characters are to be taken
+literally. Note that doesn't necessarily mean that that it is in
+a typewritter font.
+For example 'foo' in the following examples. In parantheses is a
+summary what the command is for according to the given markup
+language.
+`foo`     (verbatim and typewriter font)
++++foo+++ (only verbatim)"
   :group 'adoc-faces)
 (defvar adoc-verbatim-face 'adoc-verbatim-face)
 
@@ -910,30 +885,30 @@ AsciiDoc: *strong emphasis text* or _emphasis text_
   "Face for horizontal rules."
   :group 'adoc-faces)
 
-(defface adoc-html-tag-name-face
-  '((t (:inherit font-lock-type-face)))
-  "Face for HTML tag names."
-  :group 'adoc-faces)
+;; (defface adoc-html-tag-name-face
+;;   '((t (:inherit font-lock-type-face)))
+;;   "Face for HTML tag names."
+;;   :group 'adoc-faces)
 
-(defface adoc-html-tag-delimiter-face
-  '((t (:inherit adoc-markup-face)))
-  "Face for HTML tag delimiters."
-  :group 'adoc-faces)
+;; (defface adoc-html-tag-delimiter-face
+;;   '((t (:inherit adoc-markup-face)))
+;;   "Face for HTML tag delimiters."
+;;   :group 'adoc-faces)
 
-(defface adoc-html-attr-name-face
-  '((t (:inherit font-lock-variable-name-face)))
-  "Face for HTML attribute names."
-  :group 'adoc-faces)
+;; (defface adoc-html-attr-name-face
+;;   '((t (:inherit font-lock-variable-name-face)))
+;;   "Face for HTML attribute names."
+;;   :group 'adoc-faces)
 
-(defface adoc-html-attr-value-face
-  '((t (:inherit font-lock-string-face)))
-  "Face for HTML attrivute values."
-  :group 'adoc-faces)
+;; (defface adoc-html-attr-value-face
+;;   '((t (:inherit font-lock-string-face)))
+;;   "Face for HTML attrivute values."
+;;   :group 'adoc-faces)
 
-(defface adoc-html-entity-face
-  '((t (:inherit font-lock-variable-name-face)))
-  "Face for HTML entities."
-  :group 'adoc-faces)
+;; (defface adoc-html-entity-face
+;;   '((t (:inherit font-lock-variable-name-face)))
+;;   "Face for HTML entities."
+;;   :group 'adoc-faces)
 
 (defface adoc-highlighting-face
   '((t (:background "yellow" :foreground "black")))
@@ -1019,11 +994,10 @@ AsciiDoc: *strong emphasis text* or _emphasis text_
 ;; asciidoc src code: Title.isnext reads two lines, which are then parsed by
 ;; Title.parse. The second line is only for the underline of two line titles.
 (defun adoc-re-one-line-title (level)
-  "Return a regex matching a one line title of the given LEVEL.
-
+  "Returns a regex matching a one line title of the given LEVEL.
 When LEVEL is nil, a one line title of any level is matched.
 
-`match-data' has these sub groups:
+match-data has these sub groups:
 1 leading delimiter inclusive whites between delimiter and title text
 2 title's text exclusive leading/trailing whites
 3 trailing delimiter with all whites
@@ -1032,7 +1006,7 @@ When LEVEL is nil, a one line title of any level is matched.
 
 ==  my title  ==  n
 ---12------23------
-4--4"
+            4--4"
   (let* ((del (if level
                   (make-string (+ level 1) ?=)
                 (concat "=\\{1," (+ adoc-title-max-level 1) "\\}"))))
@@ -1045,20 +1019,20 @@ When LEVEL is nil, a one line title of any level is matched.
      "\\(\\([ \t]+" del "\\)?[ \t]*\\(?:\n\\|\\'\\)\\)" ))) ; 3 & 4
 
 (defun adoc-make-one-line-title (sub-type level text)
-  "Return a one line title of LEVEL and SUB-TYPE containing the given text."
+  "Returns a one line title of LEVEL and SUB-TYPE containing the given text."
   (let ((del (make-string (+ level 1) ?=)))
     (concat del " " text (when (eq sub-type 2) (concat " " del)))))
 
 ;; AsciiDoc handles that by source code, there is no regexp in AsciiDoc.  See
 ;; also adoc-re-one-line-title.
 (defun adoc-re-two-line-title-undlerline (&optional del)
-  "Return a regexp matching the underline of a two line title.
+  "Returns a regexp matching the underline of a two line title.
 
-  DEL is an element of `adoc-two-line-title-del' or nil.  If nil,
-  any del is matched.
+DEL is an element of `adoc-two-line-title-del' or nil. If nil,
+any del is matched.
 
-  Note that even if this regexp matches it still doesn't mean it is
-  a two line title underline, see also `adoc-re-two-line-title'."
+Note that even if this regexp matches it still doesn't mean it is
+a two line title underline, see also `adoc-re-two-line-title'."
   (concat
    "\\("
    (mapconcat
@@ -1076,22 +1050,23 @@ When LEVEL is nil, a one line title of any level is matched.
 ;; asciidoc.conf: regexp for _first_ line
 ;; ^(?P<title>.*?)$  additionally, must contain (?u)\w, see Title.parse
 (defun adoc-re-two-line-title (del)
-  "Return a regexps that match a two line title.
+  "Returns a regexps that matches a two line title.
 
-  Note that even if this regexp matches it still doesn't mean it is
-  a two line title.  You additionally have to test if the underline
-  has the correct length.
+Note that even if this regexp matches it still doesn't mean it is
+a two line title. You additionally have to test if the underline
+has the correct length.
 
-  DEL is described in `adoc-re-two-line-title-undlerline'.
+DEL is described in `adoc-re-two-line-title-undlerline'.
 
-  Match-data has these sub groups:
+match-data has these sub groups:
 
-  1 dummy, so that group 2 is the title's text as in `adoc-re-one-line-title'
-  2 title's text
-  3 delimiter
-  0 only chars that belong to the title block element"
+1 dummy, so that group 2 is the title's text as in
+  adoc-re-one-line-title
+2 title's text
+3 delimiter
+0 only chars that belong to the title block element"
   (when (not (eq (length del) 2))
-    (error "Two line title delimiters must be 2 chars long"))
+    (error "two line title delimiters must be 2 chars long"))
   (concat
    ;; 1st line: title text must contain at least one \w character, see
    ;; asciidoc src, Title.parse,
@@ -1100,14 +1075,14 @@ When LEVEL is nil, a one line title of any level is matched.
    (adoc-re-two-line-title-undlerline del)))
 
 (defun adoc-make-two-line-title (level text)
-  "Return a two line title of given LEVEL containing given TEXT.
+  "Returns a two line title of given LEVEL containing given TEXT.
 LEVEL starts at 1."
   (concat text "\n" (adoc-make-two-line-title-underline level (length text))))
 
 (defun adoc-make-two-line-title-underline (level &optional length)
-  "Return a two line title underline.
+  "Returns a two line title underline.
 LEVEL is the level of the title, starting at 1. LENGTH is the
-line of the title's text.  When nil it defaults to 4."
+line of the title's text. When nil it defaults to 4."
   (unless length
     (setq length 4))
   (let* ((repetition-cnt (if (>= length 2) (/ length 2) 1))
@@ -1121,13 +1096,13 @@ line of the title's text.  When nil it defaults to 4."
     result))
 
 (defun adoc-re-oulisti (type &optional level sub-type)
-  "Return a regexp matching an (un)ordered list item.
+  "Returns a regexp matching an (un)ordered list item.
 
-Match-data his this sub groups:
+match-data his this sub groups:
 1 leading whites
 2 delimiter
 3 trailing whites between delimiter and item's text
-0 only chars belonging to delimiter/whites.  I.e. none of text.
+0 only chars belonging to delimiter/whites. I.e. none of text.
 
 WARNING: See warning about list item nesting level in `adoc-list-descriptor'."
   (cond
@@ -1175,10 +1150,10 @@ WARNING: See warning about list item nesting level in `adoc-list-descriptor'."
     "^\\(\\)\\(<?[0-9]*>\\)\\([ \t]+\\)")
 
    ;; invalid
-   (t (error "Invalid (un)ordered list type"))))
+   (t (error "invalid (un)ordered list type"))))
 
 (defun adoc-make-uolisti (level is-1st-line)
-  "Return a regexp matching a unordered list item."
+  "Returns a regexp matching a unordered list item."
   (let* ((del (if (eq level 0) "-" (make-string level ?\*)))
          (white-1st (if indent-tabs-mode
                         (make-string (/ (* level standard-indent) tab-width) ?\t)
@@ -1189,17 +1164,16 @@ WARNING: See warning about list item nesting level in `adoc-list-descriptor'."
       white-rest)))
 
 (defun adoc-re-llisti (type level)
-  "Return a regexp matching a labeled list item.
-
+  "Returns a regexp matching a labeled list item.
 Subgroups:
 1 leading blanks
 2 label text, incl whites before delimiter
 3 delimiter incl trailing whites
 4 delimiter only
 
-foo :: bar
+  foo :: bar
 -12--23-3
-44"
+      44"
   (cond
    ;; ^\s*(?P<label>.*[^:])::(\s+(?P<text>.+))?$    normal 0
    ;; ^\s*(?P<label>.*[^;]);;(\s+(?P<text>.+))?$    normal 1
@@ -1207,12 +1181,12 @@ foo :: bar
    ;; ^\s*(?P<label>.*[^:]):{4}(\s+(?P<text>.+))?$  normal 3
    ((eq type 'adoc-labeled-normal)
     (let* ((deluq (nth level '("::" ";;" ":::" "::::"))) ; unqutoed
-  (del (regexp-quote deluq))
-  (del1st (substring deluq 0 1)))
-  (concat
-   "^\\([ \t]*\\)"                  ; 1
-   "\\(.*[^" del1st "\n]\\)"        ; 2
-   "\\(\\(" del "\\)\\(?:[ \t]+\\|$\\)\\)"))) ; 3 & 4
+           (del (regexp-quote deluq))
+           (del1st (substring deluq 0 1)))
+      (concat
+       "^\\([ \t]*\\)"                  ; 1
+       "\\(.*[^" del1st "\n]\\)"        ; 2
+       "\\(\\(" del "\\)\\(?:[ \t]+\\|$\\)\\)"))) ; 3 & 4
 
    ;; glossary (DEPRECATED)
    ;; ^(?P<label>.*\S):-$
@@ -1240,9 +1214,9 @@ foo :: bar
     adoc-delimited-block-del "\\|")
    "\\)"))
 
-;; KLUDGE: Contrary to what the AsciiDoc manual specifies, `adoc-mode' does not
+;; KLUDGE: Contrary to what the AsciiDoc manual specifies, adoc-mode does not
 ;; allow that either the first or the last line within a delmited block is
-;; blank.  That shall help to prevent the case that adoc-mode wrongly
+;; blank. That shall help to prevent the case that adoc-mode wrongly
 ;; interprets the end of a delimited block as the beginning, and the beginning
 ;; of a following delimited block as the ending, thus wrongly interpreting the
 ;; text between two adjacent delimited blocks as delimited block.  It is
@@ -1296,12 +1270,12 @@ foo :: bar
 ;; insertion: so that this whole regex doesn't mistake a line starting with a
 ;; cell specifier like .2+| as a block title
 (defun adoc-re-block-title ()
-  "Return a regexp matching an block title.
+  "Returns a regexp matching an block title
 
 Subgroups:
 1 delimiter
 2 title's text incl trailing whites
-3 newline or `end-of-buffer' anchor
+3 newline or end-of-buffer anchor
 
 .foo n
 12--23"
@@ -1317,10 +1291,9 @@ Subgroups:
 ;; still can spawn multiple lines. Probably asciidoc removes newlines before
 ;; it applies the regexp above
 (defun adoc-re-block-macro (&optional cmd-name)
-  "Return a regexp matching an attribute list element.
-
+  "Returns a regexp matching an attribute list element.
 Subgroups:
-1 CMD-NAME
+1 cmd name
 2 target
 3 attribute list, exclusive brackets []"
   (concat
@@ -1332,17 +1305,17 @@ Subgroups:
 
 ;; ?P<id>[\w\-_]+
 (defun adoc-re-id ()
-  "Return a regexp matching an id used by anchors/xrefs."
+  "Returns a regexp matching an id used by anchors/xrefs"
   "\\(?:[-a-zA-Z0-9_]+\\)")
 
 (defun adoc-re-anchor (&optional type id)
-  "Return a regexp matching an anchor.
+  "Returns a regexp matching an anchor.
 
-If TYPE is non-nil, only that type is matched.  If TYPE is nil,
+If TYPE is non-nil, only that type is matched. If TYPE is nil,
 all types are matched.
 
 If ID is non-nil, the regexp matches an anchor defining exactly
-this id.  If ID is nil, the regexp matches any anchor."
+this id. If ID is nil, the regexp matches any anchor."
   (cond
    ((eq type 'block-id)
     ;; ^\[\[(?P<id>[\w\-_]+)(,(?P<reftext>.*?))?\]\]$
@@ -1376,9 +1349,9 @@ this id.  If ID is nil, the regexp matches any anchor."
     (error "Unknown type"))))
 
 (defun adoc-re-xref (&optional type for-kw)
-  "Return a regexp matching a reference.
+  "Returns a regexp matching a reference.
 
-If TYPE is nil, any type is matched.  If FOR-KW is true, the
+If TYPE is nil, any type is matched. If FOR-KW is true, the
 regexp is intended for a font lock keyword, which has to make
 further tests to find a proper xref."
   (cond
@@ -1403,10 +1376,10 @@ further tests to find a proper xref."
      '(inline-special-with-caption inline-special-no-caption inline-general-macro)
      "\\|"))
 
-   (t (error "Unknown reference type"))))
+   (t (error "unknown type"))))
 
 (defun adoc-re-attribute-list-elt ()
-  "Return a regexp matching an attribute list element.
+  "Returns a regexp matching an attribute list element.
 
 Subgroups:
 1 attribute name
@@ -1435,7 +1408,7 @@ Subgroups:
    "\\)"))
 
 (defun adoc-re-quote-precondition (not-allowed-chars)
-  "Regexp that match before a (un)constrained quote delimiter.
+  "Regexp that matches before a (un)constrained quote delimiter.
 
 NOT-ALLOWED-CHARS are chars not allowed before the quote."
   (concat
@@ -1485,9 +1458,9 @@ NOT-ALLOWED-CHARS are chars not allowed before the quote."
 
 subgroups:
 1 attribute list [optional]
-2 starting LDEL
+2 starting del
 3 enclosed text
-4 closing RDEL"
+4 closing del"
   (unless rdel (setq rdel ldel))
   (let ((qldel (regexp-quote ldel))
         (qrdel (regexp-quote rdel)))
@@ -1519,13 +1492,13 @@ subgroups:
 ;; implemented. It _would_ be
 ;; (?su)[\\]?(?P<name>\w(\w|-)*?):(?P<target>\S*?)\[(?P<passtext>.*?)(?<!\\)\]=
 (defun adoc-re-inline-macro (&optional cmd-name target unconstrained attribute-list-constraints)
-  "Return regex matching an inline macro.
+  "Returns regex matching an inline macro.
 
-Id CMD-NAME is nil, any command is matched.  It maybe a regexp
-itself in order to match multiple commands.  If TARGET is nil, any
-target is matched.  When UNCONSTRAINED is nil, the returned regexp
+Id CMD-NAME is nil, any command is matched. It maybe a regexp
+itself in order to match multiple commands. If TARGET is nil, any
+target is matched. When UNCONSTRAINED is nil, the returned regexp
 begins with '\<', i.e. it will _not_ match when CMD-NAME is part
-of a previous word.  When ATTRIBUTE-LIST-CONSTRAINTS is 'empty,
+of a previous word. When ATTRIBUTE-LIST-CONSTRAINTS is 'empty,
 only an empty attribute list is matched, if it's
 'single-attribute, only an attribute list with exactly one
 attribute is matched.
@@ -1605,11 +1578,11 @@ Subgroups of returned regexp:
    "[=.].*$"))
 
 (defun adoc-re-aor(e1 e2)
-  "All or return a regex matching \(E1\|E2\|E1E2\)?"
+  "all or: Returns a regex matching \(e1\|e2\|e1e2\)? "
   (concat "\\(?:" e1 "\\)?\\(?:" e2 "\\)?"))
 
 (defun adoc-re-ror(e1 e2)
-  "Real or return a regex matching \(E1\|E2\|E1E2\)."
+  "real or: Returns a regex matching \(e1\|e2\|e1e2\)."
   (concat "\\(?:\\(?:" e1 "\\)\\|\\(?:" e2 "\\)\\|\\(?:" e1 "\\)\\(?:" e2 "\\)\\)"))
 
 ;; ((?<!\S)((?P<span>[\d.]+)(?P<op>[*+]))?(?P<align>[<\^>.]{,3})?(?P<style>[a-z])?)?\|'
@@ -1627,7 +1600,7 @@ Subgroups of returned regexp:
 ;;       Reader.skip_blank_lines. Python uses [ \t\n\r\f\v] for it's \s . So
 ;;       the horizontal spaces are [ \t].
 (defun adoc-re-content (&optional qualifier)
-  "Match content, possibly spawning multiple non-blank lines."
+  "Matches content, possibly spawning multiple non-blank lines"
   (concat
    "\\(?:"
    ;; content on initial line
@@ -1644,13 +1617,13 @@ Subgroups of returned regexp:
 
 ;;;; font lock keywords
 (defun adoc-kwf-std (end regexp &optional must-free-groups no-block-del-groups)
-  "Standard function for keywords.
+  "Standard function for keywords
 
-Intendent to be called from font lock keyword functions.  END is
-the limit of the search.  REGEXP the regexp to be searched.
+Intendent to be called from font lock keyword functions. END is
+the limit of the search. REXEXP the regexp to be searched.
 MUST-FREE-GROUPS a list of regexp group numbers which may not
 match text that has an adoc-reserved text-property with a non-nil
-value.  Likewise, groups in NO-BLOCK-DEL-GROUPS may not contain
+value. Likewise, groups in NO-BLOCK-DEL-GROUPS may not contain
 text having adoc-reserved set to 'block-del."
   (let ((found t) (prevented t) saved-point)
     (while (and found prevented (<= (point) end) (not (eobp)))
@@ -1676,7 +1649,7 @@ text having adoc-reserved set to 'block-del."
     (and found (not prevented))))
 
 (defun adoc-kwf-attribute-list (end)
-  "Function for attributes."
+  ;; for each attribute list before END
   (while (< (point) end)
     (goto-char (or (text-property-not-all (point) end 'adoc-attribute-list nil)
                    end))
@@ -1706,7 +1679,7 @@ text having adoc-reserved set to 'block-del."
                     (buffer-substring-no-properties (match-beginning 1) (match-end 1)))
               ;; fontify the attribute's name with markup-attribute-face
               (put-text-property
-               (match-beginning 1) (match-end 1) 'face-attribute-face))
+               (match-beginning 1) (match-end 1) 'face adoc-attribute-face))
 
             ;; fontify the attribute's value
             (let ((match-group-of-attribute-value (if (match-beginning 2) 2 3))
@@ -1817,7 +1790,7 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
    '(1 '(face adoc-meta-face adoc-reserved block-del) t)))
 
 (defun adoc-kw-delimited-block (del &optional text-face inhibit-text-reserved)
-  "Create a keyword for font-lock which highlight a delimited block."
+  "Creates a keyword for font-lock which highlights a delimited block."
   (list
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-delimited-block del) '(1 3)))
    '(0 '(face nil font-lock-multiline t) t)
@@ -1838,7 +1811,7 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
 ;; admonition paragraph. Note that there is also the style with the leading attribute list.
 ;; (?s)^\s*(?P<style>NOTE|TIP|IMPORTANT|WARNING|CAUTION):\s+(?P<text>.+)
 (defmacro adoc-kw-admonition-paragraph ()
-  "Create a keyword which highlights admonition paragraphs."
+  "Creates a keyword which highlights admonition paragraphs"
   `(list
     ;; matcher function
     (lambda (end)
@@ -1849,7 +1822,7 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
     '(2 '(face adoc-align adoc-reserved t))))
 
 (defun adoc-kw-verbatim-paragraph-sequence ()
-  "Create a keyword which highlight a sequence of verbatim paragraphs."
+  "Creates a keyword which highlights a sequence of verbatim paragraphs."
   (list
    ;; matcher function
    `(lambda (end)
@@ -1866,7 +1839,7 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
    '(3 '(face nil adoc-reserved block-del))))
 
 (defun adoc-kw-quote (type ldel text-face-spec &optional del-face rdel literal-p)
-  "Return a keyword which highlight (un)constrained quotes.
+  "Return a keyword which highlights (un)constrained quotes.
 When LITERAL-P is non-nil, the contained text is literal text."
   (list
    ;; matcher function
@@ -1881,14 +1854,16 @@ When LITERAL-P is non-nil, the contained text is literal text."
    `(4 '(face ,(or del-face adoc-meta-hide-face) adoc-reserved t) t))); close del
 
 (defun adoc-kw-inline-macro (&optional cmd-name unconstrained attribute-list-constraints cmd-face target-faces target-meta-p attribute-list)
-  "Return a keyword which highlight an inline macro.
+  "Returns a kewyword which highlights an inline macro.
 
-For CMD-NAME and UNCONSTRAINED see `adoc-re-inline-macro'.  CMD-FACE determines
-face for the command text.  If nil, `adoc-command-face' is used.  TARGET-FACES
-determines face for the target text.  If nil `adoc-meta-face' is used.  If a
-list, the first is used if the attribute list is the empty string, the second
-is used if its not the empty string.  If TARGET-META-P is non-nil, the target
-text is considered to be meta characters."
+For CMD-NAME and UNCONSTRAINED see
+`adoc-re-inline-macro'. CMD-FACE determines face for the command
+text. If nil, `adoc-command-face' is used.  TARGET-FACES
+determines face for the target text. If nil `adoc-meta-face' is
+used. If a list, the first is used if the attribute list is the
+empty string, the second is used if its not the empty string. If
+TARGET-META-P is non-nil, the target text is considered to be
+meta characters."
   (list
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name nil unconstrained attribute-list-constraints) '(1 2 4 5) '(0)))
    `(1 '(face ,(or cmd-face adoc-command-face) adoc-reserved t) t) ; cmd-name
@@ -2085,7 +2060,7 @@ text is considered to be meta characters."
   "Return list of keywords for `adoc-mode'."
   (list
 
-   ;; AsciiDoc BUG: Lex.next has a different order than the following extract
+   ;; Asciidoc BUG: Lex.next has a different order than the following extract
    ;; from the documentation states.
 
    ;; When a block element is encountered asciidoc(1) determines the type of
@@ -2534,11 +2509,12 @@ text is considered to be meta characters."
 (defun adoc-promote (&optional arg)
   "Promotes the structure at point ARG levels.
 
-When ARG is nil (i.e. when no prefix arg is given), it defaults to 1. When ARG
-is negative, level is demoted that many levels.
+When ARG is nil (i.e. when no prefix arg is given), it defaults
+to 1. When ARG is negative, level is demoted that many levels.
 
-The intention is that the structure can be a title or a list element or
-anything else which has a 'level'.  However currently it works only for titles."
+The intention is that the structure can be a title or a list
+element or anything else which has a 'level'. However currently
+it works only for titles."
   (interactive "p")
   (adoc-promote-title arg))
 
@@ -2552,8 +2528,9 @@ Analogous to `adoc-promote', see there."
 (defun adoc-promote-title (&optional arg)
   "Promotes the title at point ARG levels.
 
-When ARG is nil (i.e. when no prefix arg is given), it defaults to 1.  When ARG
-is negative, level is demoted that many levels.  If ARG is 0, see `adoc-adjust-title-del'."
+When ARG is nil (i.e. when no prefix arg is given), it defaults
+to 1. When ARG is negative, level is demoted that many levels. If
+ARG is 0, see `adoc-adjust-title-del'."
   (interactive "p")
   (adoc-modify-title arg))
 
@@ -2576,26 +2553,24 @@ the underline has the correct length."
   (adoc-modify-title))
 
 (defun adoc-toggle-title-type (&optional type-type)
-  "Toggle title's type.
+  "Toggles title's type.
 
-If TYPE-TYPE is nil, title's type is toggled.  If TYPE-TYPE is non-nil, the sub
-type is toggled."
+If TYPE-TYPE is nil, title's type is toggled. If TYPE-TYPE is
+non-nil, the sub type is toggled."
   (interactive "P")
   (when type-type
     (setq type-type t))
   (adoc-modify-title nil nil (not type-type) type-type))
 
 (defun adoc-calc ()
-  "(Re-)calculates variables used in `adoc-mode'.
+  "(Re-)calculates variables used in adoc-mode.
 Needs to be called after changes to certain (customization)
-variables.  Mostly in order font lock highlighting works as the
+variables. Mostly in order font lock highlighting works as the
 new customization demands."
   (interactive)
 
-  (when
-      (and
-       (null adoc-insert-replacement)
-       adoc-unichar-name-resolver)
+  (when (and (null adoc-insert-replacement)
+             adoc-unichar-name-resolver)
     (message "Warning: adoc-unichar-name-resolver is non-nil, but is adoc-insert-replacement is nil"))
   (when (and (eq adoc-unichar-name-resolver 'adoc-unichar-by-name)
              (null adoc-unichar-alist))
@@ -2605,7 +2580,6 @@ new customization demands."
   (when (and font-lock-mode (eq major-mode 'adoc-mode))
     (font-lock-flush)
     (font-lock-ensure)))
-
 
 ;;;; tempos
 ;; TODO: tell user to make use of tempo-interactive
@@ -2626,7 +2600,7 @@ new customization demands."
     (apply 'tempo-define-template args)))
 
 (defun adoc-template-str-title (&optional level title-text)
-  "Return the string tempo-template-adoc-title-x would insert."
+  "Returns the string tempo-template-adoc-title-x would insert"
   (with-temp-buffer
     (insert (or title-text "foo"))
     (set-mark (point-min))
@@ -2781,19 +2755,19 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 
 ;;;; misc
 (defun adoc-insert-indented (str indent-level)
-  "Indent and insert STR such that point is at INDENT-LEVEL."
+  "Indents and inserts STR such that point is at INDENT-LEVEL."
   (indent-to (- (* tab-width indent-level) (length str)))
   (insert str))
 
 (defun adoc-repeat-string (str n)
-  "Return STR N times concatenated."
+  "Returns str n times concatenated"
   (let ((retval ""))
     (dotimes (i n)
       (setq retval (concat retval str)))
     retval))
 
 (defun adoc-tempo-handler (element)
-  "Tempo user ELEMENT handler, see `tempo-user-elements'."
+  "Tempo user element handler, see `tempo-user-elements'."
   (let ((on-region (adoc-tempo-on-region)))
     (cond
 
@@ -2818,7 +2792,7 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 (add-to-list 'tempo-user-elements 'adoc-tempo-handler)
 
 (defun adoc-tempo-on-region ()
-  "Guess the on-region argument `tempo-insert' is given.
+  "Guesses the on-region argument `tempo-insert' is given.
 
 Is a workaround the problem that tempo's user handlers don't get
 passed the on-region argument."
@@ -2846,7 +2820,7 @@ passed the on-region argument."
 (defun adoc-forward-xref (&optional bound)
   "Move forward to next xref and return it's id.
 
-Match data is the one of the found xref.  Returns nil if there was
+Match data is the one of the found xref. Returns nil if there was
 no xref found."
   (cond
    ((or (re-search-forward (adoc-re-xref 'inline-special-with-caption) bound t)
@@ -2857,7 +2831,7 @@ no xref found."
    (t nil)))
 
 (defun adoc-xref-id-at-point ()
-  "Return id referenced by the xref point is at.
+  "Returns id referenced by the xref point is at.
 
 Returns nil if there was no xref found."
   (save-excursion
@@ -2873,7 +2847,7 @@ Returns nil if there was no xref found."
       id)))
 
 (defun adoc-title-descriptor (&optional strict-match )
-  "Return title descriptor of title point is in.
+  "Returns title descriptor of title point is in.
 
 When STRICT-MATCH is t, and 2 line title is used, the lengths of the underline
 text and title must not differ by more than 2 characters.
@@ -2882,11 +2856,12 @@ Title descriptor looks like this: (TYPE SUB-TYPE LEVEL TEXT START END)
 
 0 TYPE: 1 fore one line title, 2 for two line title.
 
-1 SUB-TYPE: Only applicable for one line title: 1 for only starting delimiter
-\('== my title'), 2 for both starting and trailing delimiter ('== my title ==').
+1 SUB-TYPE: Only applicable for one line title: 1 for only
+starting delimiter ('== my title'), 2 for both starting and
+trailing delimiter ('== my title ==').
 
-2 LEVEL: Level of title.  A value between 0 and `adoc-title-max-level'
-inclusive.
+2 LEVEL: Level of title. A value between 0 and
+`adoc-title-max-level' inclusive.
 
 3 TEXT: Title's text
 
@@ -2938,25 +2913,27 @@ inclusive.
 (defun adoc-modify-title (&optional new-level-rel new-level-abs new-type new-sub-type create)
   "Modify properties of title point is on.
 
-NEW-LEVEL-REL defines the new title level relative to the current one.
-Negative values are allowed.  0 or nil means don't change.
-NEW-LEVEL-ABS defines the new level absolutely.  When both NEW-LEVEL-REL and
-NEW-LEVEL-ABS are non-nil, NEW-LEVEL-REL takes precedence.  When both are nil,
-level is not affected.
+NEW-LEVEL-REL defines the new title level relative to the current
+one. Negative values are allowed. 0 or nil means don't change.
+NEW-LEVEL-ABS defines the new level absolutely. When both
+NEW-LEVEL-REL and NEW-LEVEL-ABS are non-nil, NEW-LEVEL-REL takes
+precedence. When both are nil, level is not affected.
 
-When NEW-TYPE is nil, the title type is unaffected.  If NEW-TYPE is t, the type
-is toggled.  If it's 1 or 2, the new type is one line title or two line title
-respectively.
+When NEW-TYPE is nil, the title type is unaffected. If NEW-TYPE
+is t, the type is toggled. If it's 1 or 2, the new type is one
+line title or two line title respectively.
 
-NEW-SUB-TYPE is analogous to NEW-TYPE.  However when the actual title has no
-sub type, only the absolute values of NEW-SUB-TYPE apply, otherwise the new sub
-type becomes `adoc-default-title-sub-type'.
+NEW-SUB-TYPE is analogous to NEW-TYPE. However when the actual
+title has no sub type, only the absolute values of NEW-SUB-TYPE
+apply, otherwise the new sub type becomes
+`adoc-default-title-sub-type'.
 
-If CREATE is nil, an error is signaled if point is not on a title.  If CREATE
-is non-nil a new title is created if point is currently not on a title.
+If CREATE is nil, an error is signaled if point is not on a
+title. If CREATE is non-nil a new title is created if point is
+currently not on a title.
 
-BUG: In one line title case: number of spaces between delimiters and title's
-text are not preserved, afterwards its always one space."
+BUG: In one line title case: number of spaces between delimiters
+and title's text are not preserved, afterwards its always one space."
   (let ((descriptor (adoc-title-descriptor)))
     (if (or create (not descriptor))
         (error "Point is not on a title"))
@@ -3025,7 +3002,7 @@ text are not preserved, afterwards its always one space."
 (defvar unicode-character-list) ;; From unichars.el
 
 (defun adoc-make-unichar-alist()
-  "Create `adoc-unichar-alist' from `unicode-character-list'."
+  "Creates `adoc-unichar-alist' from `unicode-character-list'"
   (unless (boundp 'unicode-character-list)
     (load "unichars"))
   (let ((i unicode-character-list))
@@ -3038,16 +3015,16 @@ text are not preserved, afterwards its always one space."
         (setq i (cdr i))))))
 
 (defun adoc-unichar-by-name (name)
-  "Return unicode codepoint of char with the given NAME."
+  "Returns unicode codepoint of char with the given NAME"
   (cdr (assoc name adoc-unichar-alist)))
 
 (defun adoc-entity-to-string (entity)
-  "Return a string containing the character referenced by ENTITY.
+  "Returns a string containing the character referenced by ENTITY.
 
-ENTITY is a string containing a character entity reference like e.g. '&#38;' or
-'&amp;'.  nil is returned if its an invalid entity, or when customizations
-prevent `adoc-entity-to-string' from knowing it.  E.g. when
-`adoc-unichar-name-resolver' is nil."
+ENTITY is a string containing a character entity reference like
+e.g. '&#38;' or '&amp;'. nil is returned if its an invalid
+entity, or when customizations prevent `adoc-entity-to-string' from
+knowing it. E.g. when `adoc-unichar-name-resolver' is nil."
   (save-match-data
     (let (ch)
       (setq ch
@@ -3066,15 +3043,17 @@ prevent `adoc-entity-to-string' from knowing it.  E.g. when
       (when (characterp ch) (make-string 1 ch)))))
 
 (defun adoc-face-for-attribute (pos-or-name &optional attribute-list-prop-val)
-  "Return the face to be used for the given attribute.
+  "Returns the face to be used for the given attribute.
 
-The face to be used is looked up in `adoc-attribute-face-alist', unless that
-alist is overwritten by the content of ATTRIBUTE-LIST-PROP-VAL.
+The face to be used is looked up in `adoc-attribute-face-alist',
+unless that alist is overwritten by the content of
+ATTRIBUTE-LIST-PROP-VAL.
 
-POS-OR-NAME identifies the attribute for which the face is returned.  When
-POS-OR-NAME satisfies numberp, it is the number of the positional attribute,
-where as the first positinal attribute has position 0. Otherwise POS-OR-NAME is
-the name of the named attribute.
+POS-OR-NAME identifies the attribute for which the face is
+returned. When POS-OR-NAME satisfies numberp, it is the number of
+the positional attribute, where as the first positinal attribute
+has position 0. Otherwise POS-OR-NAME is the name of the named
+attribute.
 
 The value of ATTRIBUTE-LIST-PROP-VAL is one of the following:
 - nil
@@ -3082,16 +3061,18 @@ The value of ATTRIBUTE-LIST-PROP-VAL is one of the following:
 - POS-TO-NAME
 - (POS-TO-NAME LOCAL-ATTRIBUTE-FACE-ALIST)
 
-POS-TO-NAME is a list of strings mapping positions to attribute names.  E.g.
-\(\"foo\" \"bar\") means that the first positional attribute corresponds to the
-named attribute foo, and the 2nd positional attribute corresponds to the named
-attribute bar.
+POS-TO-NAME is a list of strings mapping positions to attribute
+names. E.g. (\"foo\" \"bar\") means that the first positional
+attribute corresponds to the named attribute foo, and the 2nd
+positional attribute corresponds to the named attribute bar.
 
-FACE is something that satisfies facep; in that case the whole attribute list
-is fontified with that face. However that case is handled outside this function.
+FACE is something that satisfies facep; in that case the whole
+attribute list is fontified with that face. However that case is
+handled outside this function.
 
-An attribute name is first looked up in LOCAL-ATTRIBUTE-FACE-ALIST before it is
-looked up in `adoc-attribute-face-alist'."
+An attribute name is first looked up in
+LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
+`adoc-attribute-face-alist'."
   (let* ((has-pos-to-name (listp attribute-list-prop-val))
          (has-local-alist (and has-pos-to-name (listp (car-safe attribute-list-prop-val))))
          (pos-to-name (cond ((not has-pos-to-name) nil)
@@ -3150,7 +3131,7 @@ looked up in `adoc-attribute-face-alist'."
     (modify-syntax-entry ?| "." table)
     (modify-syntax-entry ?_ "." table)
     table)
-  "Syntax table to use in `adoc-mode'.")
+  "Syntax table to use in adoc-mode.")
 
 (defvar adoc-mode-map
   (let ((map (make-sparse-keymap)))
