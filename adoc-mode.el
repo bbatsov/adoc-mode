@@ -632,6 +632,12 @@ easier for major mode to write font lock regular expressions."
   :group 'adoc-faces)
 (defvar adoc-meta-face 'adoc-meta-face)
 
+(defface adoc-value-face
+  '((t :inherit adoc-meta-face))
+  "For attribute values"
+  :group 'adoc-faces)
+(defvar adoc-value-face 'adoc-value-face)
+
 (defface adoc-italic-face
   '((t (:inherit italic)))
   "Face for italic text."
@@ -663,7 +669,7 @@ easier for major mode to write font lock regular expressions."
 (defvar adoc-markup-face 'adoc-markup-face)
 
 (defface adoc-meta-hide-face
-  '((default (:inherit markup-meta-face))
+  '((default (:inherit adoc-meta-face))
     (((background light)) :foreground "gray75")
     (((background dark)) :foreground "gray25"))
   "For meta characters which can be 'hidden'.
@@ -671,8 +677,8 @@ Hidden in the sense of *almost* not visible. They don't need to
 be properly seen because one knows what these characters must be;
 deduced from the highlighting of the near context. E.g in
 AsciiDocs '_important_', the underlines would be highlighted with
-markup-hide-delimiter-face, and the text 'important' would be
-highlighted with markup-emphasis-face. Because 'important' is
+adoc-hide-delimiter-face, and the text 'important' would be
+highlighted with adoc-emphasis-face. Because 'important' is
 highlighted, one knows that it must be surrounded with the meta
 characters '_', and thus the meta characters don't need to be
 properly seen.
@@ -1677,7 +1683,7 @@ text having adoc-reserved set to 'block-del."
               ;; get attribute's name
               (setq pos-or-name-of-attribute
                     (buffer-substring-no-properties (match-beginning 1) (match-end 1)))
-              ;; fontify the attribute's name with markup-attribute-face
+              ;; fontify the attribute's name with adoc-attribute-face
               (put-text-property
                (match-beginning 1) (match-end 1) 'face adoc-attribute-face))
 
@@ -1698,13 +1704,13 @@ text having adoc-reserved set to 'block-del."
 
 (defun adoc-facespec-subscript ()
   (list 'quote
-        (append '(face markup-subscript-face)
+        (append '(face adoc-subscript-face)
                 (when (not (= 0 (car adoc-script-raise)))
                   `(display (raise ,(car adoc-script-raise)))))))
 
 (defun adoc-facespec-superscript ()
   (list 'quote
-        (append '(face markup-superscript-face)
+        (append '(face adoc-superscript-face)
                 (when (not (= 0 (car adoc-script-raise)))
                   `(display (raise ,(cadr adoc-script-raise)))))))
 
