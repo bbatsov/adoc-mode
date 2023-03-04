@@ -332,7 +332,8 @@ aligned.
 ;; profiling profes otherwise. Nevertheless I can't stop doing it.
 (defconst adoc-summarize-re-uolisti t
   "When non-nil, sumarize regexps for unordered list items into one regexp.
-To become a customizable variable when regexps for list items become customizable.")
+To become a customizable variable when regexps for list items become
+customizable.")
 
 (defconst adoc-summarize-re-olisti t
   "As `adoc-summarize-re-uolisti', but for ordered list items.")
@@ -672,15 +673,15 @@ easier for major mode to write font lock regular expressions."
   '((default (:inherit adoc-meta-face))
     (((background light)) :foreground "gray75")
     (((background dark)) :foreground "gray25"))
-  "For meta characters which can be 'hidden'.
+  "For meta characters which can be \='hidden\='.
 Hidden in the sense of *almost* not visible. They don't need to
 be properly seen because one knows what these characters must be;
 deduced from the highlighting of the near context. E.g in
-AsciiDocs '_important_', the underlines would be highlighted with
-adoc-hide-delimiter-face, and the text 'important' would be
+AsciiDocs \='_important_\=', the underlines would be highlighted with
+adoc-hide-delimiter-face, and the text \='important\=' would be
 highlighted with adoc-emphasis-face. Because 'important' is
 highlighted, one knows that it must be surrounded with the meta
-characters '_', and thus the meta characters don't need to be
+characters \='_\=', and thus the meta characters don't need to be
 properly seen.
 For example:
 AsciiDoc: *bold emphasis text* or _emphasis text_
@@ -1653,7 +1654,6 @@ Subgroups of returned regexp:
 ;;;; font lock keywords
 (defun adoc-kwf-std (end regexp &optional must-free-groups no-block-del-groups)
   "Standard function for keywords
-
 Intendent to be called from font lock keyword functions. END is
 the limit of the search. REXEXP the regexp to be searched.
 MUST-FREE-GROUPS a list of regexp group numbers which may not
@@ -1674,10 +1674,10 @@ text having adoc-reserved set to 'block-del."
                                                          'adoc-reserved nil)))
                            must-free-groups)
                   (cl-some (lambda(x)
-                             (and (match-beginning x))
-                             (text-property-any (match-beginning x)
-                                                (match-end x)
-                                                'adoc-reserved 'block-del))
+                             (and (match-beginning x)
+                                  (text-property-any (match-beginning x)
+                                                     (match-end x)
+                                                     'adoc-reserved 'block-del)))
                            no-block-del-groups))))
       (when (and found prevented (<= (point) end))
         (goto-char (1+ saved-point))))
@@ -2548,7 +2548,7 @@ When ARG is nil (i.e. when no prefix arg is given), it defaults
 to 1. When ARG is negative, level is demoted that many levels.
 
 The intention is that the structure can be a title or a list
-element or anything else which has a 'level'. However currently
+element or anything else which has a \='level\='.  However currently
 it works only for titles."
   (interactive "p")
   (adoc-promote-title arg))
