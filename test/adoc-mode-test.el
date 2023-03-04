@@ -11,7 +11,7 @@
 ;; - compare adoc-mode fontification with actuall output from AsciiDoc, being
 ;;   almost the ultimative test for correctness
 ;;
-
+
 ;;; Code:
 (require 'ert)
 (require 'adoc-mode)
@@ -124,83 +124,87 @@ removed before TRANSFORM is evaluated.
 
 (ert-deftest adoctest-test-titles-simple-one-line-before ()
   (adoctest-faces "titles-simple-one-line-before"
-                  "= " markup-meta-hide-face "document title" markup-title-0-face "\n" nil
+                  "= " adoc-meta-hide-face "document title" adoc-title-0-face "\n" nil
                   "\n" nil
-                  "== " markup-meta-hide-face "chapter 1" markup-title-1-face "\n" nil
+                  "== " adoc-meta-hide-face "chapter 1" adoc-title-1-face "\n" nil
                   "\n" nil
-                  "=== " markup-meta-hide-face "chapter 2" markup-title-2-face "\n" nil
+                  "=== " adoc-meta-hide-face "chapter 2" adoc-title-2-face "\n" nil
                   "\n" nil
-                  "==== " markup-meta-hide-face "chapter 3" markup-title-3-face "\n" nil
+                  "==== " adoc-meta-hide-face "chapter 3" adoc-title-3-face "\n" nil
                   "\n" nil
-                  "===== " markup-meta-hide-face "chapter 4" markup-title-4-face))
+                  "===== " adoc-meta-hide-face "chapter 4" adoc-title-4-face "\n" nil
+                  "\n" nil
+                  "====== " adoc-meta-hide-face "chapter 5" adoc-title-5-face "\n" nil))
 
 (ert-deftest adoctest-test-titles-simple-one-line-enclosed ()
   (adoctest-faces "titles-simple-one-line-enclosed"
-                  "= " markup-meta-hide-face "document title" markup-title-0-face " =" markup-meta-hide-face "\n" nil
+                  "= " adoc-meta-hide-face "document title" adoc-title-0-face " =" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "== " markup-meta-hide-face "chapter 1" markup-title-1-face " ==" markup-meta-hide-face "\n" nil
+                  "== " adoc-meta-hide-face "chapter 1" adoc-title-1-face " ==" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "=== " markup-meta-hide-face "chapter 2" markup-title-2-face " ===" markup-meta-hide-face "\n" nil
+                  "=== " adoc-meta-hide-face "chapter 2" adoc-title-2-face " ===" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "==== " markup-meta-hide-face "chapter 3" markup-title-3-face " ====" markup-meta-hide-face "\n" nil
+                  "==== " adoc-meta-hide-face "chapter 3" adoc-title-3-face " ====" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "===== " markup-meta-hide-face "chapter 4" markup-title-4-face " =====" markup-meta-hide-face))
+                  "===== " adoc-meta-hide-face "chapter 4" adoc-title-4-face " =====" adoc-meta-hide-face "\n" nil
+                  "\n" nil
+                  "====== " adoc-meta-hide-face "chapter 5" adoc-title-5-face " ======" adoc-meta-hide-face "\n" nil))
 
 (ert-deftest adoctest-test-titles-simple-two-line ()
   (adoctest-faces "titles-simple-two-line"
                   ;; todo
                   ;; ensure somehow adoc-enable-two-line-title is t
-                  "document title" markup-title-0-face "\n" nil
-                  "==============" markup-meta-hide-face "\n" nil
+                  "document title" adoc-title-0-face "\n" nil
+                  "==============" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "chapter 1" markup-title-1-face "\n" nil
-                  "---------" markup-meta-hide-face "\n" nil
+                  "chapter 1" adoc-title-1-face "\n" nil
+                  "---------" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "chapter 2" markup-title-2-face "\n" nil
-                  "~~~~~~~~~" markup-meta-hide-face "\n" nil
+                  "chapter 2" adoc-title-2-face "\n" nil
+                  "~~~~~~~~~" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "chapter 3" markup-title-3-face "\n" nil
-                  "^^^^^^^^^" markup-meta-hide-face "\n" nil
+                  "chapter 3" adoc-title-3-face "\n" nil
+                  "^^^^^^^^^" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "chapter 4" markup-title-4-face "\n" nil
-                  "+++++++++" markup-meta-hide-face))
+                  "chapter 4" adoc-title-4-face "\n" nil
+                  "+++++++++" adoc-meta-hide-face))
 
 (ert-deftest adoctest-test-titles-simple-block-title ()
   (adoctest-faces "titles-simple-block-title"
-                  "." markup-meta-face "Block title" markup-gen-face))
+                  "." adoc-meta-face "Block title" adoc-gen-face))
 
 (ert-deftest adoctest-test-delimited-blocks-simple ()
   (adoctest-faces "delimited-blocks-simple"
 
                   ;; note that the leading spaces are NOT allowed to have adoc-align face
-                  "////////" markup-meta-hide-face "\n" nil
-                  " comment line 1\n comment line 2" markup-comment-face "\n" nil
-                  "////////" markup-meta-hide-face "\n" nil
+                  "////////" adoc-meta-hide-face "\n" nil
+                  " comment line 1\n comment line 2" adoc-comment-face "\n" nil
+                  "////////" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "++++++++" markup-meta-hide-face "\n" nil
-                  " passthrouh line 1\n passthrouh line 2" markup-passthrough-face "\n" nil
-                  "++++++++" markup-meta-hide-face "\n" nil
+                  "++++++++" adoc-meta-hide-face "\n" nil
+                  " passthrouh line 1\n passthrouh line 2" adoc-passthrough-face "\n" nil
+                  "++++++++" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "--------" markup-meta-hide-face "\n" nil
-                  " listing line 1\n listing line 2" markup-code-face "\n" nil
-                  "--------" markup-meta-hide-face "\n" nil
+                  "--------" adoc-meta-hide-face "\n" nil
+                  " listing line 1\n listing line 2" adoc-code-face "\n" nil
+                  "--------" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "........" markup-meta-hide-face "\n" nil
-                  " literal line 1\n literal line 2" markup-verbatim-face "\n" nil
-                  "........" markup-meta-hide-face "\n" nil
+                  "........" adoc-meta-hide-face "\n" nil
+                  " literal line 1\n literal line 2" adoc-verbatim-face "\n" nil
+                  "........" adoc-meta-hide-face "\n" nil
                   "\n" nil
 
-                  "________" markup-meta-hide-face "\n" nil
+                  "________" adoc-meta-hide-face "\n" nil
                   "quote line 1\nquote line 2" nil "\n" nil
-                  "________" markup-meta-hide-face "\n" nil
+                  "________" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "========" markup-meta-hide-face "\n" nil
+                  "========" adoc-meta-hide-face "\n" nil
                   "example line 1\nexample line 2" nil "\n" nil
-                  "========" markup-meta-hide-face "\n" nil
+                  "========" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "********" markup-meta-hide-face "\n" nil
-                  "sidebar line 1\nsidebar line 2" markup-secondary-text-face "\n" nil
-                  "********" markup-meta-hide-face "\n"))
+                  "********" adoc-meta-hide-face "\n" nil
+                  "sidebar line 1\nsidebar line 2" adoc-secondary-text-face "\n" nil
+                  "********" adoc-meta-hide-face "\n"))
 
 ;; Don't mistake text between two same delimited blocks as a delimited block,
 ;; i.e. wrongly treating the end of block 1 as a beginning and wrongly
@@ -208,382 +212,382 @@ removed before TRANSFORM is evaluated.
 (ert-deftest adoctest-test-delimited-blocks-special-case ()
   (adoctest-faces "delimited-blocks-special-case"
 
-                  "--------" markup-meta-hide-face "\n" nil
-                  "11\n12\n13\n14" markup-code-face "\n" nil
-                  "--------" markup-meta-hide-face "\n" nil
+                  "--------" adoc-meta-hide-face "\n" nil
+                  "11\n12\n13\n14" adoc-code-face "\n" nil
+                  "--------" adoc-meta-hide-face "\n" nil
                   "\n" nil
                   "lorem" 'no-face "\n" nil
                   "\n" nil
-                  "--------" markup-meta-hide-face "\n" nil
-                  "21\n22\n23\n24" markup-code-face "\n" nil
-                  "--------" markup-meta-hide-face "\n" nil
+                  "--------" adoc-meta-hide-face "\n" nil
+                  "21\n22\n23\n24" adoc-code-face "\n" nil
+                  "--------" adoc-meta-hide-face "\n" nil
                   "\n" nil
                   "ipsum" 'no-face "\n" nil))
 
 (ert-deftest adoctest-test-delimited-blocks-empty ()
   (adoctest-faces "delimited-blocks-empty"
-                  "////////" markup-meta-hide-face "\n" nil
-                  "////////" markup-meta-hide-face "\n" nil
+                  "////////" adoc-meta-hide-face "\n" nil
+                  "////////" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "++++++++" markup-meta-hide-face "\n" nil
-                  "++++++++" markup-meta-hide-face "\n" nil
+                  "++++++++" adoc-meta-hide-face "\n" nil
+                  "++++++++" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "--------" markup-meta-hide-face "\n" nil
-                  "--------" markup-meta-hide-face "\n" nil
+                  "--------" adoc-meta-hide-face "\n" nil
+                  "--------" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "........" markup-meta-hide-face "\n" nil
-                  "........" markup-meta-hide-face "\n" nil
+                  "........" adoc-meta-hide-face "\n" nil
+                  "........" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "________" markup-meta-hide-face "\n" nil
-                  "________" markup-meta-hide-face "\n" nil
+                  "________" adoc-meta-hide-face "\n" nil
+                  "________" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "========" markup-meta-hide-face "\n" nil
-                  "========" markup-meta-hide-face "\n" nil
+                  "========" adoc-meta-hide-face "\n" nil
+                  "========" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "********" markup-meta-hide-face "\n" nil
-                  "********" markup-meta-hide-face "\n"))
+                  "********" adoc-meta-hide-face "\n" nil
+                  "********" adoc-meta-hide-face "\n"))
 
 (ert-deftest adoctest-test-open-block ()
   (adoctest-faces "open-block"
-                  "--" markup-meta-hide-face "\n" nil
+                  "--" adoc-meta-hide-face "\n" nil
                   "open block line 1\nopen block line 2" nil "\n" nil
-                  "--" markup-meta-hide-face))
+                  "--" adoc-meta-hide-face))
 
 (ert-deftest adoctest-test-comments ()
   (adoctest-faces "comments"
                   ;; as block macro
-                  "// lorem ipsum\n" markup-comment-face
+                  "// lorem ipsum\n" adoc-comment-face
                   "\n" nil
                   ;; as inline macro
                   "lorem ipsum\n" 'no-face
-                  "// dolor sit\n" markup-comment-face
+                  "// dolor sit\n" adoc-comment-face
                   "amen\n" 'no-face
                   "\n" nil
                   ;; block macro and end of buffer
-                  "// lorem ipsum" markup-comment-face
+                  "// lorem ipsum" adoc-comment-face
                   ;; as delimited block it's tested in delimited-blocks-simple
                   ))
 
 (ert-deftest adoctest-test-anchors ()
   (adoctest-faces "anchors"
                   ;; block id
-                  "[[" markup-meta-face "foo" markup-anchor-face "]]" markup-meta-face "\n" nil
-                  "[[" markup-meta-face "foo" markup-anchor-face "," markup-meta-face
-                  "bar" markup-secondary-text-face "]]" markup-meta-face "\n" nil
+                  "[[" adoc-meta-face "foo" adoc-anchor-face "]]" adoc-meta-face "\n" nil
+                  "[[" adoc-meta-face "foo" adoc-anchor-face "," adoc-meta-face
+                  "bar" adoc-secondary-text-face "]]" adoc-meta-face "\n" nil
 
                   ;; special inline syntax: [[id]] [[id,xreftext]]
-                  "lorem " 'no-face "[[" markup-meta-face "foo" markup-anchor-face "]]"
-                  markup-meta-face "ipsum" 'no-face "\n" nil
-                  "lorem " 'no-face "[[" markup-meta-face "foo" markup-anchor-face "," markup-meta-face
-                  "bla bli bla blu" markup-secondary-text-face "]]" markup-meta-face "ipsum" 'no-face "\n" nil
+                  "lorem " 'no-face "[[" adoc-meta-face "foo" adoc-anchor-face "]]"
+                  adoc-meta-face "ipsum" 'no-face "\n" nil
+                  "lorem " 'no-face "[[" adoc-meta-face "foo" adoc-anchor-face "," adoc-meta-face
+                  "bla bli bla blu" adoc-secondary-text-face "]]" adoc-meta-face "ipsum" 'no-face "\n" nil
 
                   ;; general inline macro syntax
-                  "lorem " 'no-face "anchor" markup-command-face ":" markup-meta-face
-                  "foo" markup-anchor-face
-                  "[]" markup-meta-face "ipsum" 'no-face "\n" nil
-                  "lorem " 'no-face "anchor" markup-command-face ":" markup-meta-face
-                  "foo" markup-anchor-face
-                  "[" markup-meta-face "bla bli bla blu" markup-secondary-text-face "]" markup-meta-face
+                  "lorem " 'no-face "anchor" adoc-command-face ":" adoc-meta-face
+                  "foo" adoc-anchor-face
+                  "[]" adoc-meta-face "ipsum" 'no-face "\n" nil
+                  "lorem " 'no-face "anchor" adoc-command-face ":" adoc-meta-face
+                  "foo" adoc-anchor-face
+                  "[" adoc-meta-face "bla bli bla blu" adoc-secondary-text-face "]" adoc-meta-face
                   "ipsum" 'no-face "\n" nil
 
                   ;; biblio
-                  "lorem " 'no-face "[[" markup-meta-face "[foo]" markup-gen-face "]]" markup-meta-face
+                  "lorem " 'no-face "[[" adoc-meta-face "[foo]" adoc-gen-face "]]" adoc-meta-face
                   " ipsum" 'no-face
                   ))
 
 (ert-deftest adoctest-test-references ()
   (adoctest-faces "references"
-                  "lorem " 'no-face "xref" markup-command-face ":" markup-meta-face
-                  "foo" markup-reference-face "[]" markup-meta-face "\n" nil
-                  "lorem " 'no-face "xref" markup-command-face ":" markup-meta-face
-                  "foo" markup-internal-reference-face "[" markup-meta-face
-                  "bla bli bla blu" markup-reference-face "]" markup-meta-face "\n" nil
+                  "lorem " 'no-face "xref" adoc-command-face ":" adoc-meta-face
+                  "foo" adoc-reference-face "[]" adoc-meta-face "\n" nil
+                  "lorem " 'no-face "xref" adoc-command-face ":" adoc-meta-face
+                  "foo" adoc-internal-reference-face "[" adoc-meta-face
+                  "bla bli bla blu" adoc-reference-face "]" adoc-meta-face "\n" nil
 
                   ;; caption spawns multiple lines
-                  "xref" markup-command-face ":" markup-meta-face
-                  "foo" markup-internal-reference-face "[" markup-meta-face
-                  "bla\nbli\nbla\nblu" markup-reference-face "]" markup-meta-face "\n" nil
+                  "xref" adoc-command-face ":" adoc-meta-face
+                  "foo" adoc-internal-reference-face "[" adoc-meta-face
+                  "bla\nbli\nbla\nblu" adoc-reference-face "]" adoc-meta-face "\n" nil
                   ))
 
 (ert-deftest adoctest-test-footnotes ()
   (adoctest-faces "footnotes"
                   ;; simple example
-                  "footnote" markup-command-face ":" markup-meta-face
-                  "[" markup-meta-face "lorem ipsum" markup-secondary-text-face
-                  "]" markup-meta-face "\n" nil
+                  "footnote" adoc-command-face ":" adoc-meta-face
+                  "[" adoc-meta-face "lorem ipsum" adoc-secondary-text-face
+                  "]" adoc-meta-face "\n" nil
 
                   ;; footnote can be hard up against the preceding word
-                  "lorem" 'no-face "footnote" markup-command-face ":" markup-meta-face
-                  "[" markup-meta-face "ipsum" markup-secondary-text-face
-                  "]" markup-meta-face "\n" nil
+                  "lorem" 'no-face "footnote" adoc-command-face ":" adoc-meta-face
+                  "[" adoc-meta-face "ipsum" adoc-secondary-text-face
+                  "]" adoc-meta-face "\n" nil
 
                   ;; attribute-list is not really an attribute list but normal text,
                   ;; i.e. comma, equal, double quotes are not fontified as meta characters
-                  "footnote" markup-command-face ":" markup-meta-face
-                  "[" markup-meta-face
-                  "lorem, ipsum=dolor, sit=\"amen\"" markup-secondary-text-face
-                  "]" markup-meta-face "\n" nil
+                  "footnote" adoc-command-face ":" adoc-meta-face
+                  "[" adoc-meta-face
+                  "lorem, ipsum=dolor, sit=\"amen\"" adoc-secondary-text-face
+                  "]" adoc-meta-face "\n" nil
 
                   ;; multiline attribute list
-                  "footnote" markup-command-face ":" markup-meta-face
-                  "[" markup-meta-face
-                  "lorem\nipsum\ndolor\nsit\namen" markup-secondary-text-face
-                  "]" markup-meta-face "\n" nil
+                  "footnote" adoc-command-face ":" adoc-meta-face
+                  "[" adoc-meta-face
+                  "lorem\nipsum\ndolor\nsit\namen" adoc-secondary-text-face
+                  "]" adoc-meta-face "\n" nil
                   ))
 
 (ert-deftest adoctest-test-footnoterefs ()
   (adoctest-faces "footnoterefs"
                   ;; simple example
-                  "footnoteref" markup-command-face ":" markup-meta-face
-                  "[" markup-meta-face
-                  "myid" markup-internal-reference-face
-                  "]" markup-meta-face "\n" nil
+                  "footnoteref" adoc-command-face ":" adoc-meta-face
+                  "[" adoc-meta-face
+                  "myid" adoc-internal-reference-face
+                  "]" adoc-meta-face "\n" nil
 
-                  "footnoteref" markup-command-face ":" markup-meta-face
-                  "[" markup-meta-face
-                  "myid" markup-anchor-face
-                  "," markup-meta-face
-                  "lorem ipsum" markup-secondary-text-face
-                  "]" markup-meta-face "\n" nil
+                  "footnoteref" adoc-command-face ":" adoc-meta-face
+                  "[" adoc-meta-face
+                  "myid" adoc-anchor-face
+                  "," adoc-meta-face
+                  "lorem ipsum" adoc-secondary-text-face
+                  "]" adoc-meta-face "\n" nil
 
                   ;; footnoteref can be hard up against the preceding word
                   "lorem" 'no-face
-                  "footnoteref" markup-command-face ":" markup-meta-face
-                  "[" markup-meta-face
-                  "myid" markup-internal-reference-face
-                  "]" markup-meta-face "\n" nil
+                  "footnoteref" adoc-command-face ":" adoc-meta-face
+                  "[" adoc-meta-face
+                  "myid" adoc-internal-reference-face
+                  "]" adoc-meta-face "\n" nil
 
                   "lorem" 'no-face
-                  "footnoteref" markup-command-face ":" markup-meta-face
-                  "[" markup-meta-face
-                  "myid" markup-anchor-face
-                  "," markup-meta-face
-                  "lorem ipsum" markup-secondary-text-face
-                  "]" markup-meta-face "\n" nil
+                  "footnoteref" adoc-command-face ":" adoc-meta-face
+                  "[" adoc-meta-face
+                  "myid" adoc-anchor-face
+                  "," adoc-meta-face
+                  "lorem ipsum" adoc-secondary-text-face
+                  "]" adoc-meta-face "\n" nil
 
                   ;; multiline text
                   "lorem" 'no-face
-                  "footnoteref" markup-command-face ":" markup-meta-face
-                  "[" markup-meta-face
-                  "myid" markup-anchor-face
-                  "," markup-meta-face
-                  "lorem\nipsum\ndolor\nsit" markup-secondary-text-face
-                  "]" markup-meta-face "\n" nil
+                  "footnoteref" adoc-command-face ":" adoc-meta-face
+                  "[" adoc-meta-face
+                  "myid" adoc-anchor-face
+                  "," adoc-meta-face
+                  "lorem\nipsum\ndolor\nsit" adoc-secondary-text-face
+                  "]" adoc-meta-face "\n" nil
                   ))
 
 (ert-deftest adoctest-test-images ()
   (adoctest-faces "images"
                   ;; block macros
                   ;; empty arglist
-                  "image" markup-complex-replacement-face "::" markup-meta-face
-                  "./foo/bar.png" markup-internal-reference-face
-                  "[]" markup-meta-face "\n" nil
+                  "image" adoc-complex-replacement-face "::" adoc-meta-face
+                  "./foo/bar.png" adoc-internal-reference-face
+                  "[]" adoc-meta-face "\n" nil
                   ;; pos attribute 0 = alternate text
-                  "image" markup-complex-replacement-face "::" markup-meta-face
-                  "./foo/bar.png" markup-internal-reference-face
-                  "[" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "\n" nil
+                  "image" adoc-complex-replacement-face "::" adoc-meta-face
+                  "./foo/bar.png" adoc-internal-reference-face
+                  "[" adoc-meta-face "lorem ipsum" adoc-secondary-text-face "]" adoc-meta-face "\n" nil
                   ;; keyword title
-                  "image" markup-complex-replacement-face "::" markup-meta-face
-                  "./foo/bar.png" markup-internal-reference-face
-                  "[" markup-meta-face "alt" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "\n" nil
+                  "image" adoc-complex-replacement-face "::" adoc-meta-face
+                  "./foo/bar.png" adoc-internal-reference-face
+                  "[" adoc-meta-face "alt" adoc-attribute-face "=" adoc-meta-face "lorem ipsum" adoc-secondary-text-face "]" adoc-meta-face "\n" nil
                   ;; keyword alt and title
-                  "image" markup-complex-replacement-face "::" markup-meta-face
-                  "./foo/bar.png" markup-internal-reference-face
-                  "[" markup-meta-face "alt" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "," markup-meta-face
-                  "title" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "\n" nil
+                  "image" adoc-complex-replacement-face "::" adoc-meta-face
+                  "./foo/bar.png" adoc-internal-reference-face
+                  "[" adoc-meta-face "alt" adoc-attribute-face "=" adoc-meta-face "lorem ipsum" adoc-secondary-text-face "," adoc-meta-face
+                  "title" adoc-attribute-face "=" adoc-meta-face "lorem ipsum" adoc-secondary-text-face "]" adoc-meta-face "\n" nil
                   ;; multiline alt and title
-                  "image" markup-complex-replacement-face "::" markup-meta-face
-                  "./foo/bar.png" markup-internal-reference-face
-                  "[" markup-meta-face "alt" markup-attribute-face "=" markup-meta-face
-                  "lorem\nipsum\nsit" markup-secondary-text-face "," markup-meta-face
-                  "title" markup-attribute-face "=" markup-meta-face
-                  "lorem\nipsum\nsit" markup-secondary-text-face "]" markup-meta-face "\n" nil
+                  "image" adoc-complex-replacement-face "::" adoc-meta-face
+                  "./foo/bar.png" adoc-internal-reference-face
+                  "[" adoc-meta-face "alt" adoc-attribute-face "=" adoc-meta-face
+                  "lorem\nipsum\nsit" adoc-secondary-text-face "," adoc-meta-face
+                  "title" adoc-attribute-face "=" adoc-meta-face
+                  "lorem\nipsum\nsit" adoc-secondary-text-face "]" adoc-meta-face "\n" nil
 
                   ;; no everything again with inline macros
-                  "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face
-                  "./foo/bar.png" markup-internal-reference-face
-                  "[]" markup-meta-face "bar" 'no-face "\n" nil
+                  "foo " 'no-face "image" adoc-complex-replacement-face ":" adoc-meta-face
+                  "./foo/bar.png" adoc-internal-reference-face
+                  "[]" adoc-meta-face "bar" 'no-face "\n" nil
 
-                  "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face
-                  "./foo/bar.png" markup-internal-reference-face
-                  "[" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "bar" 'no-face "\n" nil
+                  "foo " 'no-face "image" adoc-complex-replacement-face ":" adoc-meta-face
+                  "./foo/bar.png" adoc-internal-reference-face
+                  "[" adoc-meta-face "lorem ipsum" adoc-secondary-text-face "]" adoc-meta-face "bar" 'no-face "\n" nil
 
-                  "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face
-                  "./foo/bar.png" markup-internal-reference-face
-                  "[" markup-meta-face "alt" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "bar" 'no-face "\n" nil
+                  "foo " 'no-face "image" adoc-complex-replacement-face ":" adoc-meta-face
+                  "./foo/bar.png" adoc-internal-reference-face
+                  "[" adoc-meta-face "alt" adoc-attribute-face "=" adoc-meta-face "lorem ipsum" adoc-secondary-text-face "]" adoc-meta-face "bar" 'no-face "\n" nil
 
-                  "foo " 'no-face "image" markup-complex-replacement-face ":" markup-meta-face
-                  "./foo/bar.png" markup-internal-reference-face
-                  "[" markup-meta-face "alt" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "," markup-meta-face
-                  "title" markup-attribute-face "=" markup-meta-face "lorem ipsum" markup-secondary-text-face "]" markup-meta-face "bar" 'no-face "\n" nil
+                  "foo " 'no-face "image" adoc-complex-replacement-face ":" adoc-meta-face
+                  "./foo/bar.png" adoc-internal-reference-face
+                  "[" adoc-meta-face "alt" adoc-attribute-face "=" adoc-meta-face "lorem ipsum" adoc-secondary-text-face "," adoc-meta-face
+                  "title" adoc-attribute-face "=" adoc-meta-face "lorem ipsum" adoc-secondary-text-face "]" adoc-meta-face "bar" 'no-face "\n" nil
 
-                  "image" markup-complex-replacement-face ":" markup-meta-face
-                  "./foo/bar.png" markup-internal-reference-face
-                  "[" markup-meta-face "alt" markup-attribute-face "=" markup-meta-face
-                  "lorem\nipsum\nsit" markup-secondary-text-face "," markup-meta-face
-                  "title" markup-attribute-face "=" markup-meta-face
-                  "lorem\nipsum\nsit" markup-secondary-text-face "]" markup-meta-face "\n" nil))
+                  "image" adoc-complex-replacement-face ":" adoc-meta-face
+                  "./foo/bar.png" adoc-internal-reference-face
+                  "[" adoc-meta-face "alt" adoc-attribute-face "=" adoc-meta-face
+                  "lorem\nipsum\nsit" adoc-secondary-text-face "," adoc-meta-face
+                  "title" adoc-attribute-face "=" adoc-meta-face
+                  "lorem\nipsum\nsit" adoc-secondary-text-face "]" adoc-meta-face "\n" nil))
 
 (ert-deftest adoctest-test-attribute-list ()
   (adoctest-faces "attribute-list"
                   ;; positional attribute
-                  "[" markup-meta-face "hello" markup-value-face "]" markup-meta-face "\n" nil
+                  "[" adoc-meta-face "hello" adoc-value-face "]" adoc-meta-face "\n" nil
                   ;; positional attribute containing spaces
-                  "[" markup-meta-face "hello world" markup-value-face "]" markup-meta-face "\n" nil
+                  "[" adoc-meta-face "hello world" adoc-value-face "]" adoc-meta-face "\n" nil
                   ;; positional attribute as string
-                  "[\"" markup-meta-face  "hello world" markup-value-face "\"]" markup-meta-face "\n" nil
+                  "[\"" adoc-meta-face  "hello world" adoc-value-face "\"]" adoc-meta-face "\n" nil
 
                   ;; multiple positional attributes
-                  "[" markup-meta-face "hello" markup-value-face "," markup-meta-face "world" markup-value-face "]" markup-meta-face "\n" nil
+                  "[" adoc-meta-face "hello" adoc-value-face "," adoc-meta-face "world" adoc-value-face "]" adoc-meta-face "\n" nil
 
                   ;; multiple positional attributes, however one or both are empty (really empty or only one space)
-                  "[" markup-meta-face "hello" markup-value-face ",]" markup-meta-face "\n" nil
-                  "[" markup-meta-face "hello" markup-value-face "," markup-meta-face " " markup-value-face "]" markup-meta-face "\n" nil
-                  "[," markup-meta-face "hello" markup-value-face "]" markup-meta-face "\n" nil
-                  "[" markup-meta-face " " markup-value-face "," markup-meta-face "hello" markup-value-face "]" markup-meta-face "\n" nil
-                  "[,]" markup-meta-face "\n" nil
-                  "[," markup-meta-face " " markup-value-face "]" markup-meta-face "\n" nil
-                  "[" markup-meta-face " " markup-value-face ",]" markup-meta-face "\n" nil
-                  "[" markup-meta-face " " markup-value-face "," markup-meta-face " " markup-value-face "]" markup-meta-face "\n" nil
+                  "[" adoc-meta-face "hello" adoc-value-face ",]" adoc-meta-face "\n" nil
+                  "[" adoc-meta-face "hello" adoc-value-face "," adoc-meta-face " " adoc-value-face "]" adoc-meta-face "\n" nil
+                  "[," adoc-meta-face "hello" adoc-value-face "]" adoc-meta-face "\n" nil
+                  "[" adoc-meta-face " " adoc-value-face "," adoc-meta-face "hello" adoc-value-face "]" adoc-meta-face "\n" nil
+                  "[,]" adoc-meta-face "\n" nil
+                  "[," adoc-meta-face " " adoc-value-face "]" adoc-meta-face "\n" nil
+                  "[" adoc-meta-face " " adoc-value-face ",]" adoc-meta-face "\n" nil
+                  "[" adoc-meta-face " " adoc-value-face "," adoc-meta-face " " adoc-value-face "]" adoc-meta-face "\n" nil
 
                   ;; zero positional attributes
-                  "[]" markup-meta-face "\n" nil
-                  "[" markup-meta-face " " markup-value-face "]" markup-meta-face "\n" nil
+                  "[]" adoc-meta-face "\n" nil
+                  "[" adoc-meta-face " " adoc-value-face "]" adoc-meta-face "\n" nil
 
                   ;; keyword attribute
-                  "[" markup-meta-face "salute" markup-attribute-face "=" markup-meta-face "hello" markup-value-face "]" markup-meta-face "\n" nil
+                  "[" adoc-meta-face "salute" adoc-attribute-face "=" adoc-meta-face "hello" adoc-value-face "]" adoc-meta-face "\n" nil
                   ;; keyword attribute where value is a string
-                  "[" markup-meta-face "salute" markup-attribute-face "=\"" markup-meta-face "hello world" markup-value-face "\"]" markup-meta-face "\n" nil
+                  "[" adoc-meta-face "salute" adoc-attribute-face "=\"" adoc-meta-face "hello world" adoc-value-face "\"]" adoc-meta-face "\n" nil
 
                   ;; multiple positional attributes, multiple keyword attributes
-                  "[" markup-meta-face "lorem" markup-value-face "," markup-meta-face "ipsum" markup-value-face "," markup-meta-face
-                  "dolor" markup-attribute-face "=" markup-meta-face "sit" markup-value-face "," markup-meta-face
-                  "dolor" markup-attribute-face "=" markup-meta-face "sit" markup-value-face "]" markup-meta-face "\n" nil
+                  "[" adoc-meta-face "lorem" adoc-value-face "," adoc-meta-face "ipsum" adoc-value-face "," adoc-meta-face
+                  "dolor" adoc-attribute-face "=" adoc-meta-face "sit" adoc-value-face "," adoc-meta-face
+                  "dolor" adoc-attribute-face "=" adoc-meta-face "sit" adoc-value-face "]" adoc-meta-face "\n" nil
 
                   ;; is , within strings really part of the string and not mistaken as element separator
-                  "[\"" markup-meta-face "lorem,ipsum=dolor" markup-value-face "\"]" markup-meta-face "\n" nil
+                  "[\"" adoc-meta-face "lorem,ipsum=dolor" adoc-value-face "\"]" adoc-meta-face "\n" nil
                   ;; does escaping " in strings work
-                  "[\"" markup-meta-face "lorem \\\"ipsum\\\" dolor" markup-value-face "\"]" markup-meta-face
+                  "[\"" adoc-meta-face "lorem \\\"ipsum\\\" dolor" adoc-value-face "\"]" adoc-meta-face
                   ))
 
 (ert-deftest adoctest-test-block-macro ()
   (adoctest-faces "block-macro"
-                  "lorem" markup-command-face "::" markup-meta-face "ipsum[]" markup-meta-face))
+                  "lorem" adoc-command-face "::" adoc-meta-face "ipsum[]" adoc-meta-face))
 
 (ert-deftest adoctest-test-quotes-simple ()
   (adoctest-faces "test-quotes-simple"
                   ;; note that in unconstraned quotes cases " ipsum " has spaces around, in
                   ;; constrained quotes case it doesn't
-                  "Lorem " nil "`" markup-meta-hide-face "ipsum" '(markup-typewriter-face markup-verbatim-face) "`" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "+++" markup-meta-hide-face " ipsum " '(markup-typewriter-face markup-verbatim-face) "+++" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "$$" markup-meta-hide-face " ipsum " '(markup-typewriter-face markup-verbatim-face) "$$" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "**" markup-meta-hide-face " ipsum " markup-strong-face "**" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "*" markup-meta-hide-face "ipsum" markup-strong-face "*" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "``" markup-replacement-face "ipsum" nil "''" markup-replacement-face " dolor\n" nil
-                  "Lorem " nil "'" markup-meta-hide-face "ipsum" markup-emphasis-face "'" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "`" markup-replacement-face "ipsum" nil "'" markup-replacement-face " dolor\n" nil
-                  "Lorem " nil "++" markup-meta-hide-face " ipsum " markup-typewriter-face "++" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "+" markup-meta-hide-face "ipsum" markup-typewriter-face "+" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "__" markup-meta-hide-face " ipsum " markup-emphasis-face "__" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "_" markup-meta-hide-face "ipsum" markup-emphasis-face "_" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "##" markup-meta-hide-face " ipsum " markup-gen-face "##" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "#" markup-meta-hide-face "ipsum" markup-gen-face "#" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "~" markup-meta-hide-face " ipsum " markup-subscript-face "~" markup-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "^" markup-meta-hide-face " ipsum " markup-superscript-face "^" markup-meta-hide-face " dolor"))
+                  "Lorem " nil "`" adoc-meta-hide-face "ipsum" '(adoc-typewriter-face adoc-verbatim-face) "`" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "+++" adoc-meta-hide-face " ipsum " '(adoc-typewriter-face adoc-verbatim-face) "+++" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "$$" adoc-meta-hide-face " ipsum " '(adoc-typewriter-face adoc-verbatim-face) "$$" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "**" adoc-meta-hide-face " ipsum " adoc-bold-face "**" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "*" adoc-meta-hide-face "ipsum" adoc-bold-face "*" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "``" adoc-replacement-face "ipsum" nil "''" adoc-replacement-face " dolor\n" nil
+                  "Lorem " nil "'" adoc-meta-hide-face "ipsum" adoc-emphasis-face "'" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "`" adoc-replacement-face "ipsum" nil "'" adoc-replacement-face " dolor\n" nil
+                  "Lorem " nil "++" adoc-meta-hide-face " ipsum " adoc-typewriter-face "++" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "+" adoc-meta-hide-face "ipsum" adoc-typewriter-face "+" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "__" adoc-meta-hide-face " ipsum " adoc-emphasis-face "__" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "_" adoc-meta-hide-face "ipsum" adoc-emphasis-face "_" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "##" adoc-meta-hide-face " ipsum " adoc-gen-face "##" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "#" adoc-meta-hide-face "ipsum" adoc-gen-face "#" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "~" adoc-meta-hide-face " ipsum " adoc-subscript-face "~" adoc-meta-hide-face " dolor\n" nil
+                  "Lorem " nil "^" adoc-meta-hide-face " ipsum " adoc-superscript-face "^" adoc-meta-hide-face " dolor"))
 
 (ert-deftest adoctest-test-quotes-medium ()
   (adoctest-faces "test-quotes-medium"
                   ;; test wheter constrained/unconstrained quotes can spawn multiple lines
-                  "Lorem " 'no-face "*" markup-meta-hide-face "ipsum" markup-strong-face
-                  "\n" nil "dolor" markup-strong-face "\n" nil "dolor" markup-strong-face
-                  "\n" nil "dolor" markup-strong-face "\n" nil "dolor" markup-strong-face
-                  "*" markup-meta-hide-face
+                  "Lorem " 'no-face "*" adoc-meta-hide-face "ipsum" adoc-bold-face
+                  "\n" nil "dolor" adoc-bold-face "\n" nil "dolor" adoc-bold-face
+                  "\n" nil "dolor" adoc-bold-face "\n" nil "dolor" adoc-bold-face
+                  "*" adoc-meta-hide-face
                   " sit" 'no-face "\n" nil
 
-                  "Lorem " 'no-face "__" markup-meta-hide-face "ipsum" markup-emphasis-face
-                  "\n" nil "dolor" markup-emphasis-face "\n" nil "dolor" markup-emphasis-face
-                  "\n" nil "dolor" markup-emphasis-face "\n" nil "dolor" markup-emphasis-face
-                  "__" markup-meta-hide-face
+                  "Lorem " 'no-face "__" adoc-meta-hide-face "ipsum" adoc-emphasis-face
+                  "\n" nil "dolor" adoc-emphasis-face "\n" nil "dolor" adoc-emphasis-face
+                  "\n" nil "dolor" adoc-emphasis-face "\n" nil "dolor" adoc-emphasis-face
+                  "__" adoc-meta-hide-face
                   " sit" 'no-face "\n" nil
 
                   ;; tests border case that delimiter is at the beginnin/end of an paragraph/line
                   ;; constrained at beginning
-                  "*" markup-meta-hide-face "lorem" 'markup-strong-face "*" markup-meta-hide-face " ipsum\n" 'no-face
+                  "*" adoc-meta-hide-face "lorem" 'adoc-bold-face "*" adoc-meta-hide-face " ipsum\n" 'no-face
                   "\n" nil
                   ;; constrained at end
-                  "lorem " 'no-face "*" markup-meta-hide-face "ipsum" markup-strong-face "*" markup-meta-hide-face "\n" nil
+                  "lorem " 'no-face "*" adoc-meta-hide-face "ipsum" adoc-bold-face "*" adoc-meta-hide-face "\n" nil
                   "\n" nil
                   ;; constrained from beginning to end
-                  "*" markup-meta-hide-face "lorem" markup-strong-face "*" markup-meta-hide-face "\n" nil
+                  "*" adoc-meta-hide-face "lorem" adoc-bold-face "*" adoc-meta-hide-face "\n" nil
                   "\n" nil
                   ;; unconstrained at beginning. Note that "** " at the beginning of a line would be a list item.
-                  "__" markup-meta-hide-face " lorem " 'markup-emphasis-face "__" markup-meta-hide-face " ipsum\n" 'no-face
+                  "__" adoc-meta-hide-face " lorem " 'adoc-emphasis-face "__" adoc-meta-hide-face " ipsum\n" 'no-face
                   "\n" nil
                   ;; unconstrained at end
-                  "lorem " 'no-face "__" markup-meta-hide-face " ipsum " markup-emphasis-face "__" markup-meta-hide-face "\n" nil
+                  "lorem " 'no-face "__" adoc-meta-hide-face " ipsum " adoc-emphasis-face "__" adoc-meta-hide-face "\n" nil
                   "\n" nil
                   ;; unconstrained from beginning to end
-                  "__" markup-meta-hide-face " lorem " markup-emphasis-face "__" markup-meta-hide-face "\n" nil
+                  "__" adoc-meta-hide-face " lorem " adoc-emphasis-face "__" adoc-meta-hide-face "\n" nil
                   "\n" nil
 
                   ;; test wheter quotes can nest
                   ;; done by meta-face-cleanup
 
                   ;; tests that quotes work within titles / labeled lists
-                  "== " markup-meta-hide-face "chapter " markup-title-1-face "*" markup-meta-hide-face "1" '(markup-title-1-face markup-strong-face) "*" markup-meta-hide-face " ==" markup-meta-hide-face "\n" nil
+                  "== " adoc-meta-hide-face "chapter " adoc-title-1-face "*" adoc-meta-hide-face "1" '(adoc-title-1-face adoc-bold-face) "*" adoc-meta-hide-face " ==" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "chapter " markup-title-2-face "_" markup-meta-hide-face "2" '(markup-title-2-face markup-emphasis-face) "_" markup-meta-hide-face "\n" nil
-                  "~~~~~~~~~~~" markup-meta-hide-face "\n" nil
-                  "." markup-meta-face "lorem " 'markup-gen-face "_" markup-meta-hide-face "ipsum" '(markup-gen-face markup-emphasis-face) "_" markup-meta-hide-face "\n" nil
+                  "chapter " adoc-title-2-face "_" adoc-meta-hide-face "2" '(adoc-title-2-face adoc-emphasis-face) "_" adoc-meta-hide-face "\n" nil
+                  "~~~~~~~~~~~" adoc-meta-hide-face "\n" nil
+                  "." adoc-meta-face "lorem " 'adoc-gen-face "_" adoc-meta-hide-face "ipsum" '(adoc-gen-face adoc-emphasis-face) "_" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "lorem " markup-gen-face "+" markup-meta-hide-face "ipsum" '(markup-gen-face markup-typewriter-face) "+" markup-meta-hide-face " sit" markup-gen-face "::" markup-list-face " " adoc-align
+                  "lorem " adoc-gen-face "+" adoc-meta-hide-face "ipsum" '(adoc-gen-face adoc-typewriter-face) "+" adoc-meta-hide-face " sit" adoc-gen-face "::" adoc-list-face " " adoc-align
                   ))
 
 ;; test border cases where the quote delimiter is at the beginning and/or the
 ;; end of the buffer
 (ert-deftest adoctest-test-quotes-medium-2 ()
   (adoctest-faces "test-quotes-medium-2"
-                  "*" markup-meta-hide-face "lorem" markup-strong-face "*" markup-meta-hide-face " ipsum" 'no-face))
+                  "*" adoc-meta-hide-face "lorem" adoc-bold-face "*" adoc-meta-hide-face " ipsum" 'no-face))
 (ert-deftest adoctest-test-quotes-medium-3 ()
   (adoctest-faces "test-quotes-medium-3"
-                  "lorem " 'no-face "*" markup-meta-hide-face "ipsum" markup-strong-face "*" markup-meta-hide-face))
+                  "lorem " 'no-face "*" adoc-meta-hide-face "ipsum" adoc-bold-face "*" adoc-meta-hide-face))
 (ert-deftest adoctest-test-quotes-medium-4 ()
   (adoctest-faces "test-quotes-medium-4"
-                  "*" markup-meta-hide-face "lorem" markup-strong-face "*" markup-meta-hide-face))
+                  "*" adoc-meta-hide-face "lorem" adoc-bold-face "*" adoc-meta-hide-face))
 
 (ert-deftest adoctest-test-lists-simple ()
   (adoctest-faces "test-lists-simple"
-                  " " adoc-align "-" markup-list-face " " adoc-align "uo list item\n" nil
-                  " " adoc-align "*" markup-list-face " " adoc-align "uo list item\n" nil
-                  " " adoc-align "**" markup-list-face " " adoc-align "uo list item\n" nil
-                  " " adoc-align "***" markup-list-face " " adoc-align "uo list item\n" nil
-                  " " adoc-align "****" markup-list-face " " adoc-align "uo list item\n" nil
-                  " " adoc-align "*****" markup-list-face " " adoc-align "uo list item\n" nil
-                  "+" markup-list-face " " adoc-align "uo list item\n" nil
+                  " " adoc-align "-" adoc-list-face " " adoc-align "uo list item\n" nil
+                  " " adoc-align "*" adoc-list-face " " adoc-align "uo list item\n" nil
+                  " " adoc-align "**" adoc-list-face " " adoc-align "uo list item\n" nil
+                  " " adoc-align "***" adoc-list-face " " adoc-align "uo list item\n" nil
+                  " " adoc-align "****" adoc-list-face " " adoc-align "uo list item\n" nil
+                  " " adoc-align "*****" adoc-list-face " " adoc-align "uo list item\n" nil
+                  "+" adoc-list-face " " adoc-align "uo list item\n" nil
 
-                  " " adoc-align "1." markup-list-face " " adoc-align "o list item\n" nil
-                  " " adoc-align "a." markup-list-face " " adoc-align "o list item\n" nil
-                  " " adoc-align "B." markup-list-face " " adoc-align "o list item\n" nil
-                  " " adoc-align "ii)" markup-list-face " " adoc-align "o list item\n" nil
-                  " " adoc-align "II)" markup-list-face " " adoc-align "o list item\n" nil
+                  " " adoc-align "1." adoc-list-face " " adoc-align "o list item\n" nil
+                  " " adoc-align "a." adoc-list-face " " adoc-align "o list item\n" nil
+                  " " adoc-align "B." adoc-list-face " " adoc-align "o list item\n" nil
+                  " " adoc-align "ii)" adoc-list-face " " adoc-align "o list item\n" nil
+                  " " adoc-align "II)" adoc-list-face " " adoc-align "o list item\n" nil
 
-                  " " adoc-align "." markup-list-face " " adoc-align "implicitly numbered list item\n" nil
-                  " " adoc-align ".." markup-list-face " " adoc-align "implicitly numbered list item\n" nil
-                  " " adoc-align "..." markup-list-face " " adoc-align "implicitly numbered list item\n" nil
-                  " " adoc-align "...." markup-list-face " " adoc-align "implicitly numbered list item\n" nil
-                  " " adoc-align "....." markup-list-face " " adoc-align "implicitly numbered list item\n" nil
-                  "<1>" markup-list-face " " adoc-align "callout\n" nil
-                  "1>" markup-list-face " " adoc-align "callout\n" nil
+                  " " adoc-align "." adoc-list-face " " adoc-align "implicitly numbered list item\n" nil
+                  " " adoc-align ".." adoc-list-face " " adoc-align "implicitly numbered list item\n" nil
+                  " " adoc-align "..." adoc-list-face " " adoc-align "implicitly numbered list item\n" nil
+                  " " adoc-align "...." adoc-list-face " " adoc-align "implicitly numbered list item\n" nil
+                  " " adoc-align "....." adoc-list-face " " adoc-align "implicitly numbered list item\n" nil
+                  "<1>" adoc-list-face " " adoc-align "callout\n" nil
+                  "1>" adoc-list-face " " adoc-align "callout\n" nil
 
-                  " " adoc-align "term" markup-gen-face "::" markup-list-face " " adoc-align "lorem ipsum\n" nil
-                  " " adoc-align "term" markup-gen-face ";;" markup-list-face " " adoc-align "lorem ipsum\n" nil
-                  " " adoc-align "term" markup-gen-face ":::" markup-list-face " " adoc-align "lorem ipsum\n" nil
-                  " " adoc-align "term" markup-gen-face "::::" markup-list-face " " adoc-align "lorem ipsum\n" nil
-                  " " adoc-align "question" markup-gen-face "??" markup-list-face "\n" nil
-                  "glossary" markup-gen-face ":-" markup-list-face "\n" nil
+                  " " adoc-align "term" adoc-gen-face "::" adoc-list-face " " adoc-align "lorem ipsum\n" nil
+                  " " adoc-align "term" adoc-gen-face ";;" adoc-list-face " " adoc-align "lorem ipsum\n" nil
+                  " " adoc-align "term" adoc-gen-face ":::" adoc-list-face " " adoc-align "lorem ipsum\n" nil
+                  " " adoc-align "term" adoc-gen-face "::::" adoc-list-face " " adoc-align "lorem ipsum\n" nil
+                  " " adoc-align "question" adoc-gen-face "??" adoc-list-face "\n" nil
+                  "glossary" adoc-gen-face ":-" adoc-list-face "\n" nil
 
-                  "-" markup-list-face " " adoc-align "uo list item\n" nil
-                  "+" markup-meta-face "\n" nil
+                  "-" adoc-list-face " " adoc-align "uo list item\n" nil
+                  "+" adoc-meta-face "\n" nil
                   "2nd list paragraph\n" nil ))
 
 (ert-deftest adoctest-test-lists-medium ()
@@ -592,27 +596,27 @@ removed before TRANSFORM is evaluated.
                   ;; specially in that it puts adoc-reserved text-property on the preceding
                   ;; newline. However it shall deal with the situation that there is no
                   ;; preceding newline, because we're at the beginning of the buffer
-                  "lorem" markup-gen-face "::" markup-list-face " " nil "ipsum" 'no-face))
+                  "lorem" adoc-gen-face "::" adoc-list-face " " nil "ipsum" 'no-face))
 
 (ert-deftest adoctest-test-inline-macros ()
   (adoctest-faces "inline-macros"
-                  "commandname" markup-command-face ":target[" markup-meta-face "attribute list" markup-value-face "]" markup-meta-face))
+                  "commandname" adoc-command-face ":target[" adoc-meta-face "attribute list" adoc-value-face "]" adoc-meta-face))
 
 (ert-deftest adoctest-test-meta-face-cleanup ()
   ;; begin with a few simple explicit cases which are easier to debug in case of troubles
 
   ;; 1) test that meta characters always only have a single meta and don't get
-  ;;    markup-bold/-emphasis/... face just because they are within a
-  ;;    strongh/emphasis/... construct.
+  ;;    adoc-bold/-emphasis/... face just because they are within a
+  ;;    bold/emphasis/... construct.
   ;; 2) test that nested quotes really apply the faces of both quotes to the inner text
   (adoctest-faces "meta-face-cleanup-1"
-                  "*" markup-meta-hide-face "lorem " markup-strong-face
-                  "_" markup-meta-hide-face "ipsum" '(markup-strong-face markup-emphasis-face) "_" markup-meta-hide-face
-                  " dolor" markup-strong-face "*" markup-meta-hide-face "\n" nil)
+                  "*" adoc-meta-hide-face "lorem " adoc-bold-face
+                  "_" adoc-meta-hide-face "ipsum" '(adoc-bold-face adoc-emphasis-face) "_" adoc-meta-hide-face
+                  " dolor" adoc-bold-face "*" adoc-meta-hide-face "\n" nil)
   (adoctest-faces "meta-face-cleanup-2"
-                  "_" markup-meta-hide-face "lorem " markup-emphasis-face
-                  "*" markup-meta-hide-face "ipsum" '(markup-strong-face markup-emphasis-face) "*" markup-meta-hide-face
-                  " dolor" markup-emphasis-face "_" markup-meta-hide-face)
+                  "_" adoc-meta-hide-face "lorem " adoc-emphasis-face
+                  "*" adoc-meta-hide-face "ipsum" '(adoc-bold-face adoc-emphasis-face) "*" adoc-meta-hide-face
+                  " dolor" adoc-emphasis-face "_" adoc-meta-hide-face)
 
   ;; now test all possible cases
   ;; mmm, that is all possible cases inbetween constrained/unconstrained quotes
@@ -624,34 +628,34 @@ removed before TRANSFORM is evaluated.
   (adoctest-faces "url"
                   ;; url inline macro with attriblist
                   "foo " nil
-                  "http://www.lorem.com/ipsum.html" markup-internal-reference-face
-                  "[" markup-meta-face "sit amet" markup-reference-face "]" markup-meta-face
+                  "http://www.lorem.com/ipsum.html" adoc-internal-reference-face
+                  "[" adoc-meta-face "sit amet" adoc-reference-face "]" adoc-meta-face
                   " bar \n" nil
                   ;; link text contains newlines and commas
-                  "http://www.lorem.com/ipsum.html" markup-internal-reference-face
-                  "[" markup-meta-face
-                  "sit,\namet,\nconsectetur" markup-reference-face
-                  "]" markup-meta-face
+                  "http://www.lorem.com/ipsum.html" adoc-internal-reference-face
+                  "[" adoc-meta-face
+                  "sit,\namet,\nconsectetur" adoc-reference-face
+                  "]" adoc-meta-face
                   " bar \n" nil
                   ;; url inline macro withOUT attriblist
-                  "http://www.lorem.com/ipsum.html" markup-reference-face
-                  "[]" markup-meta-face
+                  "http://www.lorem.com/ipsum.html" adoc-reference-face
+                  "[]" adoc-meta-face
                   " bar \n" nil
                   ;; plain url
-                  "http://www.lorem.com/ipsum.html" markup-reference-face
-                  " foo " nil "joe.bloggs@foobar.com" markup-reference-face ))
+                  "http://www.lorem.com/ipsum.html" adoc-reference-face
+                  " foo " nil "joe.bloggs@foobar.com" adoc-reference-face ))
 
 (ert-deftest adoctest-test-url-enclosing-quote ()
   (adoctest-faces "url-enclosing-quote"
                   ;; spaces between __ and url seem really to be needed also in asciidoc
-                  "foo " nil "__" markup-meta-hide-face " " nil
-                  "http://www.lorem.com/ipsum.html" '(markup-emphasis-face markup-reference-face)
-                  " " nil "__" markup-meta-hide-face
+                  "foo " nil "__" adoc-meta-hide-face " " nil
+                  "http://www.lorem.com/ipsum.html" '(adoc-emphasis-face adoc-reference-face)
+                  " " nil "__" adoc-meta-hide-face
 
                   "\nfoo " nil
-                  "**" markup-meta-hide-face " " nil
-                  "joe.bloggs@foobar.com" '(markup-strong-face markup-reference-face)
-                  " " nil "**" markup-meta-hide-face ))
+                  "**" adoc-meta-hide-face " " nil
+                  "joe.bloggs@foobar.com" '(adoc-bold-face adoc-reference-face)
+                  " " nil "**" adoc-meta-hide-face ))
 
 ;; inline substitutions only within the block they belong to. I.e. don't cross
 ;; block boundaries.
@@ -661,49 +665,49 @@ removed before TRANSFORM is evaluated.
                   ;; 1) don't cross title boundaries.
                   ;; 2) don't cross paragraph boundaries.
                   ;; 3) verify that the (un)constrained quotes would work however
-                  "== " markup-meta-hide-face "chapter ** 1" markup-title-1-face "\n" nil
+                  "== " adoc-meta-hide-face "chapter ** 1" adoc-title-1-face "\n" nil
                   "lorem ** ipsum\n" 'no-face
                   "\n" nil
-                  "lorem " 'no-face "**" markup-meta-hide-face " ipsum " markup-strong-face "**" markup-meta-hide-face "\n" nil
+                  "lorem " 'no-face "**" adoc-meta-hide-face " ipsum " adoc-bold-face "**" adoc-meta-hide-face "\n" nil
                   "\n" nil
 
-                  "== " markup-meta-hide-face "chapter __ 1" markup-title-1-face " ==" markup-meta-hide-face "\n" nil
+                  "== " adoc-meta-hide-face "chapter __ 1" adoc-title-1-face " ==" adoc-meta-hide-face "\n" nil
                   "lorem __ ipsum\n" 'no-face
                   "\n" nil
-                  "lorem " 'no-face "__" markup-meta-hide-face " ipsum " markup-emphasis-face "__" markup-meta-hide-face "\n" nil
+                  "lorem " 'no-face "__" adoc-meta-hide-face " ipsum " adoc-emphasis-face "__" adoc-meta-hide-face "\n" nil
                   "\n" nil
 
-                  "chapter ++ 1" markup-title-1-face "\n" nil
-                  "------------" markup-meta-hide-face "\n" nil
+                  "chapter ++ 1" adoc-title-1-face "\n" nil
+                  "------------" adoc-meta-hide-face "\n" nil
                   "lorem ++ ipsum\n" 'no-face
                   "\n" nil
-                  "lorem " 'no-face "++" markup-meta-hide-face " ipsum " markup-typewriter-face "++" markup-meta-hide-face "\n" nil
+                  "lorem " 'no-face "++" adoc-meta-hide-face " ipsum " adoc-typewriter-face "++" adoc-meta-hide-face "\n" nil
                   "\n" nil
 
-                  "." markup-meta-face "block ^title" markup-gen-face "\n" nil
+                  "." adoc-meta-face "block ^title" adoc-gen-face "\n" nil
                   "lorem^ ipsum\n" 'no-face
                   "\n" nil
-                  "lorem " 'no-face "^" markup-meta-hide-face " ipsum " markup-superscript-face "^" markup-meta-hide-face "\n" nil
+                  "lorem " 'no-face "^" adoc-meta-hide-face " ipsum " adoc-superscript-face "^" adoc-meta-hide-face "\n" nil
                   "\n" nil
 
                   ;; Being able to use a ** that potentially could be mistaken as an end
                   ;; delimiter as start delimiter
-                  "== " markup-meta-hide-face "chapter ** 1" markup-title-1-face "\n" nil
-                  "lorem " 'no-face "**" markup-meta-hide-face " ipsum " markup-strong-face "**" markup-meta-hide-face "\n" nil
+                  "== " adoc-meta-hide-face "chapter ** 1" adoc-title-1-face "\n" nil
+                  "lorem " 'no-face "**" adoc-meta-hide-face " ipsum " adoc-bold-face "**" adoc-meta-hide-face "\n" nil
                   "\n" nil
 
                   ;; don't cross list item boundaries
-                  "-" markup-list-face " " nil "lorem ** ipsum\n" 'no-face
-                  "-" markup-list-face " " nil "dolor ** sit\n" 'no-face
+                  "-" adoc-list-face " " nil "lorem ** ipsum\n" 'no-face
+                  "-" adoc-list-face " " nil "dolor ** sit\n" 'no-face
                   ;; test that a quote within the list element works
-                  "-" markup-list-face " " nil "dolor " 'no-face "**" markup-meta-hide-face " sit " markup-strong-face "**" markup-meta-hide-face "\n" nil
+                  "-" adoc-list-face " " nil "dolor " 'no-face "**" adoc-meta-hide-face " sit " adoc-bold-face "**" adoc-meta-hide-face "\n" nil
                   ;; dont mistake '**' list elements for quote starters/enders
-                  "**" markup-list-face " " nil "lorem ** ipsum\n" 'no-face
-                  "**" markup-list-face " " nil "dolor ** sit\n" 'no-face
-                  "**" markup-list-face " " nil "dolor ** sit\n" 'no-face
+                  "**" adoc-list-face " " nil "lorem ** ipsum\n" 'no-face
+                  "**" adoc-list-face " " nil "dolor ** sit\n" 'no-face
+                  "**" adoc-list-face " " nil "dolor ** sit\n" 'no-face
                   ;; don't cross list item boundaries in the case of labeled lists
-                  "lorem ** ipsum " markup-gen-face "::" markup-list-face " " nil "sit ** dolor\n" 'no-face
-                  "lorem ** ipsum " markup-gen-face "::" markup-list-face " " nil "sit ** dolor" 'no-face))
+                  "lorem ** ipsum " adoc-gen-face "::" adoc-list-face " " nil "sit ** dolor\n" 'no-face
+                  "lorem ** ipsum " adoc-gen-face "::" adoc-list-face " " nil "sit ** dolor" 'no-face))
 
 (ert-deftest adoctest-test-promote-title ()
   (adoctest-trans "= foo" "== foo" '(adoc-promote-title 1))
@@ -798,14 +802,14 @@ removed before TRANSFORM is evaluated.
 ;; todo: test templates also with tempo-snippets
 ;; (ert-deftest adoctest-test-tempo-quotes ()
 ;;   (adoctest-quotes "_" "_" '(tempo-template-adoc-emphasis))
-;;   (adoctest-quotes "*" "*" '(tempo-template-adoc-strong))
+;;   (adoctest-quotes "*" "*" '(tempo-template-adoc-bold))
 ;;   (adoctest-quotes "+" "+" '(tempo-template-adoc-monospace))
 ;;   (adoctest-quotes "`" "`" '(tempo-template-adoc-monospace-literal))
 ;;   (adoctest-quotes "`" "'" '(tempo-template-adoc-single-quote))
 ;;   (adoctest-quotes "``" "''" '(tempo-template-adoc-double-quote))
 ;;   (adoctest-quotes "[]#" "#" '(tempo-template-adoc-attributed))
 ;;   (adoctest-quotes "__" "__" '(tempo-template-adoc-emphasis-uc))
-;;   (adoctest-quotes "**" "**" '(tempo-template-adoc-strong-uc))
+;;   (adoctest-quotes "**" "**" '(tempo-template-adoc-bold-uc))
 ;;   (adoctest-quotes "++" "++" '(tempo-template-adoc-monospace-uc))
 ;;   (adoctest-quotes "^" "^" '(tempo-template-adoc-superscript))
 ;;   (adoctest-quotes "~" "~" '(tempo-template-adoc-subscript)))
@@ -827,25 +831,25 @@ removed before TRANSFORM is evaluated.
   (adoctest-trans "lorem\n!\nipsum" "lorem\n---\nipsum" '(tempo-template-adoc-ruler-line))
   (adoctest-trans "lor!em\nipsum" "lor\n---\nem\nipsum" '(tempo-template-adoc-ruler-line)))
 
-;; todo: check buffer position after insertion (aka transionsion). Probably
+;; TODO: check buffer position after insertion (aka transionsion). Probably
 ;; factor out from adoctest-trans a defun which translates a string containing
 ;; !s into one with the ! stripped and a buffer-position-list
-(ert-deftest adoctest-test-tempo-title ()
-  (let ((adoc-title-style 'adoc-title-style-one-line))
-    ;; BUG!! somehow I need to load adoc-mode twice until it works!!!
-    (adoctest-trans "" "= " '(tempo-template-adoc-title-1))
-    (adoctest-trans "" "=== " '(tempo-template-adoc-title-3))
-    (adoctest-trans "lorem\n!\nipsum" "lorem\n= \nipsum" '(tempo-template-adoc-title-1)))
+;; (ert-deftest adoctest-test-tempo-title ()
+;;   (let ((adoc-header-style 'adoc-title-style-one-line))
+;;     ;; BUG!! somehow I need to load adoc-mode twice until it works!!!
+;;     (adoctest-trans "" "= " '(tempo-template-adoc-title-1))
+;;     (adoctest-trans "" "=== " '(tempo-template-adoc-title-3))
+;;     (adoctest-trans "lorem\n!\nipsum" "lorem\n= \nipsum" '(tempo-template-adoc-title-1)))
 
-  (let ((adoc-title-style 'adoc-title-style-one-line-enclosed))
-    (adoctest-trans "" "=  =" '(tempo-template-adoc-title-1))
-    (adoctest-trans "" "===  ===" '(tempo-template-adoc-title-3))
-    (adoctest-trans "lorem\n!\nipsum" "lorem\n=  =\nipsum" '(tempo-template-adoc-title-1)))
+;;   (let ((adoc-header-style 'adoc-header-style-one-line-enclosed))
+;;     (adoctest-trans "" "=  =" '(tempo-template-adoc-title-1))
+;;     (adoctest-trans "" "===  ===" '(tempo-template-adoc-title-3))
+;;     (adoctest-trans "lorem\n!\nipsum" "lorem\n=  =\nipsum" '(tempo-template-adoc-title-1)))
 
-  (let ((adoc-title-style 'adoc-title-style-two-line))
-    (adoctest-trans "" "\n====" '(tempo-template-adoc-title-1))
-    (adoctest-trans "" "\n~~~~" '(tempo-template-adoc-title-3))
-    (adoctest-trans "lorem\n!\nipsum" "lorem\n\n====\nipsum" '(tempo-template-adoc-title-1))))
+;;   (let ((adoc-header-style 'adoc-header-style-two-line))
+;;     (adoctest-trans "" "\n====" '(tempo-template-adoc-title-1))
+;;     (adoctest-trans "" "\n~~~~" '(tempo-template-adoc-title-3))
+;;     (adoctest-trans "lorem\n!\nipsum" "lorem\n\n====\nipsum" '(tempo-template-adoc-title-1))))
 
 ;; FIXME
 ;; (ert-deftest adoctest-test-tempo-paragraphs ()

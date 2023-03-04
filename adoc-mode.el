@@ -449,7 +449,7 @@ To become a customizable variable when regexps for list items become customizabl
   formatting or substitutions within Listing blocks apart from
   Special Characters and Callouts. Listing blocks are often used
   for computer output and file listings.")
-(defconst adoc-help-strong "Bold.")
+(defconst adoc-help-bold "Bold.")
 (defconst adoc-help-delimited-block-literal
   "'LiteralBlocks' are rendered just like literal paragraphs.")
 (defconst adoc-help-delimited-block-quote
@@ -683,7 +683,7 @@ highlighted, one knows that it must be surrounded with the meta
 characters '_', and thus the meta characters don't need to be
 properly seen.
 For example:
-AsciiDoc: *strong emphasis text* or _emphasis text_
+AsciiDoc: *bold emphasis text* or _emphasis text_
           ^                    ^    ^             ^"
   :group 'adoc-faces)
 (defvar adoc-meta-hide-face 'adoc-meta-hide-face)
@@ -768,7 +768,6 @@ AsciiDoc: *strong emphasis text* or _emphasis text_
   :group 'adoc-faces)
 (defvar adoc-passthrough-face 'adoc-passthrough-face)
 
-
 (defface adoc-verbatim-face
   '((((background light))
      (:background "cornsilk"))
@@ -805,6 +804,26 @@ language.
   :group 'adoc-faces)
 (defvar adoc-language-keyword-face 'adoc-language-keyword-face)
 
+(defface adoc-replacement-face
+  '((default (:family "Monospace"))
+    (((background light)) (:foreground "purple3"))
+    (((background dark)) (:foreground "plum1")))
+  "Meta characters that are replaced by text in the output.
+See also `adoc-complex-replacement-face'.
+For example
+AsciiDoc: '->' is replaced by an Unicode arrow
+It's difficult to say whether adoc-replacement-face is part of
+the group adoc-faces-meta or part of the group
+adoc-faces-text. Technically they are clearly meta characters.
+However they are just another representation of normal text and I
+want to fontify them as such. E.g. in HTML '<b>foo &amp; bar</b>',
+the output 'foo & bar' is fontified bold, thus I also want 'foo
+&amp; bar' in the Emacs buffer be fontified with
+markup-bold-face. Thus markup-replacement-face needs to be
+something that is orthogonal to the markup-bold-face etc faces."
+  :group 'adoc-faces)
+(defvar adoc-replacement-face 'adoc-replacement-face)
+
 (defface adoc-language-info-face
   '((t (:inherit font-lock-string-face)))
   "Face for programming language info strings."
@@ -815,26 +834,31 @@ language.
   '((t (:inherit link)))
   "Face for links"
   :group 'adoc-faces)
+(defvar adoc-link-face 'adoc-link-face)
 
 (defface adoc-missing-link-face
   '((t (:inherit font-locl-warning-face)))
   "Face for missing links."
   :group 'adoc-faces)
+(defvar adoc-missing-link-face 'adoc-missing-link-face)
 
 (defface adoc-reference-face
   '((t (:inherit adoc-markup-face)))
   "Face for link references."
   :group 'adoc-faces)
+(defvar adoc-reference-face 'adoc-reference-face)
 
 (defface adoc-footnote-marker-face
   '((t (:inherit adoc-markup-face)))
   "Face for footnote markers."
   :group 'adoc-faces)
+(defvar adoc-footnote-marker-face 'adoc-footnote-marker-face)
 
 (defface adoc-footnote-text-face
   '((t (:inherit font-lock-comment-face)))
   "Face for footnote text."
   :group 'adoc-faces)
+(defvar adoc-footnote-text-face 'adoc-footnote-text-face)
 
 (defface adoc-url-face
   '((t (:inherit font-lock-string-face)))
@@ -842,6 +866,7 @@ language.
   For example, this applies to URLs in inline links:
   [link text](https://example.com/)."
   :group 'adoc-faces)
+(defvar adoc-url-face 'adoc-url-face)
 
 (defface adoc-plain-url-face
   '((t (:inherit adoc-link-face)))
@@ -849,16 +874,19 @@ language.
   For Example, this applies to plain angle bracket URLs:
   <https://example.com>."
   :group 'adoc-faces)
+(defvar adoc-plain-url-face 'adoc-plain-url-face)
 
 (defface adoc-link-title-face
   '((t (:inherit font-lock-comment-face)))
   "Face for reference link titles."
   :group 'adoc-faces)
+(defvar adoc-link-title-face 'adoc-link-title-face)
 
 (defface adoc-line-break-face
   '((t (:inherit font-lock-constant-face :underline t)))
   "Face for hard line breaks."
   :group 'adoc-faces)
+(defvar adoc-line-break-face 'adoc-line-break-face)
 
 (defface adoc-comment-face
   '((t (:inherit font-lock-comment-face)))
@@ -870,98 +898,99 @@ language.
   '((t (:inherit font-lock-string-face)))
   "Face for LaTeX expressions."
   :group 'adoc-faces)
+(defvar adoc-math-face 'adoc-math-face)
 
 (defface adoc-metadata-key-face
   '((t (:inherit font-lock-variable-name-face)))
   "Face for metadata keys."
   :group 'adoc-faces)
+(defvar adoc-metadata-key-face 'adoc-metadata-key-face)
 
 (defface adoc-metadata-value-face
   '((t (:inherit font-lock-string-face)))
   "Face for metadata values."
   :group 'adoc-faces)
+(defvar adoc-metadata-value-face 'adoc-metadata-value-face)
 
 (defface adoc-highlight-face
   '((t (:inherit highlight)))
   "Face for mouse highlighting."
   :group 'adoc-faces)
+(defvar adoc-highlight-face 'adoc-highlight-face)
 
 (defface adoc-hr-face
   '((t (:inherit adoc-markup-face)))
   "Face for horizontal rules."
   :group 'adoc-faces)
+(defvar adoc-hr-face 'adoc-hr-face)
 
-;; (defface adoc-html-tag-name-face
-;;   '((t (:inherit font-lock-type-face)))
-;;   "Face for HTML tag names."
-;;   :group 'adoc-faces)
+(defface adoc-superscript-face
+  '((t :inherit adoc-gen-face :height 0.8))
+  "For superscript text.
+For example 'foo' in the ^foo^
+Note that typically the major mode doing the font lock
+additionaly raises the text; face customization doesn't provide
+this feature."
+  :group 'adoc-faces)
+(defvar adoc-superscript-face 'adoc-superscript-face)
 
-;; (defface adoc-html-tag-delimiter-face
-;;   '((t (:inherit adoc-markup-face)))
-;;   "Face for HTML tag delimiters."
-;;   :group 'adoc-faces)
-
-;; (defface adoc-html-attr-name-face
-;;   '((t (:inherit font-lock-variable-name-face)))
-;;   "Face for HTML attribute names."
-;;   :group 'adoc-faces)
-
-;; (defface adoc-html-attr-value-face
-;;   '((t (:inherit font-lock-string-face)))
-;;   "Face for HTML attrivute values."
-;;   :group 'adoc-faces)
-
-;; (defface adoc-html-entity-face
-;;   '((t (:inherit font-lock-variable-name-face)))
-;;   "Face for HTML entities."
-;;   :group 'adoc-faces)
+(defface adoc-subscript-face
+  '((t :inherit adoc-gen-face :height 0.8))
+  "For subscript text.
+For example 'foo' in the ~foo~
+Note that typically the major mode doing the font lock
+additionally lowers the text; face customization doesn't provide
+this feature."
+  :group 'adoc-faces)
+(defvar adoc-subscript-face 'adoc-subscript-face)
 
 (defface adoc-highlighting-face
   '((t (:background "yellow" :foreground "black")))
   "Face for highlighting."
   :group 'adoc-faces)
+(defvar adoc-highlighting-face 'adoc-highlighting-face)
 
-(defface adoc-header-face
+(defface adoc-title-face
   '((t (:inherit adoc-markdown-face :weight bold)))
-  "Base face for headers."
+  "Base face for titles."
   :group 'adoc-faces)
-(defvar adoc-header-face 'adoc-header-face)
+(defvar adoc-title-face 'adoc-title-face)
 
-(defface adoc-header-0-face
-  '((t (:inherit adoc-header-face :height 2.0)))
+(defface adoc-title-0-face
+  '((t (:inherit adoc-title-face :height 2.0)))
   "Face for document's title."
   :group 'adoc-faces)
-(defvar adoc-header-0-face 'adoc-header-0-face)
+(defvar adoc-title-0-face 'adoc-title-0-face)
 
-(defface adoc-header-1-face
-  '((t (:inherit adoc-header-face :height 1.8)))
+(defface adoc-title-1-face
+  '((t (:inherit adoc-title-face :height 1.8)))
   "Face for level 1 titles."
   :group 'adoc-faces)
-(defvar adoc-header-1-face 'adoc-header-1-face)
+(defvar adoc-title-1-face 'adoc-title-1-face)
 
-(defface adoc-header-2-face
-  '((t (:inherit adoc-header-face :height 1.6)))
+(defface adoc-title-2-face
+  '((t (:inherit adoc-title-face :height 1.6)))
   "Face for level 2 titles."
   :group 'adoc-faces)
-(defvar adoc-header-2-face 'adoc-header-2-face)
+(defvar adoc-title-2-face 'adoc-title-2-face)
 
-(defface adoc-header-3-face
-  '((t (:inherit adoc-header-face :height 1.4)))
+(defface adoc-title-3-face
+  '((t (:inherit adoc-title-face :height 1.4)))
   "Face for level 3 titles."
   :group 'adoc-faces)
-(defvar adoc-header-3-face 'adoc-header-3-face)
+(defvar adoc-title-3-face 'adoc-title-3-face)
 
-(defface adoc-header-4-face
-  '((t (:inherit adoc-header-face :height 1.2)))
+(defface adoc-title-4-face
+  '((t (:inherit adoc-title-face :height 1.2)))
   "Face for level 4 titles."
   :group 'adoc-faces)
-(defvar adoc-header-4-face 'adoc-header-4-face)
+(defvar adoc-title-4-face 'adoc-title-4-face)
 
-(defface adoc-header-5-face
-  '((t (:inherit adoc-header-face :height 1.0)))
+(defface adoc-title-5-face
+  '((t (:inherit adoc-title-face :height 1.0)))
   "Face for level 5 titles."
   :group 'adoc-faces)
-(defvar adoc-header-5-face 'adoc-header-5-face)
+(defvar adoc-title-5-face 'adoc-title-5-face)
 
 (defface adoc-typewriter-face
   '((t :inherit (fixed-pitch adoc-gen-face)))
@@ -2084,18 +2113,18 @@ meta characters."
 
    ;; sections / document structure
    ;; ------------------------------
-   (adoc-kw-one-line-title 0 adoc-header-0-face)
-   (adoc-kw-one-line-title 1 adoc-header-1-face)
-   (adoc-kw-one-line-title 2 adoc-header-2-face)
-   (adoc-kw-one-line-title 3 adoc-header-3-face)
-   (adoc-kw-one-line-title 4 adoc-header-4-face)
-   (adoc-kw-one-line-title 5 adoc-header-5-face)
-   (adoc-kw-two-line-title (nth 0 adoc-two-line-title-del) adoc-header-0-face)
-   (adoc-kw-two-line-title (nth 1 adoc-two-line-title-del) adoc-header-1-face)
-   (adoc-kw-two-line-title (nth 2 adoc-two-line-title-del) adoc-header-2-face)
-   (adoc-kw-two-line-title (nth 3 adoc-two-line-title-del) adoc-header-3-face)
-   (adoc-kw-two-line-title (nth 4 adoc-two-line-title-del) adoc-header-4-face)
-   ;; (adoc-kw-two-line-title (nth 5 adoc-two-line-title-del) adoc-header-5-face) ;; TODO: don't work now
+   (adoc-kw-one-line-title 0 adoc-title-0-face)
+   (adoc-kw-one-line-title 1 adoc-title-1-face)
+   (adoc-kw-one-line-title 2 adoc-title-2-face)
+   (adoc-kw-one-line-title 3 adoc-title-3-face)
+   (adoc-kw-one-line-title 4 adoc-title-4-face)
+   (adoc-kw-one-line-title 5 adoc-title-5-face)
+   (adoc-kw-two-line-title (nth 0 adoc-two-line-title-del) adoc-title-0-face)
+   (adoc-kw-two-line-title (nth 1 adoc-two-line-title-del) adoc-title-1-face)
+   (adoc-kw-two-line-title (nth 2 adoc-two-line-title-del) adoc-title-2-face)
+   (adoc-kw-two-line-title (nth 3 adoc-two-line-title-del) adoc-title-3-face)
+   (adoc-kw-two-line-title (nth 4 adoc-two-line-title-del) adoc-title-4-face)
+   ;; (adoc-kw-two-line-title (nth 5 adoc-two-line-title-del) adoc-title-5-face) ;; TODO: don't work now
 
 
    ;; block macros
@@ -2616,7 +2645,7 @@ new customization demands."
 
 ;; Text formatting - constrained quotes
 (adoc-tempo-define "adoc-emphasis" '("_" (r "text" text) "_") nil adoc-help-emphasis)
-(adoc-tempo-define "adoc-bold" '("*" (r "text" text) "*") nil adoc-help-strong)
+(adoc-tempo-define "adoc-bold" '("*" (r "text" text) "*") nil adoc-help-bold)
 (adoc-tempo-define "adoc-monospace" '("+" (r "text" text) "+") nil adoc-help-monospace)
 (adoc-tempo-define "adoc-monospace-literal" '("`" (r "text" text) "`"))
 (adoc-tempo-define "adoc-single-quote" '("`" (r "text" text) "'") nil adoc-help-single-quote)
@@ -3159,7 +3188,7 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
           :help ,adoc-help-constrained-quotes
           ["_Emphasis_" tempo-template-adoc-emphasis
            :help ,adoc-help-emphasis ]
-          ["*Strong*" tempo-template-adoc-bold
+          ["*Bold*" tempo-template-adoc-bold
            :help ,adoc-help-bold ]
           ["+Monospaced+" tempo-template-adoc-monospace
            :help ,adoc-help-monospace]
@@ -3189,7 +3218,7 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
           ["~Subscript~" tempo-template-adoc-subscript]
           ["__Emphasis__" tempo-template-adoc-emphasis-uc
            :help ,adoc-help-emphasis ]
-          ["**Strong**" tempo-template-adoc-bold-uc
+          ["**Bold**" tempo-template-adoc-bold-uc
            :help ,adoc-help-bold ]
           ["++Monospaced++" tempo-template-adoc-monospace-uc
            :help ,adoc-help-monospace]
