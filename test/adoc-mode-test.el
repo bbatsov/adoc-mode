@@ -540,7 +540,7 @@ removed before TRANSFORM is evaluated.
                   "~~~~~~~~~~~" adoc-meta-hide-face "\n" nil
                   "." adoc-meta-face "lorem " 'adoc-gen-face "_" adoc-meta-hide-face "ipsum" '(adoc-gen-face adoc-emphasis-face) "_" adoc-meta-hide-face "\n" nil
                   "\n" nil
-                  "lorem " adoc-gen-face "+" adoc-meta-hide-face "ipsum" '(adoc-gen-face adoc-typewriter-face) "+" adoc-meta-hide-face " sit" adoc-gen-face "::" adoc-list-face " " adoc-align
+                  "lorem " adoc-gen-face "+" adoc-meta-hide-face "ipsum" '(adoc-gen-face adoc-typewriter-face) "+" adoc-meta-hide-face " sit" adoc-gen-face "::" adoc-list-face " " adoc-align-face
                   ))
 
 ;; test border cases where the quote delimiter is at the beginning and/or the
@@ -557,36 +557,36 @@ removed before TRANSFORM is evaluated.
 
 (ert-deftest adoctest-test-lists-simple ()
   (adoctest-faces "test-lists-simple"
-                  " " adoc-align "-" adoc-list-face " " adoc-align "uo list item\n" nil
-                  " " adoc-align "*" adoc-list-face " " adoc-align "uo list item\n" nil
-                  " " adoc-align "**" adoc-list-face " " adoc-align "uo list item\n" nil
-                  " " adoc-align "***" adoc-list-face " " adoc-align "uo list item\n" nil
-                  " " adoc-align "****" adoc-list-face " " adoc-align "uo list item\n" nil
-                  " " adoc-align "*****" adoc-list-face " " adoc-align "uo list item\n" nil
-                  "+" adoc-list-face " " adoc-align "uo list item\n" nil
+                  " " adoc-align-face "-" adoc-list-face " " adoc-align-face "uo list item\n" nil
+                  " " adoc-align-face "*" adoc-list-face " " adoc-align-face "uo list item\n" nil
+                  " " adoc-align-face "**" adoc-list-face " " adoc-align-face "uo list item\n" nil
+                  " " adoc-align-face "***" adoc-list-face " " adoc-align-face "uo list item\n" nil
+                  " " adoc-align-face "****" adoc-list-face " " adoc-align-face "uo list item\n" nil
+                  " " adoc-align-face "*****" adoc-list-face " " adoc-align-face "uo list item\n" nil
+                  "+" adoc-list-face " " adoc-align-face "uo list item\n" nil
 
-                  " " adoc-align "1." adoc-list-face " " adoc-align "o list item\n" nil
-                  " " adoc-align "a." adoc-list-face " " adoc-align "o list item\n" nil
-                  " " adoc-align "B." adoc-list-face " " adoc-align "o list item\n" nil
-                  " " adoc-align "ii)" adoc-list-face " " adoc-align "o list item\n" nil
-                  " " adoc-align "II)" adoc-list-face " " adoc-align "o list item\n" nil
+                  " " adoc-align-face "1." adoc-list-face " " adoc-align-face "o list item\n" nil
+                  " " adoc-align-face "a." adoc-list-face " " adoc-align-face "o list item\n" nil
+                  " " adoc-align-face "B." adoc-list-face " " adoc-align-face "o list item\n" nil
+                  " " adoc-align-face "ii)" adoc-list-face " " adoc-align-face "o list item\n" nil
+                  " " adoc-align-face "II)" adoc-list-face " " adoc-align-face "o list item\n" nil
 
-                  " " adoc-align "." adoc-list-face " " adoc-align "implicitly numbered list item\n" nil
-                  " " adoc-align ".." adoc-list-face " " adoc-align "implicitly numbered list item\n" nil
-                  " " adoc-align "..." adoc-list-face " " adoc-align "implicitly numbered list item\n" nil
-                  " " adoc-align "...." adoc-list-face " " adoc-align "implicitly numbered list item\n" nil
-                  " " adoc-align "....." adoc-list-face " " adoc-align "implicitly numbered list item\n" nil
-                  "<1>" adoc-list-face " " adoc-align "callout\n" nil
-                  "1>" adoc-list-face " " adoc-align "callout\n" nil
+                  " " adoc-align-face "." adoc-list-face " " adoc-align-face "implicitly numbered list item\n" nil
+                  " " adoc-align-face ".." adoc-list-face " " adoc-align-face "implicitly numbered list item\n" nil
+                  " " adoc-align-face "..." adoc-list-face " " adoc-align-face "implicitly numbered list item\n" nil
+                  " " adoc-align-face "...." adoc-list-face " " adoc-align-face "implicitly numbered list item\n" nil
+                  " " adoc-align-face "....." adoc-list-face " " adoc-align-face "implicitly numbered list item\n" nil
+                  "<1>" adoc-list-face " " adoc-align-face "callout\n" nil
+                  "1>" adoc-list-face " " adoc-align-face "callout\n" nil
 
-                  " " adoc-align "term" adoc-gen-face "::" adoc-list-face " " adoc-align "lorem ipsum\n" nil
-                  " " adoc-align "term" adoc-gen-face ";;" adoc-list-face " " adoc-align "lorem ipsum\n" nil
-                  " " adoc-align "term" adoc-gen-face ":::" adoc-list-face " " adoc-align "lorem ipsum\n" nil
-                  " " adoc-align "term" adoc-gen-face "::::" adoc-list-face " " adoc-align "lorem ipsum\n" nil
-                  " " adoc-align "question" adoc-gen-face "??" adoc-list-face "\n" nil
+                  " " adoc-align-face "term" adoc-gen-face "::" adoc-list-face " " adoc-align-face "lorem ipsum\n" nil
+                  " " adoc-align-face "term" adoc-gen-face ";;" adoc-list-face " " adoc-align-face "lorem ipsum\n" nil
+                  " " adoc-align-face "term" adoc-gen-face ":::" adoc-list-face " " adoc-align-face "lorem ipsum\n" nil
+                  " " adoc-align-face "term" adoc-gen-face "::::" adoc-list-face " " adoc-align-face "lorem ipsum\n" nil
+                  " " adoc-align-face "question" adoc-gen-face "??" adoc-list-face "\n" nil
                   "glossary" adoc-gen-face ":-" adoc-list-face "\n" nil
 
-                  "-" adoc-list-face " " adoc-align "uo list item\n" nil
+                  "-" adoc-list-face " " adoc-align-face "uo list item\n" nil
                   "+" adoc-meta-face "\n" nil
                   "2nd list paragraph\n" nil ))
 
