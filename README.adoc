@@ -83,6 +83,8 @@ or if you're into use-package
 
 == Configuration
 
+=== General
+
 * According to an old AsciiDoc manual, `.txt` is the standard file extension of
   AsciiDoc files. Add the following to your initialization file to open all
   `.txt` files with adoc-mode as major mode automatically: `(add-to-list
@@ -94,6 +96,40 @@ or if you're into use-package
   files you liked to have normal text with a variable pitch face,
   `buffer-face-mode` is for you: `(add-hook 'adoc-mode-hook (lambda()
   (buffer-face-mode t)))`
+
+=== Customization
+
+It is possible to customize the way `adoc-mode` renders different text
+elements (faces) like section titles, text or punctuation styles. For
+example, if you would like a level 1 section title to have a different
+text color or height you can achieve this by using standard Emacs
+functionality.
+
+First of all, list all available faces by running 
+
+kbd:[M-x] `list-faces-display`
+
+and searching for lines with the `adoc-` prefix.
+
+Alternatively, you can get information about the face under point by calling 
+
+kbd:[M-x] `describe-face`
+
+One possible solution to change the look of a face is to use the
+built-in `use-package` feature `:custom-face`.
+
+Example
+
+[source,emacs-lisp]
+----
+(use-package adoc-mode
+  :ensure t
+  :custom-face
+  (adoc-title-0-face ((t (:height 1.0 :weight bold)))))
+----
+
+Of course, this is only one way to do it. Emacs has a few ways to
+customize faces. Simply, pick the one you prefer.
 
 === Coming features
 
