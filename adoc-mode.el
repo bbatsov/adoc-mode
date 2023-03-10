@@ -923,6 +923,7 @@ this feature."
      (:background "saddlebrown" :extend t)))
   "For code blocks that are highlighted natively."
   :group 'adoc-faces)
+(defvar adoc-native-code-face 'adoc-native-code-face)
 
 ;;;; regexps
 ;; from AsciiDoc manual: The attribute name/value syntax is a single line ...
@@ -2000,7 +2001,7 @@ START-SRC and END-SRC delimit the actual source code."
     (when (fboundp lang-mode)
       (let ((string (buffer-substring-no-properties start-src end-src))
             (modified (buffer-modified-p))
-            (adoc-buffer (current-buffer)) pos next)
+            (adoc-buffer (current-buffer)) int pos next)
         (remove-text-properties start-block end-block '(face nil adoc-code-block nil font-lock-fontified nil font-lock-multiline nil))
         (with-current-buffer
             (get-buffer-create
@@ -2009,18 +2010,19 @@ START-SRC and END-SRC delimit the actual source code."
           ;; the org-src-fontification buffer in case we're called
           ;; from `jit-lock-function' (Bug#25132).
           (let ((inhibit-modification-hooks nil))
-            (delete-region (point-min) (point-max))
-            (insert string " ")) ;; so there's a final property change
+            (erase-buffer)
+            (insert string))
           (unless (eq major-mode lang-mode) (funcall lang-mode))
           (font-lock-ensure)
           (setq pos (point-min))
-          (while (setq next (next-single-property-change pos 'face))
-            (let ((val (get-text-property pos 'face)))
-              (when val
-                (put-text-property
-                 (+ start-src (1- pos)) (1- (+ start-src next)) 'face
-                 val adoc-buffer)))
-            (setq pos next)))
+          (cl-loop for int being the intervals property 'face
+                   for pos = (car int)
+                   for next = (cdr int)
+                   for val = (get-text-property pos 'face)
+                   when val do
+                   (put-text-property
+                    (+ start-src (1- pos)) (1- (+ start-src next)) 'face
+                    val adoc-buffer)))
 	(add-text-properties start-block start-src '(face adoc-meta-face))
 	(add-text-properties end-src end-block '(face adoc-meta-face))
         (add-text-properties
