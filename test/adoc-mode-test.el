@@ -298,7 +298,8 @@ Don't use it for anything real.")
   (adoctest-with-uncustomized-vars
       (adoc-fontify-code-blocks-natively
        adoc-code-lang-modes
-       adoc-fontify-code-block-default-mode)
+       adoc-fontify-code-block-default-mode
+       adoc-font-lock-extend-after-change-max)
     (adoctest-faces "code-block-natively"
 		    "\n" nil
 		    "[source,adoctest-lang]\n----\n" 'adoc-meta-face
