@@ -82,13 +82,13 @@ You need to call `adoc-calc' after a change."
 (defcustom adoc-insert-replacement nil
   "When non-nil the character/string a replacement/entity stands for is displayed.
 
-E.g. after '&amp;' an '&' is displayed, after '(C)' the copy right
-sign is displayed.  It's only about display, neither the file nor
+E.g. after \\='&amp;\\=' an \\='&\\=' is displayed, after \\='(C)\\=' the copy right
+sign is displayed.  It is only about display, neither the file nor
 the buffer content is affected.
 
 You need to call `adoc-calc' after you change
 `adoc-insert-replacement'.  For named character entities (e.g.
-'&amp;', in contrast to '&#20;' or '(C)' ) to be displayed you
+\\='&amp;\\=', in contrast to \\='&#20;\\=' or \\='(C)\\=' ) to be displayed you
 need to set `adoc-unichar-name-resolver'.
 
 Setting it to non-nil interacts very badly with minor-modes using
@@ -672,15 +672,15 @@ easier for major mode to write font lock regular expressions."
   '((default (:inherit adoc-meta-face))
     (((background light)) :foreground "gray75")
     (((background dark)) :foreground "gray25"))
-  "For meta characters which can be \='hidden\='.
+  "For meta characters which can be \\='hidden\\='.
 Hidden in the sense of *almost* not visible. They don't need to
 be properly seen because one knows what these characters must be;
 deduced from the highlighting of the near context. E.g in
-AsciiDocs \='_important_\=', the underlines would be highlighted with
-adoc-hide-delimiter-face, and the text \='important\=' would be
+AsciiDocs \\='_important_\\=', the underlines would be highlighted with
+adoc-hide-delimiter-face, and the text \\='important\\=' would be
 highlighted with adoc-emphasis-face. Because 'important' is
 highlighted, one knows that it must be surrounded with the meta
-characters \='_\=', and thus the meta characters don't need to be
+characters \\='_\\=', and thus the meta characters don't need to be
 properly seen.
 For example:
 AsciiDoc: *bold emphasis text* or _emphasis text_
@@ -759,12 +759,12 @@ AsciiDoc: *bold emphasis text* or _emphasis text_
   "For verbatim text.
 
 Verbatim in a sense that all its characters are to be taken
-literally. Note that doesn't necessarily mean that that it is in
+literally. Note that does not necessarily mean that that it is in
 a typewritter font.
-For example 'foo' in the following examples. In parantheses is a
+For example \\='foo\\=' in the following examples. In parantheses is a
 summary what the command is for according to the given markup
 language.
-`foo`     (verbatim and typewriter font)
+\\=`foo\\=`     (verbatim and typewriter font)
 +++foo+++ (only verbatim)"
   :group 'adoc-faces)
 (defvar adoc-verbatim-face 'adoc-verbatim-face)
@@ -794,14 +794,14 @@ language.
   "Meta characters that are replaced by text in the output.
 See also `adoc-complex-replacement-face'.
 For example
-AsciiDoc: '->' is replaced by an Unicode arrow
-It's difficult to say whether adoc-replacement-face is part of
+AsciiDoc: \\='->\\=' is replaced by an Unicode arrow
+It is difficult to say whether adoc-replacement-face is part of
 the group adoc-faces-meta or part of the group
 adoc-faces-text. Technically they are clearly meta characters.
 However they are just another representation of normal text and I
-want to fontify them as such. E.g. in HTML '<b>foo &amp; bar</b>',
-the output 'foo & bar' is fontified bold, thus I also want 'foo
-&amp; bar' in the Emacs buffer be fontified with
+want to fontify them as such. E.g. in HTML \\='<b>foo &amp; bar</b>\\=',
+the output \\='foo & bar\\=' is fontified bold, thus I also want \\='foo
+&amp; bar\\=' in the Emacs buffer be fontified with
 adoc-bold-face. Thus adoc-replacement-face needs to be
 something that is orthogonal to the adoc-bold-face etc faces."
   :group 'adoc-faces)
@@ -834,9 +834,9 @@ something that is orthogonal to the adoc-bold-face etc faces."
 (defface adoc-superscript-face
   '((t :inherit adoc-gen-face :height 0.8))
   "For superscript text.
-For example 'foo' in the ^foo^
+For example \\='foo\\=' in the ^foo^
 Note that typically the major mode doing the font lock
-additionaly raises the text; face customization doesn't provide
+additionaly raises the text; face customization does not provide
 this feature."
   :group 'adoc-faces)
 (defvar adoc-superscript-face 'adoc-superscript-face)
@@ -844,9 +844,9 @@ this feature."
 (defface adoc-subscript-face
   '((t :inherit adoc-gen-face :height 0.8))
   "For subscript text.
-For example 'foo' in the ~foo~
+For example \\='foo\\=' in the ~foo~
 Note that typically the major mode doing the font lock
-additionally lowers the text; face customization doesn't provide
+additionally lowers the text; face customization does not provide
 this feature."
   :group 'adoc-faces)
 (defvar adoc-subscript-face 'adoc-subscript-face)
@@ -897,9 +897,9 @@ this feature."
   '((t :inherit (fixed-pitch adoc-gen-face)))
   "For text in typewriter/monospaced font.
 
-  For example 'foo' in the following examples:
+  For example \\='foo\\=' in the following examples:
   +foo+ (only typewriter font)
-  `foo` (verbatim and typewriter font)"
+  \\=`foo\\=` (verbatim and typewriter font)"
   :group 'adoc-faces)
 (defvar adoc-typewriter-face 'adoc-typewriter-face)
 
@@ -912,7 +912,8 @@ this feature."
 (defface adoc-secondary-text-face
   '((t :inherit adoc-gen-face :foreground "firebrick" :height 0.9))
   "For text that is not part of the running text.
-  For example for captions of tables or images, or for footnotes, or for floating text."
+For example for captions of tables or images,
+or for footnotes, or for floating text."
   :group 'adoc-faces)
 (defvar adoc-secondary-text-face 'adoc-secondary-text-face)
 
