@@ -45,6 +45,19 @@
 
 ;;; Variables:
 
+<<<<<<< HEAD
+=======
+(require 'markup-faces) ; https://github.com/sensorflo/markup-faces
+
+(defface markup-native-code-face ;; TODO: This should go into `markup-faces.el'
+  '((((background light))
+     (:background "cornsilk" :extend t))
+    (((background dark))
+     (:background "saddlebrown" :extend t)))
+  "For code blocks that are highlighted natively."
+  :group 'markup-faces-text)
+
+>>>>>>> e1ada81df94e0cb8223ba0fcd01129a40c533f33
 (require 'cl-lib)
 (require 'tempo)
 
@@ -258,7 +271,11 @@ are fontified natively regardless of their size."
 	  (integer :tag "limited to")
 	  (boolean :tag "unlimited"))
   :safe '(lambda (x) (or (booleanp x) (numberp x)))
+<<<<<<< HEAD
   :package-version '(adoc-mode . "0.8.0"))
+=======
+  :package-version '(adoc-mode . "0.7.0"))
+>>>>>>> e1ada81df94e0cb8223ba0fcd01129a40c533f33
 
 ;; This is based on `org-src-lang-modes' from org-src.el
 (defcustom adoc-code-lang-modes
@@ -288,7 +305,11 @@ mode to use is `tuareg-mode'."
           (cons
            (string "Language name")
            (symbol "Major mode")))
+<<<<<<< HEAD
   :package-version '(adoc-mode . "0.8.0"))
+=======
+  :package-version '(adoc-mode . "0.7.0"))
+>>>>>>> e1ada81df94e0cb8223ba0fcd01129a40c533f33
 
 (defcustom adoc-fontify-code-block-default-mode 'prog-mode
   "Default mode to use to fontify code blocks.
@@ -296,14 +317,22 @@ This mode is used when automatic detection fails, such as for
 code blocks with no language specified."
   :group 'adoc
   :type '(choice function (const :tag "None" nil))
+<<<<<<< HEAD
   :package-version '(adoc-mode . "0.8.0"))
+=======
+  :package-version '(adoc-mode . "0.7.0"))
+>>>>>>> e1ada81df94e0cb8223ba0fcd01129a40c533f33
 
 (defcustom adoc-font-lock-extend-after-change-max 5000
   "Number of chars scanned backwards for re-fontification of code block headers.
 Also used to delimit the scan for the end delimiter."
   :type 'integer
   :group 'adoc
+<<<<<<< HEAD
   :package-version '(adoc-mode . "0.8.0"))
+=======
+  :package-version '(adoc-mode . "0.7.0"))
+>>>>>>> e1ada81df94e0cb8223ba0fcd01129a40c533f33
 
 
 ;;;; faces / font lock
@@ -1582,7 +1611,11 @@ text having adoc-reserved set to 'block-del."
                            must-free-groups)
                   (cl-some (lambda(x)
                              (and (match-beginning x)
+<<<<<<< HEAD
                                   (text-property-any (match-beginning x)
+=======
+				  (text-property-any (match-beginning x)
+>>>>>>> e1ada81df94e0cb8223ba0fcd01129a40c533f33
                                                      (match-end x)
                                                      'adoc-reserved 'block-del)))
                            no-block-del-groups))))
@@ -1937,10 +1970,18 @@ meta characters."
   (and (re-search-forward "\\(^[ \t]+\\)[^ \t\n]" end t)
        ;; don't replace a face with with adoc-align-face which already is a fixed with
        ;; font (most probably), because then it also won't look aligned
+<<<<<<< HEAD
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-typewriter-face)
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-code-face)
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-passthrough-face)
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-comment-face)))
+=======
+       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-typewriter-face)
+       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-code-face)
+       (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-code-block t)
+       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-passthrough-face)
+       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'markup-comment-face)))
+>>>>>>> e1ada81df94e0cb8223ba0fcd01129a40c533f33
 
 ;; See adoc-flf-first-whites-fixed-width
 (defun adoc-kw-first-whites-fixed-width ()
@@ -2020,8 +2061,13 @@ START-SRC and END-SRC delimit the actual source code."
                  (+ start-src (1- pos)) (1- (+ start-src next)) 'face
                  val adoc-buffer)))
             (setq pos next)))
+<<<<<<< HEAD
 	(add-text-properties start-block start-src '(face adoc-meta-face))
 	(add-text-properties end-src end-block '(face adoc-meta-face))
+=======
+	(add-text-properties start-block start-src '(face markup-meta-face))
+	(add-text-properties end-src end-block '(face markup-meta-face))
+>>>>>>> e1ada81df94e0cb8223ba0fcd01129a40c533f33
         (add-text-properties
          start-block end-block
          '(font-lock-fontified t fontified t font-lock-multiline t
@@ -2116,7 +2162,10 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
 		    (<= size adoc-fontify-code-blocks-natively)
 		  adoc-fontify-code-blocks-natively)
 		(adoc-fontify-code-block-natively lang start-block end-block start-src end-src)
-              (add-text-properties start-src end-src '(font-lock-face adoc-verbatim-face)))
+              (add-text-properties
+               start-src
+               (if (eq (char-after end-src) ?\n) (1+ end-src) end-src)
+               '(font-lock-face adoc-verbatim-face)))
             ;; Set background for block as well as opening and closing lines.
             (font-lock-append-text-property
              start-src end-block 'face 'adoc-native-code-face)
