@@ -673,14 +673,14 @@ easier for major mode to write font lock regular expressions."
     (((background light)) :foreground "gray75")
     (((background dark)) :foreground "gray25"))
   "For meta characters which can be \\='hidden\\='.
-Hidden in the sense of *almost* not visible. They don't need to
+Hidden in the sense of *almost* not visible. They does not need to
 be properly seen because one knows what these characters must be;
 deduced from the highlighting of the near context. E.g in
 AsciiDocs \\='_important_\\=', the underlines would be highlighted with
 adoc-hide-delimiter-face, and the text \\='important\\=' would be
-highlighted with adoc-emphasis-face. Because 'important' is
+highlighted with adoc-emphasis-face. Because \\='important\\=' is
 highlighted, one knows that it must be surrounded with the meta
-characters \\='_\\=', and thus the meta characters don't need to be
+characters \\='_\\=', and thus the meta characters do not need to be
 properly seen.
 For example:
 AsciiDoc: *bold emphasis text* or _emphasis text_
@@ -1442,10 +1442,10 @@ subgroups:
 Id CMD-NAME is nil, any command is matched. It maybe a regexp
 itself in order to match multiple commands. If TARGET is nil, any
 target is matched. When UNCONSTRAINED is nil, the returned regexp
-begins with '\<', i.e. it will _not_ match when CMD-NAME is part
-of a previous word. When ATTRIBUTE-LIST-CONSTRAINTS is 'empty,
-only an empty attribute list is matched, if it's
-'single-attribute, only an attribute list with exactly one
+begins with \\='\\<\\=', i.e. it will _not_ match when CMD-NAME is part
+of a previous word. When ATTRIBUTE-LIST-CONSTRAINTS is the symbol
+`empty', only an empty attribute list is matched, if it is
+`single-attribute', only an attribute list with exactly one
 attribute is matched.
 
 Subgroups of returned regexp:
@@ -1568,7 +1568,7 @@ the limit of the search. REXEXP the regexp to be searched.
 MUST-FREE-GROUPS a list of regexp group numbers which may not
 match text that has an adoc-reserved text-property with a non-nil
 value. Likewise, groups in NO-BLOCK-DEL-GROUPS may not contain
-text having adoc-reserved set to 'block-del."
+text having adoc-reserved set to symbol `block-del'."
   (let ((found t) (prevented t) saved-point)
     (while (and found prevented (<= (point) end) (not (eobp)))
       (setq saved-point (point))
