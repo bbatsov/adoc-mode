@@ -74,7 +74,7 @@ Alternative, you can add something like this to your Emacs config:
   (package-install 'adoc-mode))
 ----
 
-or if you're into use-package
+or if you're into `use-package`:
 
 [source,emacs-lisp]
 ----
@@ -83,6 +83,8 @@ or if you're into use-package
 ----
 
 == Configuration
+
+=== General
 
 * According to an old AsciiDoc manual, `.txt` is the standard file extension of
   AsciiDoc files. Add the following to your initialization file to open all
@@ -103,13 +105,49 @@ or if you're into use-package
 ** All programming languages `XYZ` that have an Emacs major mode `XYZ-mode` and use `font-lock` are automatically supported. Some other languages not fitting into that name scheme are supported through the alist `adoc-code-lang-modes`. You can add your own languages and modes there if they work based on `font-lock` and are not automatically supported.
 ** The fall-back language mode is `prog-mode` without any fontification. You can set your own default by `adoc-fontify-code-block-default-mode`.
 
-=== Coming features
+=== Syntax Highlighting Customization
 
-The next features I plan to implement
+It is possible to customize the way `adoc-mode` renders different text
+elements (faces) like section titles, text or punctuation styles. For
+example, if you would like a level 1 section title to have a different
+text color or height you can achieve this by using standard Emacs
+functionality.
+
+First of all, list all available faces by running
+
+kbd:[M-x] `list-faces-display`
+
+and searching for lines with the `adoc-` prefix.
+
+Alternatively, you can get information about the face under point by calling
+
+kbd:[M-x] `describe-face`
+
+One possible solution to change the look of a face is to use the
+built-in `use-package` feature `:custom-face`.
+
+Example
+
+[source,emacs-lisp]
+----
+(use-package adoc-mode
+  :ensure t
+  :custom-face
+  (adoc-title-0-face ((t (:height 1.0 :weight bold)))))
+----
+
+Of course, this is only one way to do it. Emacs has a few ways to
+customize faces. Simply, pick the one you prefer.
+
+== Roadmap
+
+Here are some features that we're considering to add in the future:
 
 - Demote / promote for list items
 - Outline support also for two line titles
 - Correctly highlighting backslash escapes
+
+Check out the issue tracker for more details.
 
 == Hacking
 
@@ -198,6 +236,7 @@ These days all upstream packages (e.g. on MELPA) are build from Bozhidar's fork.
 == License
 
 Copyright © 2009-2016 Florian Kaufmann
-Copyright © 2022 Bozhidar Batsov and `adoc-mode` contributors
+
+Copyright © 2022-2023 Bozhidar Batsov and `adoc-mode` contributors
 
 Distributed under the link:{copying}[GNU General Public License]; type kbd:[C-h] kbd:[C-c] to view it.

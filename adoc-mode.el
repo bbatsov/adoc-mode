@@ -1,7 +1,7 @@
-;;; adoc-mode.el --- a major-mode for editing AsciiDoc files
+;;; adoc-mode.el --- a major-mode for editing AsciiDoc files -*- lexical-binding: t; -*-
 ;;
 ;; Copyright 2009-2016 Florian Kaufmann <sensorflo@gmail.com>
-;; Copyright 2022 Bozhidar Batsov <bozhidar@batsov.dev> and adoc-mode contributors
+;; Copyright 2022-2023 Bozhidar Batsov <bozhidar@batsov.dev> and adoc-mode contributors
 ;;
 ;; Author: Florian Kaufmann <sensorflo@gmail.com>
 ;; URL: https://github.com/bbatsov/adoc-mode
@@ -42,12 +42,8 @@
 
 ;;; Code:
 
-
-;;; Variables:
-
 (require 'cl-lib)
 (require 'tempo)
-
 
 (defconst adoc-mode-version "0.8.0-snapshot"
   "adoc mode version number.
@@ -2592,6 +2588,8 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
   (interactive)
   (message "adoc-mode, version %s" adoc-mode-version))
 
+(defalias 'adoc-mode-version #'adoc-show-version)
+
 (defun adoc-goto-ref-label (id)
   "Goto the anchor defining the id ID."
   ;; KLUDGE: Getting the default, i.e. trying to parse the xref 'at' point, is
@@ -2868,7 +2866,7 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 (defun adoc-repeat-string (str n)
   "Returns str n times concatenated"
   (let ((retval ""))
-    (dotimes (i n)
+    (dotimes (_i n)
       (setq retval (concat retval str)))
     retval))
 
@@ -2924,7 +2922,7 @@ passed the on-region argument."
     on-region))
 
 (defun adoc-forward-xref (&optional bound)
-  "Move forward to next xref and return it's id.
+  "Move forward to next xref and return its id.
 
 Match data is the one of the found xref. Returns nil if there was
 no xref found."
