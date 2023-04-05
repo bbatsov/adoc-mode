@@ -34,6 +34,7 @@ be easily ignored.
 Here are some of the main features of `adoc-mode`:
 
 - sophisticated highlighting
+- native fontification of code blocks
 - promote / demote title
 - toggle title type between one line title and two line title
 - adjust underline length of a two line title to match title text's length
@@ -73,7 +74,7 @@ Alternative, you can add something like this to your Emacs config:
   (package-install 'adoc-mode))
 ----
 
-or if you're into use-package
+or if you're into `use-package`:
 
 [source,emacs-lisp]
 ----
@@ -83,25 +84,91 @@ or if you're into use-package
 
 == Configuration
 
-* According to an old AsciiDoc manual, `.txt` is the standard file extension of
-  AsciiDoc files. Add the following to your initialization file to open all
-  `.txt` files with adoc-mode as major mode automatically: `(add-to-list
-  'auto-mode-alist (cons "\\.txt\\'" 'adoc-mode))`.
-  More recent conventions for AsciiDoc file extensions include `.adoc` and
-  `.asciidoc`, these are associated with `adoc-mode` automatically.
+=== General
 
-* If your default face is a fixed pitch (monospace) face, but in AsciiDoc
-  files you liked to have normal text with a variable pitch face,
-  `buffer-face-mode` is for you: `(add-hook 'adoc-mode-hook (lambda()
-  (buffer-face-mode t)))`
+According to an old AsciiDoc manual, `.txt` is the standard file extension of
+AsciiDoc files. Add the following to your initialization file to open all `.txt`
+files with adoc-mode as major mode automatically:
 
-=== Coming features
+[source,emacs-lisp]
+----
+(add-to-list 'auto-mode-alist (cons "\\.txt\\'" 'adoc-mode))
+----
 
-The next features I plan to implement
+Modern conventions for AsciiDoc file extensions favor `.adoc` and
+`.asciidoc` and they are associated with `adoc-mode` automatically.
+
+You can see a list of all configuration options offered by `adoc-mode` by running the following command - kbd:[M-x] `customize-group adoc`.
+
+=== Native Syntax Highlighting of Source Code Blocks
+
+Out-of-the-box `adoc-mode` will try to apply native font-locking to source code blocks (e.g. the same font-locking that `ruby-mode` would use for Ruby code blocks).
+This can be tweaked by several configuration options:
+
+* Native fontification of source blocks can be switched off by setting `adoc-fontify-code-blocks-natively` to `nil`.
+* Native fontification of lengthy code blocks can cause performance problems. If the value of `adoc-fontify-code-blocks-natively` is an integer only those code blocks are fontified natively whose length is less or equal to that value.
+* To avoid performance problems with code block beginnings that do not have a matching end yet the scanning for the code block end is delimited by `adoc-font-lock-extend-after-change-max`.
+* All programming languages `XYZ` that have an Emacs major mode `XYZ-mode` and use `font-lock` are automatically supported. Some other languages not fitting into that name scheme are supported through the alist `adoc-code-lang-modes`. You can add your own languages and modes there if they work based on `font-lock` and are not automatically supported.
+* The fall-back language mode is `prog-mode` without any fontification. You can set your own default by `adoc-fontify-code-block-default-mode`.
+
+=== Syntax Highlighting Customization
+
+It is possible to customize the way `adoc-mode` renders different text
+elements (faces) like section titles, text or punctuation styles. For
+example, if you would like a level 1 section title to have a different
+text color or height you can achieve this by using standard Emacs
+functionality.
+
+First of all, list all available faces by running
+
+kbd:[M-x] `list-faces-display`
+
+and searching for lines with the `adoc-` prefix.
+
+Alternatively, you can get information about the face under point by calling
+
+kbd:[M-x] `describe-face`
+
+One possible solution to change the look of a face is to use the
+built-in `use-package` feature `:custom-face`.
+
+Example:
+
+[source,emacs-lisp]
+----
+(use-package adoc-mode
+  :ensure t
+  :custom-face
+  (adoc-title-0-face ((t (:height 1.0 :weight bold)))))
+----
+
+Of course, this is only one way to do it. Emacs has a few ways to
+customize faces. Simply, pick the one you prefer.
+
+If your default face is a fixed pitch (monospace) face, but in AsciiDoc files
+you liked to have normal text with a variable pitch face, `buffer-face-mode`
+is one good options for you:
+
+[source,emacs-lisp]
+----
+(defun my-buffer-face-mode-variable ()
+   "Set font to a variable width (proportional) fonts in current buffer."
+   (interactive)
+   (setq buffer-face-mode-face '(:family "DejaVu Sans" :height 100 :width semi-condensed))
+   (buffer-face-mode))
+
+(add-hook 'adoc-mode-hook (lambda() (buffer-face-mode t)))
+----
+
+== Roadmap
+
+Here are some features that we're considering to add in the future:
 
 - Demote / promote for list items
 - Outline support also for two line titles
 - Correctly highlighting backslash escapes
+
+Check out the issue tracker for more details.
 
 == Hacking
 
@@ -190,6 +257,7 @@ These days all upstream packages (e.g. on MELPA) are build from Bozhidar's fork.
 == License
 
 Copyright © 2009-2016 Florian Kaufmann
-Copyright © 2022 Bozhidar Batsov and `adoc-mode` contributors
+
+Copyright © 2022-2023 Bozhidar Batsov and `adoc-mode` contributors
 
 Distributed under the link:{copying}[GNU General Public License]; type kbd:[C-h] kbd:[C-c] to view it.

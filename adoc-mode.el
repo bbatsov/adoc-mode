@@ -1,13 +1,13 @@
-;;; adoc-mode.el --- a major-mode for editing AsciiDoc files
+;;; adoc-mode.el --- a major-mode for editing AsciiDoc files -*- lexical-binding: t; -*-
 ;;
 ;; Copyright 2009-2016 Florian Kaufmann <sensorflo@gmail.com>
-;; Copyright 2022 Bozhidar Batsov <bozhidar@batsov.dev> and adoc-mode contributors
+;; Copyright 2022-2023 Bozhidar Batsov <bozhidar@batsov.dev> and adoc-mode contributors
 ;;
 ;; Author: Florian Kaufmann <sensorflo@gmail.com>
 ;; URL: https://github.com/bbatsov/adoc-mode
 ;; Maintainer: Bozhidar Batsov <bozhidar@batsov.dev>
 ;; Created: 2009
-;; Version: 0.7.0-snapshot
+;; Version: 0.8.0-snapshot
 ;; Package-Requires: ((emacs "26"))
 ;; Keywords: docs, wp
 ;;
@@ -42,15 +42,11 @@
 
 ;;; Code:
 
-
-;;; Variables:
-
 (require 'cl-lib)
 (require 'tempo)
 (require 'rx)
 
-
-(defconst adoc-mode-version "0.7.0-snapshot"
+(defconst adoc-mode-version "0.8.0-snapshot"
   "adoc mode version number.
 
 Based upon AsciiDoc version 8.5.2. I.e. regexeps and rules are
@@ -60,7 +56,7 @@ taken from that version's asciidoc.conf / manual.")
 (defgroup adoc nil "Support for editing AsciiDoc files in GNU Emacs."
   :group 'text
   :prefix "adoc-"
-  :version "0.7.0"
+  :version "0.8.0"
   :link '(url-link "https://github.com/bbatsov/adoc-mode"))
 
 (defcustom adoc-script-raise '(-0.3 0.3)
@@ -83,13 +79,13 @@ You need to call `adoc-calc' after a change."
 (defcustom adoc-insert-replacement nil
   "When non-nil the character/string a replacement/entity stands for is displayed.
 
-E.g. after '&amp;' an '&' is displayed, after '(C)' the copy right
-sign is displayed.  It's only about display, neither the file nor
+E.g. after \\='&amp;\\=' an \\='&\\=' is displayed, after \\='(C)\\=' the copy right
+sign is displayed.  It is only about display, neither the file nor
 the buffer content is affected.
 
 You need to call `adoc-calc' after you change
 `adoc-insert-replacement'.  For named character entities (e.g.
-'&amp;', in contrast to '&#20;' or '(C)' ) to be displayed you
+\\='&amp;\\=', in contrast to \\='&#20;\\=' or \\='(C)\\=' ) to be displayed you
 need to set `adoc-unichar-name-resolver'.
 
 Setting it to non-nil interacts very badly with minor-modes using
@@ -211,7 +207,7 @@ AsciiDoc config file would the probably be '^[<>]-{4,}$'"
   :group 'adoc)
 
 (defcustom adoc-enable-two-line-title t
-  "Wether or not two line titles shall be fontified.
+  "Whether or not two line titles shall be fontified.
 
 nil means never fontify. t means always fontify. A number means
 only fontify if the line below has NOT the length of the given
@@ -243,6 +239,70 @@ See for example `tempo-template-adoc-title-1'."
                  (const :tag "tempo-snippets" tempo-snippets))
   :group 'adoc)
 
+(defcustom adoc-fontify-code-blocks-natively 5000
+  "When non-nil, fontify code in code blocks using the native major mode.
+This only works for code blocks where the language is
+specified where we can automatically determine the appropriate
+mode to use.  The language to mode mapping may be customized by
+setting the variable `adoc-code-lang-modes'.
+
+The value can be a number that determines the size
+up to which code blocks are fontified natively.
+If the value is another non-nil value then code blocks
+are fontified natively regardless of their size."
+  :group 'adoc
+  :type '(choice :tag "Fontify code blocks " :format "\n%{%t%}: %[Size%] %v"
+                 (integer :tag "limited to")
+                 (boolean :tag "unlimited"))
+  :safe '(lambda (x) (or (booleanp x) (numberp x)))
+  :package-version '(adoc-mode . "0.8.0"))
+
+;; This is based on `org-src-lang-modes' from org-src.el
+(defcustom adoc-code-lang-modes
+  '(
+    ("asymptote" . asy-mode)
+    ("bash" . sh-mode)
+    ("C" . c-mode)
+    ("cpp" . c++-mode)
+    ("C++" . c++-mode)
+    ("calc" . fundamental-mode)
+    ("ditaa" . artist-mode)
+    ("dot" . fundamental-mode)
+    ("elisp" . emacs-lisp-mode)
+    ("ocaml" . tuareg-mode)
+    ("screen" . shell-script-mode)
+    ("shell" . sh-mode)
+    ("sqlite" . sql-mode)
+    )
+  "Alist mapping languages to their major mode.
+The key is the language name, the value is the major mode.  For
+many languages this is simple, but for language where this is not
+the case, this variable provides a way to simplify things on the
+user side.  For example, there is no ocaml-mode in Emacs, but the
+mode to use is `tuareg-mode'."
+  :group 'adoc
+  :type '(repeat
+          (cons
+           (string "Language name")
+           (symbol "Major mode")))
+  :package-version '(adoc-mode . "0.8.0"))
+
+(defcustom adoc-fontify-code-block-default-mode 'prog-mode
+  "Default mode to use to fontify code blocks.
+This mode is used when automatic detection fails, such as for
+code blocks with no language specified."
+  :group 'adoc
+  :type '(choice function (const :tag "None" nil))
+  :package-version '(adoc-mode . "0.8.0"))
+
+(defcustom adoc-font-lock-extend-after-change-max 5000
+  "Number of chars scanned backwards for re-fontification of code block headers.
+Also used to delimit the scan for the end delimiter."
+  :type 'integer
+  :group 'adoc
+  :package-version '(adoc-mode . "0.8.0"))
+
+
 ;;;; faces / font lock
 (define-obsolete-face-alias 'adoc-orig-default 'adoc-align-face "23.3")
 (defface adoc-align-face
@@ -678,15 +738,15 @@ easier for major mode to write font lock regular expressions."
   '((default (:inherit adoc-meta-face))
     (((background light)) :foreground "gray75")
     (((background dark)) :foreground "gray25"))
-  "For meta characters which can be \='hidden\='.
-Hidden in the sense of *almost* not visible. They don't need to
+  "For meta characters which can be \\='hidden\\='.
+Hidden in the sense of *almost* not visible. They does not need to
 be properly seen because one knows what these characters must be;
 deduced from the highlighting of the near context. E.g in
-AsciiDocs \='_important_\=', the underlines would be highlighted with
-adoc-hide-delimiter-face, and the text \='important\=' would be
-highlighted with adoc-emphasis-face. Because 'important' is
+AsciiDocs \\='_important_\\=', the underlines would be highlighted with
+adoc-hide-delimiter-face, and the text \\='important\\=' would be
+highlighted with adoc-emphasis-face. Because \\='important\\=' is
 highlighted, one knows that it must be surrounded with the meta
-characters \='_\=', and thus the meta characters don't need to be
+characters \\='_\\=', and thus the meta characters do not need to be
 properly seen.
 For example:
 AsciiDoc: *bold emphasis text* or _emphasis text_
@@ -765,12 +825,12 @@ AsciiDoc: *bold emphasis text* or _emphasis text_
   "For verbatim text.
 
 Verbatim in a sense that all its characters are to be taken
-literally. Note that doesn't necessarily mean that that it is in
+literally. Note that does not necessarily mean that that it is in
 a typewritter font.
-For example 'foo' in the following examples. In parantheses is a
+For example \\='foo\\=' in the following examples. In parantheses is a
 summary what the command is for according to the given markup
 language.
-`foo`     (verbatim and typewriter font)
+\\=`foo\\=`     (verbatim and typewriter font)
 +++foo+++ (only verbatim)"
   :group 'adoc-faces)
 (defvar adoc-verbatim-face 'adoc-verbatim-face)
@@ -800,16 +860,16 @@ language.
   "Meta characters that are replaced by text in the output.
 See also `adoc-complex-replacement-face'.
 For example
-AsciiDoc: '->' is replaced by an Unicode arrow
-It's difficult to say whether adoc-replacement-face is part of
+AsciiDoc: \\='->\\=' is replaced by an Unicode arrow
+It is difficult to say whether adoc-replacement-face is part of
 the group adoc-faces-meta or part of the group
 adoc-faces-text. Technically they are clearly meta characters.
 However they are just another representation of normal text and I
-want to fontify them as such. E.g. in HTML '<b>foo &amp; bar</b>',
-the output 'foo & bar' is fontified bold, thus I also want 'foo
-&amp; bar' in the Emacs buffer be fontified with
-markup-bold-face. Thus markup-replacement-face needs to be
-something that is orthogonal to the markup-bold-face etc faces."
+want to fontify them as such. E.g. in HTML \\='<b>foo &amp; bar</b>\\=',
+the output \\='foo & bar\\=' is fontified bold, thus I also want \\='foo
+&amp; bar\\=' in the Emacs buffer be fontified with
+adoc-bold-face. Thus adoc-replacement-face needs to be
+something that is orthogonal to the adoc-bold-face etc faces."
   :group 'adoc-faces)
 (defvar adoc-replacement-face 'adoc-replacement-face)
 
@@ -840,9 +900,9 @@ something that is orthogonal to the markup-bold-face etc faces."
 (defface adoc-superscript-face
   '((t :inherit adoc-gen-face :height 0.8))
   "For superscript text.
-For example 'foo' in the ^foo^
+For example \\='foo\\=' in the ^foo^
 Note that typically the major mode doing the font lock
-additionaly raises the text; face customization doesn't provide
+additionaly raises the text; face customization does not provide
 this feature."
   :group 'adoc-faces)
 (defvar adoc-superscript-face 'adoc-superscript-face)
@@ -850,9 +910,9 @@ this feature."
 (defface adoc-subscript-face
   '((t :inherit adoc-gen-face :height 0.8))
   "For subscript text.
-For example 'foo' in the ~foo~
+For example \\='foo\\=' in the ~foo~
 Note that typically the major mode doing the font lock
-additionally lowers the text; face customization doesn't provide
+additionally lowers the text; face customization does not provide
 this feature."
   :group 'adoc-faces)
 (defvar adoc-subscript-face 'adoc-subscript-face)
@@ -903,9 +963,9 @@ this feature."
   '((t :inherit (fixed-pitch adoc-gen-face)))
   "For text in typewriter/monospaced font.
 
-  For example 'foo' in the following examples:
+  For example \\='foo\\=' in the following examples:
   +foo+ (only typewriter font)
-  `foo` (verbatim and typewriter font)"
+  \\=`foo\\=` (verbatim and typewriter font)"
   :group 'adoc-faces)
 (defvar adoc-typewriter-face 'adoc-typewriter-face)
 
@@ -918,10 +978,19 @@ this feature."
 (defface adoc-secondary-text-face
   '((t :inherit adoc-gen-face :foreground "firebrick" :height 0.9))
   "For text that is not part of the running text.
-  For example for captions of tables or images, or for footnotes, or for floating text."
+For example for captions of tables or images,
+or for footnotes, or for floating text."
   :group 'adoc-faces)
 (defvar adoc-secondary-text-face 'adoc-secondary-text-face)
 
+(defface adoc-native-code-face
+  '((((background light))
+     (:background "cornsilk" :extend t))
+    (((background dark))
+     (:background "saddlebrown" :extend t)))
+  "For code blocks that are highlighted natively."
+  :group 'adoc-faces)
+(defvar adoc-native-code-face 'adoc-native-code-face)
 
 ;;;; regexps
 ;; from AsciiDoc manual: The attribute name/value syntax is a single line ...
@@ -1440,10 +1509,10 @@ subgroups:
 Id CMD-NAME is nil, any command is matched. It maybe a regexp
 itself in order to match multiple commands. If TARGET is nil, any
 target is matched. When UNCONSTRAINED is nil, the returned regexp
-begins with '\<', i.e. it will _not_ match when CMD-NAME is part
-of a previous word. When ATTRIBUTE-LIST-CONSTRAINTS is 'empty,
-only an empty attribute list is matched, if it's
-'single-attribute, only an attribute list with exactly one
+begins with \\='\\<\\=', i.e. it will _not_ match when CMD-NAME is part
+of a previous word. When ATTRIBUTE-LIST-CONSTRAINTS is the symbol
+`empty', only an empty attribute list is matched, if it is
+`single-attribute', only an attribute list with exactly one
 attribute is matched.
 
 Subgroups of returned regexp:
@@ -1566,7 +1635,7 @@ the limit of the search. REXEXP the regexp to be searched.
 MUST-FREE-GROUPS a list of regexp group numbers which may not
 match text that has an adoc-reserved text-property with a non-nil
 value. Likewise, groups in NO-BLOCK-DEL-GROUPS may not contain
-text having adoc-reserved set to 'block-del."
+text having adoc-reserved set to symbol `block-del'."
   (let ((found t) (prevented t) saved-point)
     (while (and found prevented (<= (point) end) (not (eobp)))
       (setq saved-point (point))
@@ -1939,6 +2008,7 @@ meta characters."
        ;; font (most probably), because then it also won't look aligned
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-typewriter-face)
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-code-face)
+       (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-code-block t)
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-passthrough-face)
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-comment-face)))
 
@@ -1972,6 +2042,159 @@ meta characters."
   nil)
 
 
+;;; Natively highlight source code blocks.
+;;
+;; The code is an adaption of the code in markdown-mode.el.
+
+(defun adoc-get-lang-mode (lang)
+  "Return major mode that should be used for LANG.
+LANG is a string, and the returned major mode is a symbol."
+  (cl-find-if
+   'fboundp
+   (list (cdr (assoc lang adoc-code-lang-modes))
+         (cdr (assoc (downcase lang) adoc-code-lang-modes))
+         (intern (concat lang "-mode"))
+         (intern (concat (downcase lang) "-mode")))))
+
+;; Based on `org-src-font-lock-fontify-block' from org-src.el.
+(defun adoc-fontify-code-block-natively (lang start-block end-block start-src end-src)
+  "Fontify source code block.
+This function is called by Emacs for automatic fontification when
+`adoc-fontify-code-blocks-natively' is non-nil.  LANG is the
+language used in the block.
+START-BLOCK and END-BLOCK specify the limits of the full source block
+with header lines and delimiters (but without header arguments).
+START-SRC and END-SRC delimit the actual source code."
+  (let ((lang-mode (if lang (adoc-get-lang-mode lang)
+                     adoc-fontify-code-block-default-mode)))
+    (when (fboundp lang-mode)
+      (let ((string (buffer-substring-no-properties start-src end-src))
+            (modified (buffer-modified-p))
+            (adoc-buffer (current-buffer)) int)
+        (remove-text-properties start-block end-block '(face nil adoc-code-block nil font-lock-fontified nil font-lock-multiline nil))
+        (with-current-buffer
+            (get-buffer-create
+             (concat " adoc-code-fontification:" (symbol-name lang-mode)))
+          ;; Make sure that modification hooks are not inhibited in
+          ;; the org-src-fontification buffer in case we're called
+          ;; from `jit-lock-function' (Bug#25132).
+          (let ((inhibit-modification-hooks nil))
+            (erase-buffer)
+            (insert string))
+          (unless (eq major-mode lang-mode) (funcall lang-mode))
+          (font-lock-ensure)
+          (cl-loop for int being the intervals property 'face
+                   for pos = (car int)
+                   for next = (cdr int)
+                   for val = (get-text-property pos 'face)
+                   when val do
+                   (put-text-property
+                    (+ start-src (1- pos)) (1- (+ start-src next)) 'face
+                    val adoc-buffer)))
+        (add-text-properties start-block start-src '(face adoc-meta-face))
+        (add-text-properties end-src end-block '(face adoc-meta-face))
+        (add-text-properties
+         start-block end-block
+         '(font-lock-fontified t fontified t font-lock-multiline t
+                               adoc-code-block t adoc-reserved t))
+        (set-buffer-modified-p modified)))))
+
+(defconst adoc-code-block-begin-regexp
+  (cl-flet ((rx-or (first second) (format "\\(?:%s\\|%s\\)" first second))
+            (rx-optional (stuff) (format "\\(?:%s\\)?" stuff))
+            (outer-brackets-and-delimiter (&rest stuff)
+                                          (format "^\\[%s\\]\n\\(?2:----+\\)\n"
+                                                  (apply #'concat stuff)))
+            (lang () ",\\(?1:[^],]+\\)")
+            (optional-other-args () "\\(?:,[^]]+\\)?"))
+    (outer-brackets-and-delimiter
+     (rx-or
+      (concat
+       "source"
+       (rx-optional (lang))
+       (optional-other-args))
+      (concat
+       (lang)
+       (optional-other-args)))
+     ))
+  "Regexp matching the beginning of source blocks.
+Group 1 contains the language attribute.
+Group 2 contains the block delimiter.")
+
+(defun adoc-search-forward-code-block (last &optional noerror)
+  "Search for next adoc-code block up to LAST.
+NOERROR is the same as for `search-forward'.
+
+Return the source block language and
+set match data if a source block is found.
+Otherwise return nil.
+
+The overall match data begins at the
+header of the code block and ends at the end of the
+end delimiter.
+The first group of the match data delimits the
+actual source code."
+  (let (start-header start-src end-src end-block lang)
+    (save-match-data
+      (and (setq start-src (re-search-forward adoc-code-block-begin-regexp last noerror))
+           (setq lang (or (match-string 1) t)
+                 start-header (match-beginning 0))
+           (setq end-block (re-search-forward (format "\n%s$" (match-string 2))))
+           (setq end-src (match-beginning 0)))
+      )
+    (when end-block
+      (set-match-data (list start-header end-block start-src end-src (current-buffer)))
+      lang)))
+
+(defun adoc-font-lock-extend-after-change-region (beg end _old-len)
+  "Enlarge region for re-fontification after edit.
+BEG is the beginning of the region and END its end.
+The region is extended if it includes a part of a source block.
+Returns a cons (BEG . END) with the updated limits of the region."
+  (save-match-data
+    (save-excursion
+      (goto-char beg)
+      ;; Maybe edits in header line: Skip to body
+      (cl-case (char-after (line-beginning-position))
+        (?\[ (forward-line 2))
+        (?- (forward-line 1)))
+      ;; Search backward for header:
+      (let ((beg-block (re-search-backward adoc-code-block-begin-regexp (max 0 (- (point) adoc-font-lock-extend-after-change-max)) t))
+            end-block)
+        (when beg-block
+          (goto-char (match-end 0))
+          (setq end-block (or (re-search-forward (format "\n%s$" (match-string 2)) (+ (point) adoc-font-lock-extend-after-change-max) t) end))
+          (when (and end-block (> end-block beg)) ;; block reaches really into edited area
+            (cons (min beg beg-block) (max end end-block))))))))
+
+(defun adoc-fontify-code-blocks (last)
+  "Add text properties to next code block from point to LAST.
+Use this function as matching function MATCHER in `font-lock-keywords'."
+  (let ((lang (adoc-search-forward-code-block last 'noError)))
+    (when lang
+      (save-excursion
+        (save-match-data
+          (let* ((start-block (match-beginning 0))
+                 (end-block (match-end 0))
+                 (start-src (match-beginning 1))
+                 (end-src (match-end 1))
+                 (end-src+nl (if (eq (char-after end-src) ?\n) (1+ end-src) end-src))
+                 (size (1+ (- end-src start-src))))
+            (if (if (numberp adoc-fontify-code-blocks-natively)
+                    (<= size adoc-fontify-code-blocks-natively)
+                  adoc-fontify-code-blocks-natively)
+                (adoc-fontify-code-block-natively lang start-block end-block start-src end-src)
+              (add-text-properties
+               start-src
+               end-src
+               '(font-lock-face adoc-verbatim-face)))
+            ;; Set background for block as well as opening and closing lines.
+            (font-lock-append-text-property
+             start-src end-src+nl 'face 'adoc-native-code-face)
+            )))
+      t)))
+
+
 ;;;; font lock
 (defun adoc-unfontify-region-function (beg end)
   (font-lock-default-unfontify-region beg end)
@@ -2001,6 +2224,8 @@ meta characters."
 (defun adoc-get-font-lock-keywords ()
   "Return list of keywords for `adoc-mode'."
   (list
+   ;; Fontify code blocks first to mark these regions as fontified.
+   '(adoc-fontify-code-blocks)
 
    ;; Asciidoc BUG: Lex.next has a different order than the following extract
    ;; from the documentation states.
@@ -2430,6 +2655,8 @@ meta characters."
   (interactive)
   (message "adoc-mode, version %s" adoc-mode-version))
 
+(defalias 'adoc-mode-version #'adoc-show-version)
+
 (defun adoc-goto-ref-label (id)
   "Goto the anchor defining the id ID."
   ;; KLUDGE: Getting the default, i.e. trying to parse the xref 'at' point, is
@@ -2706,7 +2933,7 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 (defun adoc-repeat-string (str n)
   "Returns str n times concatenated"
   (let ((retval ""))
-    (dotimes (i n)
+    (dotimes (_i n)
       (setq retval (concat retval str)))
     retval))
 
@@ -2762,7 +2989,7 @@ passed the on-region argument."
     on-region))
 
 (defun adoc-forward-xref (&optional bound)
-  "Move forward to next xref and return it's id.
+  "Move forward to next xref and return its id.
 
 Match data is the one of the found xref. Returns nil if there was
 no xref found."
@@ -3293,13 +3520,14 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (setq-local paragraph-ignore-fill-prefix t)
 
   ;; font lock
-  (set (make-local-variable 'font-lock-defaults)
-       '(adoc-mode-font-lock-keywords
-         nil nil nil nil
-         (font-lock-multiline . t)
-         (font-lock-mark-block-function . adoc-font-lock-mark-block-function)))
-  (setq-local font-lock-extra-managed-props '(adoc-reserved adoc-attribute-list))
+  (setq-local font-lock-defaults
+              '(adoc-font-lock-keywords
+                nil nil nil nil
+                (font-lock-multiline . t)
+                (font-lock-mark-block-function . adoc-font-lock-mark-block-function)))
+  (setq-local font-lock-extra-managed-props '(adoc-reserved adoc-attribute-list adoc-code-block))
   (setq-local font-lock-unfontify-region-function 'adoc-unfontify-region-function)
+  (setq-local font-lock-extend-after-change-region-function #'adoc-font-lock-extend-after-change-region)
 
   ;; outline mode
   ;; BUG: if there are many spaces\tabs after =, level becomes wrong

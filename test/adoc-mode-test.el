@@ -13,6 +13,8 @@
 ;;
 
 ;;; Code:
+
+;;;; Helpers
 (require 'ert)
 (require 'adoc-mode)
 
@@ -122,6 +124,30 @@ removed before TRANSFORM is evaluated.
       ;; verify
       (should (string-equal (buffer-substring (point-min) (point-max)) expected-text)))))
 
+;; We define our own generic mode for testing code blocks.
+;; All other languages except adoc can change fontification without us noticing.
+;; Adoc in a code block is a good test case, but it should not be used for the
+;; simplest test case. Use `adoctest-lang-mode' instead.
+(define-generic-mode adoctest-lang-mode
+  '(("//" . nil) ("/*" . "*/")) ;; cpp-like comment syntax
+  '("if" "else" "for" "while" "do" "break" "continue" "throw" "catch") ;; some keywords from c/cpp
+  nil ;; no additional entries for font-lock-keywords 
+  nil ;; no entries for auto-mode-alist
+  nil ;; no additional actions
+  "Mode for testing code blocks in `adoc-mode'.
+Don't use it for anything real.")
+
+(defmacro adoctest-with-uncustomized-vars (vars &rest body)
+  "Run BODY without customization of VARS."
+  (declare (debug (list body)) (indent 1))
+  `(let ,(mapcar
+	  (lambda (var)
+	    (cons var (get var 'standard-value)))
+	  vars)
+     ,@body))
+
+
+;;;; Actual Tests
 (ert-deftest adoctest-test-titles-simple-one-line-before ()
   (adoctest-faces "titles-simple-one-line-before"
                   "= " adoc-meta-hide-face "document title" adoc-title-0-face "\n" nil
@@ -267,6 +293,25 @@ removed before TRANSFORM is evaluated.
                   "// lorem ipsum" adoc-comment-face
                   ;; as delimited block it's tested in delimited-blocks-simple
                   ))
+
+(ert-deftest adoctest-test-code-blocks ()
+  (adoctest-with-uncustomized-vars
+      (adoc-fontify-code-blocks-natively
+       adoc-code-lang-modes
+       adoc-fontify-code-block-default-mode
+       adoc-font-lock-extend-after-change-max)
+    (adoctest-faces "code-block-natively"
+		    "\n" nil
+		    "[source,adoctest-lang]\n----\n" 'adoc-meta-face
+		    "if" '(font-lock-keyword-face adoc-native-code-face)
+		    "\n" '(adoc-native-code-face)
+		    "//" '(font-lock-comment-delimiter-face adoc-native-code-face)
+		    "comment" '(font-lock-comment-face adoc-native-code-face)
+		    "\n" '(adoc-meta-face adoc-native-code-face)
+		    "----" 'adoc-meta-face
+		    "\n" nil
+		    )
+    ))
 
 (ert-deftest adoctest-test-anchors ()
   (adoctest-faces "anchors"
