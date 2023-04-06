@@ -47,7 +47,7 @@
 (require 'rx)
 
 (defconst adoc-mode-version "0.8.0-snapshot"
-  "adoc mode version number.
+  "`adoc-mode' version number.
 
 Based upon AsciiDoc version 8.5.2. I.e. regexeps and rules are
 taken from that version's asciidoc.conf / manual.")
@@ -1093,8 +1093,8 @@ LEVEL starts at 1."
 
 (defun adoc-make-two-line-title-underline (level &optional length)
   "Returns a two line title underline.
-  LEVEL is the level of the title, starting at 1. LENGTH is the
-  line of the title's text. When nil it defaults to 4."
+LEVEL is the level of the title, starting at 1. LENGTH is the
+line of the title's text. When nil it defaults to 4."
   (unless length
     (setq length 4))
   (let* ((repetition-cnt (if (>= length 2) (/ length 2) 1))
@@ -3498,7 +3498,7 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
     ((adoc-table-regexp) 0 ,adoc-table-face)
     ((adoc-code-regexp) 0 ,adoc-code-face))
   "Font lock keywords used to highlight text in AsciiDoc files mode."
-  :version "26.1"
+  :version "0.8.0-snapshot"
   :type 'sexp
   :group 'adoc-mode)
 
@@ -3508,11 +3508,11 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
   "Major mode for editing AsciiDoc text files.
 Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   ;; comments
-  (set (make-local-variable 'comment-column) 0)
-  (set (make-local-variable 'comment-start) "// ")
-  (set (make-local-variable 'comment-end) "")
-  (set (make-local-variable 'comment-start-skip) "^//[ \t]*")
-  (set (make-local-variable 'comment-end-skip) "[ \t]*\\(?:\n\\|\\'\\)")
+  (setq-local comment-column 0)
+  (setq-local comment-start "// ")
+  (setq-local comment-end "")
+  (setq-local comment-start-skip "^//[ \t]*")
+  (setq-local comment-end-skip "[ \t]*\\(?:\n\\|\\'\\)")
 
   ;; paragraphs
   (setq-local paragraph-separate (adoc-re-paragraph-separate))

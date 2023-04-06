@@ -2,6 +2,10 @@
 
 ## master (unreleased)
 
+## 0.7.1 (2023-04-05)
+
+- [#24](https://github.com/bbatsov/adoc-mode/issues/24): Fix regexp for tables font-locking.
+
 ### New features
 
 - [#21](https://github.com/bbatsov/adoc-mode/pull/21): Add support for native font-locking in code blocks.
