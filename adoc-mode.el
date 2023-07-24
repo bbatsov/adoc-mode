@@ -2119,6 +2119,8 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
             ;; Set background for block as well as opening and closing lines.
             (font-lock-append-text-property
              start-src end-src+nl 'face 'adoc-native-code-face)
+            (add-text-properties
+             start-src end-src+nl '(font-lock-fontified t font-lock-multiline t))
             )))
       t)))
 
