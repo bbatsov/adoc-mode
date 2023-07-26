@@ -1556,6 +1556,19 @@ Subgroups of returned regexp:
 
 
 ;;;; font lock keywords
+(defsubst adoc-kwf-search (regexp &optional bound noerror count)
+  "Keyword search for Adoc.
+Like `re-search-forward' with the same arguments
+REGEXP, BOUND, NOERROR and COUNT.
+If a match for REGEXP is found where the text property
+`adoc-code-block' is non-nil continue the search."
+  (let (ret)
+    (while (and
+            (setq ret (re-search-forward regexp bound noerror count))
+            (get-text-property (point) 'adoc-code-block)
+            (null (eobp))))
+    ret))
+
 (defun adoc-kwf-std (end regexp &optional must-free-groups no-block-del-groups)
   "Standard function for keywords
 Intendent to be called from font lock keyword functions. END is
@@ -1567,7 +1580,7 @@ text having adoc-reserved set to symbol `block-del'."
   (let ((found t) (prevented t) saved-point)
     (while (and found prevented (<= (point) end) (not (eobp)))
       (setq saved-point (point))
-      (setq found (re-search-forward regexp end t))
+      (setq found (adoc-kwf-search regexp end t))
       (setq prevented
             (and found
                  (or
@@ -1679,7 +1692,7 @@ text having adoc-reserved set to symbol `block-del'."
    ;; matcher function
    `(lambda (end)
       (and adoc-enable-two-line-title
-           (re-search-forward ,(adoc-re-two-line-title del) end t)
+           (adoc-kwf-search ,(adoc-re-two-line-title del) end t)
            (< (abs (- (length (match-string 2)) (length (match-string 3)))) 3)
            (or (not (numberp adoc-enable-two-line-title))
                (not (equal adoc-enable-two-line-title (length (match-string 2)))))
@@ -1754,7 +1767,7 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
   `(list
     ;; matcher function
     (lambda (end)
-      (and (re-search-forward "^[ \t]*\\(\\(?:CAUTION\\|WARNING\\|IMPORTANT\\|TIP\\|NOTE\\):\\)\\([ \t]+\\)" end t)
+      (and (adoc-kwf-search "^[ \t]*\\(\\(?:CAUTION\\|WARNING\\|IMPORTANT\\|TIP\\|NOTE\\):\\)\\([ \t]+\\)" end t)
            (not (text-property-not-all (match-beginning 0) (match-end 0) 'adoc-reserved nil))))
     ;; highlighers
     '(1 '(face adoc-complex-replacement-face adoc-reserved t))
@@ -1765,7 +1778,7 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
   (list
    ;; matcher function
    `(lambda (end)
-      (and (re-search-forward ,(adoc-re-verbatim-paragraph-sequence) end t)
+      (and (adoc-kwf-search ,(adoc-re-verbatim-paragraph-sequence) end t)
            (not (text-property-not-all (match-beginning 0) (match-end 0) 'adoc-reserved nil))))
    ;; highlighers
    '(1 '(face adoc-typewriter-face adoc-reserved t font-lock-multiline t))))
@@ -1893,7 +1906,7 @@ meta characters."
         (while (and found prevented)
           (setq saved-point (point))
           (setq found
-                (re-search-forward ,regexp end t))
+                (adoc-kwf-search ,regexp end t))
           (setq prevented ; prevented is only meaningful wenn found is non-nil
                 (or
                  (not found) ; the following is only needed when found
@@ -1931,7 +1944,7 @@ meta characters."
 ;;   line beginning would also be underlined, which looks akward.
 (defun adoc-flf-first-whites-fixed-width(end)
   ;; it makes no sense to do something with a blank line, so require at least one non blank char.
-  (and (re-search-forward "\\(^[ \t]+\\)[^ \t\n]" end t)
+  (and (adoc-kwf-search "\\(^[ \t]+\\)[^ \t\n]" end t)
        ;; don't replace a face with with adoc-align-face which already is a fixed with
        ;; font (most probably), because then it also won't look aligned
        (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-typewriter-face)
@@ -2120,7 +2133,7 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
             (font-lock-append-text-property
              start-src end-src+nl 'face 'adoc-native-code-face)
             (add-text-properties
-             start-src end-src+nl '(font-lock-fontified t font-lock-multiline t))
+             start-src end-src+nl '(font-lock-fontified t font-lock-multiline t adoc-code-block t))
             )))
       t)))
 
@@ -2154,9 +2167,7 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
 (defun adoc-get-font-lock-keywords ()
   "Return list of keywords for `adoc-mode'."
   (list
-   ;; Fontify code blocks first to mark these regions as fontified.
-   '(adoc-fontify-code-blocks)
-
+   '(adoc-fontify-code-blocks) ; listing
    ;; Asciidoc BUG: Lex.next has a different order than the following extract
    ;; from the documentation states.
 
@@ -2292,7 +2303,6 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    ;; ------------------------------
    (adoc-kw-delimited-block 0 adoc-comment-face)   ; comment
    (adoc-kw-delimited-block 1 adoc-passthrough-face) ; passthrough
-   (adoc-kw-delimited-block 2 adoc-code-face) ; listing
    (adoc-kw-delimited-block 3 adoc-verbatim-face) ; literal
    (adoc-kw-delimited-block 4 nil t) ; quote
    (adoc-kw-delimited-block 5 nil t) ; example
