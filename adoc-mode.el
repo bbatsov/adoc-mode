@@ -1577,9 +1577,8 @@ MUST-FREE-GROUPS a list of regexp group numbers which may not
 match text that has an adoc-reserved text-property with a non-nil
 value. Likewise, groups in NO-BLOCK-DEL-GROUPS may not contain
 text having adoc-reserved set to symbol `block-del'."
-  (let ((found t) (prevented t) saved-point)
+  (let ((found t) (prevented t))
     (while (and found prevented (<= (point) end) (not (eobp)))
-      (setq saved-point (point))
       (setq found (adoc-kwf-search regexp end t))
       (setq prevented
             (and found
@@ -1597,7 +1596,7 @@ text having adoc-reserved set to symbol `block-del'."
                                                      'adoc-reserved 'block-del)))
                            no-block-del-groups))))
       (when (and found prevented (<= (point) end))
-        (goto-char (1+ saved-point))))
+        (goto-char (1+ (match-beginning 0)))))
     (and found (not prevented))))
 
 (defun adoc-kwf-attribute-list (end)
