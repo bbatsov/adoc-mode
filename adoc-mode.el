@@ -2302,6 +2302,7 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    ;; ------------------------------
    (adoc-kw-delimited-block 0 adoc-comment-face)   ; comment
    (adoc-kw-delimited-block 1 adoc-passthrough-face) ; passthrough
+   (adoc-kw-delimited-block 2 adoc-code-face) ; listing
    (adoc-kw-delimited-block 3 adoc-verbatim-face) ; literal
    (adoc-kw-delimited-block 4 nil t) ; quote
    (adoc-kw-delimited-block 5 nil t) ; example
