@@ -1026,6 +1026,23 @@ Don't use it for anything real.")
            (cons "sub chapter 2.1" 262)))))
     (kill-buffer "adoc-test")))
 
+(ert-deftest adoctest-adoc-kw-replacement ()
+  (unwind-protect
+      (progn
+	(set-buffer (get-buffer-create "adoc-test"))
+	(erase-buffer)
+	(adoc-mode)
+	(let ((adoc-insert-replacement t))
+	  (adoc-calc)
+	  (insert "(C)")
+	  (font-lock-flush)
+	  (font-lock-ensure)
+	  (should (string-equal (overlay-get (car (overlays-in (point) (point-max))) 'after-string) "©"))
+	  )
+	)
+    (adoc-calc)
+    (kill-buffer "adoc-test")))
+
 ;; purpose
 ;; - ensure that the latest version, i.e. the one currently in buffer(s), of
 ;;   adoc-mode and adoc-mode-test is used for the test
