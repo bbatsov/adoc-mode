@@ -1577,27 +1577,28 @@ MUST-FREE-GROUPS a list of regexp group numbers which may not
 match text that has an adoc-reserved text-property with a non-nil
 value. Likewise, groups in NO-BLOCK-DEL-GROUPS may not contain
 text having adoc-reserved set to symbol `block-del'."
-  (let ((found t) (prevented t))
-    (while (and found prevented (<= (point) end) (not (eobp)))
-      (setq found (adoc-kwf-search regexp end t))
-      (setq prevented
-            (and found
-                 (or
-                  (cl-some (lambda(x)
-                             (and (match-beginning x)
-                                  (text-property-not-all (match-beginning x)
-                                                         (match-end x)
-                                                         'adoc-reserved nil)))
-                           must-free-groups)
-                  (cl-some (lambda(x)
-                             (and (match-beginning x)
-                                  (text-property-any (match-beginning x)
-                                                     (match-end x)
-                                                     'adoc-reserved 'block-del)))
-                           no-block-del-groups))))
-      (when (and found prevented (<= (point) end))
-        (goto-char (1+ (match-beginning 0)))))
-    (and found (not prevented))))
+  (let (found)
+    (while (and
+            (setq found (adoc-kwf-search regexp end t))
+            (or
+             (cl-some (lambda(x)
+                        (and (match-beginning x)
+                             (text-property-not-all (match-beginning x)
+                                                    (match-end x)
+                                                    'adoc-reserved nil)))
+                      must-free-groups)
+             (cl-some (lambda(x)
+                        (and (match-beginning x)
+                             (text-property-any (match-beginning x)
+                                                (match-end x)
+                                                'adoc-reserved 'block-del)))
+                      no-block-del-groups))
+             ;; No new search if we reached the end (which may be eob).
+            (or
+             (< (match-beginning 0) end)
+             (setq found nil)))
+      (goto-char (1+ (match-beginning 0))))
+    found))
 
 (defun adoc-kwf-attribute-list (end)
   ;; for each attribute list before END
