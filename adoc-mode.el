@@ -1902,10 +1902,8 @@ meta characters."
     ;; matcher function
     (lambda (end)
       (let (found)
-        (while (and (setq found
-                          (adoc-kwf-search ,regexp end t))
+        (while (and (setq found (adoc-kwf-search ,regexp end t))
                     (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-reserved nil))
-          (setq found nil)
           (goto-char (+ (match-beginning 0) 1)))
         (when (and found adoc-insert-replacement ,replacement)
           (let* ((s (cond
