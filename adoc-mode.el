@@ -1901,18 +1901,13 @@ meta characters."
   `(list
     ;; matcher function
     (lambda (end)
-      (let ((found t) (prevented t) saved-point)
-        (while (and found prevented)
-          (setq saved-point (point))
-          (setq found
-                (adoc-kwf-search ,regexp end t))
-          (setq prevented ; prevented is only meaningful wenn found is non-nil
-                (or
-                 (not found) ; the following is only needed when found
-                 (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-reserved nil)))
-          (when (and found prevented)
-            (goto-char (+ saved-point 1))))
-        (when (and found (not prevented) adoc-insert-replacement ,replacement)
+      (let (found)
+        (while (and (setq found
+                          (adoc-kwf-search ,regexp end t))
+                    (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-reserved nil))
+          (setq found nil)
+          (goto-char (+ (match-beginning 0) 1)))
+        (when (and found adoc-insert-replacement ,replacement)
           (let* ((s (cond
                      ((stringp ,replacement)
                       ,replacement)
@@ -1924,7 +1919,7 @@ meta characters."
             (setq adoc-replacement-failed (not o))
             (unless adoc-replacement-failed
               (overlay-put o 'after-string s))))
-        (and found (not prevented))))
+        found))
 
     ;; highlighers
     ;; TODO: replacement instead warining face if resolver is not given
