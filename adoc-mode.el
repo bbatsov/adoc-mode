@@ -2040,7 +2040,11 @@ START-SRC and END-SRC delimit the actual source code."
             (outer-brackets-and-delimiter (&rest stuff)
                                           (format "^\\[%s\\]\n\\(?2:----+\\)\n"
                                                   (apply #'concat stuff)))
-            (lang () ",[\t ]*\\(source-language[\t ]*=[\t ]*\\)?\\(?1:[^],]+\\)")
+            ;; The language attribute is positional only (2nd slot).
+            ;; It gets its default value from the document attribute `source-language`.
+            ;; The leading space between the comma and the 2nd attribute is ignored.
+            ;; See https://docs.asciidoctor.org/asciidoc/latest/attributes/element-attributes/#attribute-list.
+            (lang () ",[\t ]*\\(?1:[^],]+\\)")
             (optional-other-args () "\\(?:,[^]]+\\)?"))
     (outer-brackets-and-delimiter
      (rx-or
