@@ -2040,7 +2040,7 @@ START-SRC and END-SRC delimit the actual source code."
             (outer-brackets-and-delimiter (&rest stuff)
                                           (format "^\\[%s\\]\n\\(?2:----+\\)\n"
                                                   (apply #'concat stuff)))
-            (lang () ",\\(?1:[^],]+\\)")
+            (lang () ",[\t ]*\\(source-language[\t ]*=[\t ]*\\)?\\(?1:[^],]+\\)")
             (optional-other-args () "\\(?:,[^]]+\\)?"))
     (outer-brackets-and-delimiter
      (rx-or
