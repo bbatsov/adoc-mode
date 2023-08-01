@@ -17,6 +17,23 @@
 ;;;; Helpers
 (require 'ert)
 (require 'adoc-mode)
+(require 'cl-lib)
+
+(defun adoctest-log-intervals (prop &optional print-prop)
+  "Return string with intervals of property PROP in current buffer.
+If PRINT-PROP is non-nil print use that property
+in the output instead of PROP."
+  (let ((buf (current-buffer)))
+    (with-temp-buffer
+      (cl-loop for int being the intervals of buf property prop do
+	       (insert
+		(format "#(%S %s %S)\n"
+			(with-current-buffer buf
+			  (buffer-substring-no-properties (car int) (cdr int)))
+			(or print-prop prop)
+			(get-text-property (car int) prop buf))
+		))
+      (buffer-string))))
 
 ;; todo:
 ;; - auto-create different contexts like
@@ -33,14 +50,27 @@ STRING1, FACE1, ..., STRINGn, FACEn are free.
 
 NAME is just for identifying the test.
 
+If instead of two consecutive elements
+STRINGk FACEk there is a list LISTk
+then this list is spliced into the argument list
+and the composed argument list is processed.
+
 \(fn NAME STRING1 FACE1 ... STRINGn FACEn)"
   (let ((not-done t)
-        (font-lock-support-mode))
+        (font-lock-support-mode)
+	expander)
+    (setq expander
+	  (lambda (args)
+	    (while args
+	      (if (listp (car args))
+		  (funcall expander (car args))
+		(insert (propertize (car args) 'adoctest (cadr args)))
+		(setq args (cdr args)))
+	      (setq args (cdr args))
+	      )))
     (with-temp-buffer
       ;; setup
-      (while args
-        (insert (propertize (car args) 'adoctest (cadr args)))
-        (setq args (cddr args)))
+      (funcall expander args)
 
       ;; exercise
       (adoc-mode)
@@ -48,20 +78,26 @@ NAME is just for identifying the test.
 
       ;; verify
       (goto-char (point-min))
-      (while not-done
-        (let* ((tmp (get-text-property (point) 'adoctest))
-               (tmp2 (get-text-property (point) 'face)))
-          (cond
-           ((null tmp)) ; nop
-           ((eq tmp 'no-face)
-            (should (null tmp2)))
-           (t
-            (if (and (listp tmp2) (not (listp tmp)))
-                (should (and (= 1 (length tmp2)) (equal tmp (car tmp2))))
-              (should (equal tmp tmp2)))))
-          (if (< (point) (point-max))
-              (forward-char 1)
-            (setq not-done nil)))))))
+      (ert-info
+	  ((format
+	    "Expected text:\n%s\nActual text:\n%s\n"
+	    (adoctest-log-intervals 'adoctest 'face)
+	    (adoctest-log-intervals 'face)
+	    ))
+	(while not-done
+          (let* ((tmp (get-text-property (point) 'adoctest))
+		 (tmp2 (get-text-property (point) 'face)))
+            (cond
+             ((null tmp)) ; nop
+             ((eq tmp 'no-face)
+              (should (null tmp2)))
+             (t
+              (if (and (listp tmp2) (not (listp tmp)))
+                  (should (and (= 1 (length tmp2)) (equal tmp (car tmp2))))
+		(should (equal tmp tmp2)))))
+            (if (< (point) (point-max))
+		(forward-char 1)
+              (setq not-done nil))))))))
 
 (defun adoctest-trans (original-text expected-text transform)
   "Calling TRANSFORM on ORIGINAL-TEXT `should' result in EXPECTED-TEXT.
@@ -300,18 +336,35 @@ Don't use it for anything real.")
        adoc-code-lang-modes
        adoc-fontify-code-block-default-mode
        adoc-font-lock-extend-after-change-max)
-    (adoctest-faces "code-block-natively"
-		    "\n" nil
-		    "[source,adoctest-lang]\n----\n" 'adoc-meta-face
-		    "if" '(font-lock-keyword-face adoc-native-code-face)
-		    "\n" '(adoc-native-code-face)
-		    "//" '(font-lock-comment-delimiter-face adoc-native-code-face)
-		    "comment" '(font-lock-comment-face adoc-native-code-face)
-		    "\n" '(adoc-meta-face adoc-native-code-face)
-		    "----" 'adoc-meta-face
-		    "\n" nil
-		    )
-    ))
+    (let ((source-code
+	   (list
+	    "if" '(font-lock-keyword-face adoc-native-code-face)
+	    "\n" '(adoc-native-code-face)
+	    "//" '(font-lock-comment-delimiter-face adoc-native-code-face)
+	    "comment" '(font-lock-comment-face adoc-native-code-face)
+	    )))
+      (adoctest-faces
+       "code-block-natively"
+       ;; Code block as LISTING
+       "\n" nil
+       "[source,adoctest-lang]\n----\n" 'adoc-meta-face
+       source-code
+       "\n" '(adoc-meta-face adoc-native-code-face)
+       "----" 'adoc-meta-face
+       "\n" nil
+       ;; Code block as Literal block
+       "[source,adoctest-lang]\n....\n" 'adoc-meta-face
+       source-code
+       "\n" '(adoc-meta-face adoc-native-code-face)
+       "...." 'adoc-meta-face
+       "\n" nil
+       ;; Test ignored spaces
+       "[source,\t adoctest-lang]\t \n....\n" 'adoc-meta-face
+       source-code
+       "\n" '(adoc-meta-face adoc-native-code-face)
+       "...." 'adoc-meta-face
+       "\n" nil
+       ))))
 
 (ert-deftest adoctest-test-anchors ()
   (adoctest-faces "anchors"

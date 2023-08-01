@@ -2040,7 +2040,7 @@ START-SRC and END-SRC delimit the actual source code."
             (outer-brackets-and-delimiter (&rest stuff)
                                           ;; Listing blocks (delimiter ----) and literal blocks (delimiter ....) can have `source`-style:
                                           ;; https://docs.asciidoctor.org/asciidoc/latest/blocks/delimited/#summary-of-structural-containers
-                                          (format "^\\[%s\\]\s*\n\\(?2:\\(----+\\|\\.\\{4,\\}\\)\\)\n"
+                                          (format "^\\[%s\\]\\s-*\n\\(?2:\\(----+\\|\\.\\{4,\\}\\)\\)\n"
                                                   (apply #'concat stuff)))
             ;; The language attribute is positional only (2nd slot).
             ;; It gets its default value from the document attribute `source-language`.
