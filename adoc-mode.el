@@ -2038,12 +2038,17 @@ START-SRC and END-SRC delimit the actual source code."
   (cl-flet ((rx-or (first second) (format "\\(?:%s\\|%s\\)" first second))
             (rx-optional (stuff) (format "\\(?:%s\\)?" stuff))
             (outer-brackets-and-delimiter (&rest stuff)
-                                          (format "^\\[%s\\]\n\\(?2:----+\\)\n"
+                                          ;; Listing blocks (delimiter ----) and literal blocks (delimiter ....) can have `source`-style:
+                                          ;; https://docs.asciidoctor.org/asciidoc/latest/blocks/delimited/#summary-of-structural-containers
+                                          (format "^\\[%s\\]\s*\n\\(?2:\\(----+\\|\\.\\{4,\\}\\)\\)\n"
                                                   (apply #'concat stuff)))
             ;; The language attribute is positional only (2nd slot).
             ;; It gets its default value from the document attribute `source-language`.
             ;; The leading space between the comma and the 2nd attribute is ignored.
             ;; See https://docs.asciidoctor.org/asciidoc/latest/attributes/element-attributes/#attribute-list.
+            ;;
+            ;; Even if that is not specified in https://docs.asciidoctor.org,
+            ;; whitespaces at the end of the block attributes are silently ignored by Asciidoctor.
             (lang () ",[\t ]*\\(?1:[^],]+\\)")
             (optional-other-args () "\\(?:,[^]]+\\)?"))
     (outer-brackets-and-delimiter
@@ -2078,7 +2083,7 @@ actual source code."
       (and (setq start-src (re-search-forward adoc-code-block-begin-regexp last noerror))
            (setq lang (or (match-string 1) t)
                  start-header (match-beginning 0))
-           (setq end-block (re-search-forward (format "\n%s$" (match-string 2))))
+           (setq end-block (re-search-forward (format "\n%s$" (regexp-quote (match-string 2))) nil t))
            (setq end-src (match-beginning 0)))
       )
     (when end-block
@@ -2102,7 +2107,10 @@ Returns a cons (BEG . END) with the updated limits of the region."
             end-block)
         (when beg-block
           (goto-char (match-end 0))
-          (setq end-block (or (re-search-forward (format "\n%s$" (match-string 2)) (+ (point) adoc-font-lock-extend-after-change-max) t) end))
+          (setq end-block (or (re-search-forward (format "\n%s$" (regexp-quote (match-string 2)))
+                                                 (+ (point) adoc-font-lock-extend-after-change-max)
+                                                 t)
+                              end))
           (when (and end-block (> end-block beg)) ;; block reaches really into edited area
             (cons (min beg beg-block) (max end end-block))))))))
 
