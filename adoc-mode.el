@@ -1561,7 +1561,9 @@ Subgroups of returned regexp:
 Like `re-search-forward' with the same arguments
 REGEXP, BOUND, NOERROR and COUNT.
 If a match for REGEXP is found where the text property
-`adoc-code-block' is non-nil continue the search."
+`adoc-code-block' is non-nil continue the search.
+This speeds up the search and avoids the application of
+adoc-syntax to code blocks."
   (let (ret)
     (while (and
             (setq ret (re-search-forward regexp bound noerror count))
