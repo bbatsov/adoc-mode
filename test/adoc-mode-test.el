@@ -352,6 +352,13 @@ Don't use it for anything real.")
        "\n" '(adoc-meta-face adoc-native-code-face)
        "----" 'adoc-meta-face
        "\n" nil
+       ;; Code block as OPEN BLOCK
+       "\n" nil
+       "[source,adoctest-lang]\n--\n" 'adoc-meta-face
+       source-code
+       "\n" '(adoc-meta-face adoc-native-code-face)
+       "--" 'adoc-meta-face
+       "\n" nil
        ;; Code block as Literal block
        "[source,adoctest-lang]\n....\n" 'adoc-meta-face
        source-code

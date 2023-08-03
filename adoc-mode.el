@@ -2038,9 +2038,9 @@ START-SRC and END-SRC delimit the actual source code."
   (cl-flet ((rx-or (first second) (format "\\(?:%s\\|%s\\)" first second))
             (rx-optional (stuff) (format "\\(?:%s\\)?" stuff))
             (outer-brackets-and-delimiter (&rest stuff)
-                                          ;; Listing blocks (delimiter ----) and literal blocks (delimiter ....) can have `source`-style:
+                                          ;; Listing blocks (delimiter ----), open blocks (delimiter --) and literal blocks (delimiter ....) can have `source`-style:
                                           ;; https://docs.asciidoctor.org/asciidoc/latest/blocks/delimited/#summary-of-structural-containers
-                                          (format "^\\[%s\\]\\s-*\n\\(?2:\\(----+\\|\\.\\{4,\\}\\)\\)\n"
+                                          (format "^\\[%s\\]\\s-*\n\\(?2:\\(--\\(?:--+\\)?\\|\\.\\{4,\\}\\)\\)\n"
                                                   (apply #'concat stuff)))
             ;; The language attribute is positional only (2nd slot).
             ;; It gets its default value from the document attribute `source-language`.
