@@ -583,6 +583,7 @@ Don't use it for anything real.")
   (adoctest-faces "test-quotes-simple"
                   ;; note that in unconstraned quotes cases " ipsum " has spaces around, in
                   ;; constrained quotes case it doesn't
+                  "Lorem " nil "``" adoc-meta-hide-face "ip" '(adoc-typewriter-face adoc-verbatim-face) "``" adoc-meta-hide-face "sum dolor\n" nil
                   "Lorem " nil "`" adoc-meta-hide-face "ipsum" '(adoc-typewriter-face adoc-verbatim-face) "`" adoc-meta-hide-face " dolor\n" nil
                   "Lorem " nil "+++" adoc-meta-hide-face " ipsum " '(adoc-typewriter-face adoc-verbatim-face) "+++" adoc-meta-hide-face " dolor\n" nil
                   "Lorem " nil "$$" adoc-meta-hide-face " ipsum " '(adoc-typewriter-face adoc-verbatim-face) "$$" adoc-meta-hide-face " dolor\n" nil
