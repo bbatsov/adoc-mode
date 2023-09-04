@@ -2409,6 +2409,7 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    ;; AsciiDoc Manual: constitutes an inline literal passthrough. The enclosed
    ;; text is rendered in a monospaced font and is only subject to special
    ;; character substitution.
+   (adoc-kw-quote 'adoc-unconstrained "``" adoc-typewriter-face nil nil t)     ;1)
    (adoc-kw-quote 'adoc-constrained "`" adoc-typewriter-face nil nil t)     ;1)
    ;; AsciiDoc Manual: The triple-plus passthrough is functionally identical to
    ;; the pass macro but you don’t have to escape ] characters and you can
