@@ -44,9 +44,10 @@
 
 (require 'cl-lib)
 (require 'tempo)
+(require 'rx)
 
 (defconst adoc-mode-version "0.8.0-snapshot"
-  "adoc mode version number.
+  "`adoc-mode' version number.
 
 Based upon AsciiDoc version 8.5.2. I.e. regexeps and rules are
 taken from that version's asciidoc.conf / manual.")
@@ -321,9 +322,9 @@ aligned.
 (defvar adoc-align-face 'adoc-align-face)
 
 ;; Despite the comment in font-lock.el near 'defvar font-lock-comment-face', it
-;; seems I still need variables to refer to faces in adoc-font-lock-keywords.
+;; seems I still need variables to refer to faces in adoc-mode-font-lock-keywords.
 ;; Not having variables and only referring to face names in
-;; adoc-font-lock-keywords does not work.
+;; adoc-mode-font-lock-keywords does not work.
 (defvar adoc-delimiter 'adoc-meta-face)
 (defvar adoc-hide-delimiter 'adoc-meta-hide-face)
 
@@ -369,8 +370,77 @@ customizable.")
 (defvar adoc-mode-abbrev-table nil
   "Abbrev table in use in adoc-mode buffers.")
 
-(defvar adoc-font-lock-keywords nil
-  "Font lock keywords in adoc-mode buffers.")
+(defconst adoc-title-0-regexp
+  (rx bol
+      "="
+      space
+      (one-or-more any)
+      eol)
+  "Regular expression for AsciiDoc Document Title (Level 0).")
+
+(defconst adoc-title-1-regexp
+  (rx bol
+      "=="
+      space
+      (one-or-more any)
+      eol)
+  "Regular expression for AsciiDoc Level 1 Section Title.")
+
+(defconst adoc-title-2-regexp
+  (rx bol
+      "==="
+      space
+      (one-or-more any)
+      eol)
+  "Regular expression for AsciiDoc Level 2 Section Title.")
+
+(defconst adoc-title-3-regexp
+  (rx bol
+      "===="
+      space
+      (one-or-more any)
+      eol)
+  "Regular expression for AsciiDoc Level 3 Section Title.")
+
+(defconst adoc-title-4-regexp
+  (rx bol
+      "===="
+      space
+      (one-or-more any)
+      eol)
+  "Regular expression for AsciiDoc Level 4 Section Title.")
+
+(defconst adoc-title-5-regexp
+  (rx bol
+      "====="
+      space
+      (one-or-more any)
+      eol)
+  "Regular expression for AsciiDoc Level 5 Section Title.")
+
+(defconst adoc-table-regexp
+  (rx (seq
+       (minimal-match
+        bol
+        "|==="
+        eol
+        (zero-or-more anything)
+        bol
+        "|==="
+        eol)))
+  "Regular expression for AsciiDoc table.")
+
+(defconst adoc-code-regexp
+  (rx (seq
+       (minimal-match
+        bol
+        "----"
+        eol
+        (zero-or-more anything)
+        bol
+        "----"
+        eol)))
+  "Regular expression for AsciiDoc code block.")
 
 (defvar adoc-replacement-failed nil )
 
@@ -766,13 +836,13 @@ language.
 (defvar adoc-verbatim-face 'adoc-verbatim-face)
 
 (defface adoc-warning-face
-  '((t :inherit (font-lock-warning-face)))
+  '((t :inherit font-lock-warning-face))
   "For things that should stand out"
   :group 'adoc-faces)
 (defvar adoc-warning-face 'adoc-warning-face)
 
 (defface adoc-table-face
-  '((t (:inherit (adoc-code-face))))
+  '((t (:inherit fixed-pitch)))
   "Face for tables."
   :group 'adoc-faces)
 (defvar adoc-table-face 'adoc-table-face)
@@ -933,6 +1003,7 @@ Use it to change the background of the code blocks."
 ;; from asciidoc.conf: ^= +(?P<title>[\S].*?)( +=)?$
 ;; asciidoc src code: Title.isnext reads two lines, which are then parsed by
 ;; Title.parse. The second line is only for the underline of two line titles.
+
 (defun adoc-re-one-line-title (level)
   "Returns a regex matching a one line title of the given LEVEL.
 When LEVEL is nil, a one line title of any level is matched.
@@ -946,7 +1017,7 @@ match-data has these sub groups:
 
 ==  my title  ==  n
 ---12------23------
-            4--4"
+4--4"
   (let* ((del (if level
                   (make-string (+ level 1) ?=)
                 (concat "=\\{1," (+ adoc-title-max-level 1) "\\}"))))
@@ -1001,7 +1072,7 @@ DEL is described in `adoc-re-two-line-title-undlerline'.
 match-data has these sub groups:
 
 1 dummy, so that group 2 is the title's text as in
-  adoc-re-one-line-title
+adoc-re-one-line-title
 2 title's text
 3 delimiter
 0 only chars that belong to the title block element"
@@ -1111,7 +1182,7 @@ Subgroups:
 3 delimiter incl trailing whites
 4 delimiter only
 
-  foo :: bar
+foo :: bar
 -12--23-3
       44"
   (cond
@@ -2695,7 +2766,7 @@ new customization demands."
              (null adoc-unichar-alist))
     (adoc-make-unichar-alist))
 
-  (setq adoc-font-lock-keywords (adoc-get-font-lock-keywords))
+  (setq adoc-mode-font-lock-keywords (adoc-get-font-lock-keywords))
   (when (and font-lock-mode (eq major-mode 'adoc-mode))
     (font-lock-flush)
     (font-lock-ensure)))
@@ -3433,6 +3504,22 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
             :help ,adoc-help-monospace-literal])))))
     map)
   "Keymap used in adoc mode.")
+
+
+(defcustom adoc-mode-font-lock-keywords
+  `(
+    ((adoc-title-0-regexp) 0 ,adoc-title-0-face)
+    ((adoc-title-1-regexp) 0 ,adoc-title-1-face)
+    ((adoc-title-2-regexp) 0 ,adoc-title-2-face)
+    ((adoc-title-3-regexp) 0 ,adoc-title-3-face)
+    ((adoc-title-4-regexp) 0 ,adoc-title-4-face)
+    ((adoc-title-5-regexp) 0 ,adoc-title-5-face)
+    ((adoc-table-regexp) 0 ,adoc-table-face)
+    ((adoc-code-regexp) 0 ,adoc-code-face))
+  "Font lock keywords used to highlight text in AsciiDoc files mode."
+  :version "0.8.0-snapshot"
+  :type 'sexp
+  :group 'adoc-mode)
 
 
 ;;;###autoload
