@@ -1487,7 +1487,10 @@ Subgroups of returned regexp:
    "--"
    "\\)"
    "[ \t]*$"
-   ))
+
+   ;; one line titles and block titles (https://docs.asciidoctor.org/asciidoc/latest/blocks/add-title/#block-title-syntax)
+   "\\|"
+   "[=.].*$"))
 
 ;; TODO: use same regexps as for font lock
 (defun adoc-re-paragraph-start ()
@@ -1512,10 +1515,7 @@ Subgroups of returned regexp:
    ;; table rows
    "\\|"
    "|"
-
-   ;; one line titles
-   "\\|"
-   "[=.].*$"))
+))
 
 (defun adoc-re-aor(e1 e2)
   "all or: Returns a regex matching \(e1\|e2\|e1e2\)? "
