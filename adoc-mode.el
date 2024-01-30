@@ -2006,7 +2006,7 @@ START-SRC and END-SRC delimit the actual source code."
     (when (fboundp lang-mode)
       (let ((string (buffer-substring-no-properties start-src end-src))
             (modified (buffer-modified-p))
-            (adoc-buffer (current-buffer)) int)
+            (adoc-buffer (current-buffer)))
         (remove-text-properties start-block end-block '(face nil adoc-code-block nil font-lock-fontified nil font-lock-multiline nil))
         (with-current-buffer
             (get-buffer-create
@@ -2019,7 +2019,8 @@ START-SRC and END-SRC delimit the actual source code."
             (insert string))
           (unless (eq major-mode lang-mode) (funcall lang-mode))
           (font-lock-ensure)
-          (cl-loop for int being the intervals property 'face
+          (cl-loop for int = nil
+                   for int being the intervals property 'face
                    for pos = (car int)
                    for next = (cdr int)
                    for val = (get-text-property pos 'face)
