@@ -1992,6 +1992,13 @@ LANG is a string, and the returned major mode is a symbol."
          (intern (concat lang "-mode"))
          (intern (concat (downcase lang) "-mode")))))
 
+(defmacro adoc-cond-let (cond binding &rest body)
+  "Let-bind BINDING when COND is fulfilled at compile-time.
+Execute BODY like `progn'."
+  (declare (debug (form (&rest (symbolp form)) body)) (indent 2))
+  `(let ,(when (eval cond) binding)
+     ,@body))
+
 ;; Based on `org-src-font-lock-fontify-block' from org-src.el.
 (defun adoc-fontify-code-block-natively (lang start-block end-block start-src end-src)
   "Fontify source code block.
@@ -2019,15 +2026,15 @@ START-SRC and END-SRC delimit the actual source code."
             (insert string))
           (unless (eq major-mode lang-mode) (funcall lang-mode))
           (font-lock-ensure)
-          (cl-loop for int = nil
-                   for int being the intervals property 'face
-                   for pos = (car int)
-                   for next = (cdr int)
-                   for val = (get-text-property pos 'face)
-                   when val do
-                   (put-text-property
-                    (+ start-src (1- pos)) (1- (+ start-src next)) 'face
-                    val adoc-buffer)))
+          (adoc-cond-let (version< emacs-version "30.0") (int)
+            (cl-loop for int being the intervals property 'face
+                     for pos = (car int)
+                     for next = (cdr int)
+                     for val = (get-text-property pos 'face)
+                     when val do
+                     (put-text-property
+                      (+ start-src (1- pos)) (1- (+ start-src next)) 'face
+                      val adoc-buffer))))
         (add-text-properties start-block start-src '(face adoc-meta-face))
         (add-text-properties end-src end-block '(face adoc-meta-face))
         (add-text-properties
