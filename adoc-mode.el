@@ -1918,6 +1918,7 @@ meta characters."
                       (make-overlay (match-end 1) (match-end 1)))))
             (setq adoc-replacement-failed (not o))
             (unless adoc-replacement-failed
+              (overlay-put o 'adoc-kw-replacement t)
               (overlay-put o 'after-string s))))
         found))
 
@@ -2148,11 +2149,9 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
 (defun adoc-unfontify-region-function (beg end)
   (font-lock-default-unfontify-region beg end)
 
-  ;; remove overlays. Currently only used by AsciiDoc replacements
-  ;; TODO: this is an extremely brute force solution and interacts very badly
-  ;; with many (minor) modes using overlays such as flyspell or ediff
-  (when adoc-insert-replacement
-    (remove-overlays beg end))
+  (cl-loop for ol being the overlays from beg to end
+           when (overlay-get ol 'adoc-kw-replacement)
+           do (delete-overlay ol))
 
   ;; text properties. Currently only display raise used for sub/superscripts.
   ;; code snipped copied from tex-mode
