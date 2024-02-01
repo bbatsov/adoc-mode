@@ -1993,7 +1993,8 @@ LANG is a string, and the returned major mode is a symbol."
          (intern (concat (downcase lang) "-mode")))))
 
 (defun adoc-map-intervals (fun property &optional beg end object)
-  "Apply FUN to all intervals of PROPERTY in OBJECT in the region from BEG to END."
+  "Apply FUN to all intervals of PROPERTY in OBJECT in the region from BEG to END.
+FUN is called with two arguments: the beginning and the end of the interval."
   (unless object (setq object (current-buffer)))
   (unless beg (setq beg (point-min)))
   (unless end (setq end (point-max)))
