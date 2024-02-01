@@ -2913,15 +2913,6 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 (defvar adoc-inline-image-overlays nil)
 (make-variable-buffer-local 'adoc-inline-image-overlays)
 
-(defun adoc-remove-images ()
-  "Remove inline image overlays from image links in the buffer.
-This can be toggled with `adoc-toggle-inline-images'
-or \\[adoc-toggle-inline-images]."
-  (interactive)
-  (save-restriction
-    (widen)
-    (remove-overlays nil nil 'adoc-image t)))
-
 (defcustom adoc-display-remote-images nil
   "If non-nil, download and display remote images.
 See also `adoc-inline-image-overlays'.
@@ -3001,6 +2992,38 @@ or \\[adoc-toggle-inline-images]."
               (file (match-string-no-properties 1)))
           (adoc-create-image-overlay file start end)
           )))))
+
+(defun adoc-image-overlays (&optional begin end)
+  "Return list of image overlays in region from BEGIN to END.
+BEGIN and END default to the buffer boundaries
+ignoring any restrictions."
+  (save-restriction
+    (widen)
+    (unless begin (setq begin (point-min)))
+    (unless end (setq end (point-max)))
+    (let (image-overlays)
+      (dolist (ov (overlays-in begin end))
+        (when (overlay-get ov 'adoc-image)
+          (push ov image-overlays)))
+      image-overlays)))
+
+(defun adoc-remove-images ()
+  "Remove inline image overlays from image links in the buffer.
+This can be toggled with `adoc-toggle-images'
+or \\[adoc-toggle-images]."
+  (interactive)
+  (let ((image-list (adoc-image-overlays)))
+    (when image-list
+      (dolist (ov image-list)
+        (delete-overlay ov))
+      t)))
+
+(defun adoc-toggle-images ()
+  "Toggle the display of images."
+  (interactive)
+  (unless (adoc-remove-images)
+    (adoc-display-images)
+    ))
 
 (defmacro adoc-with-point-at-event (location &rest body)
   "Execute BODY like `progn'.
@@ -3674,7 +3697,9 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
            ["$$text$$" tempo-template-pass-$$
             :help ,adoc-help-pass-$$]
            ["`text`" tempo-template-monospace-literal ; redundant to the one in the quotes section
-            :help ,adoc-help-monospace-literal])))))
+            :help ,adoc-help-monospace-literal])))
+        "---"
+        ["Toggle display of images" adoc-toggle-images t]))
     map)
   "Keymap used in adoc mode.")
 
