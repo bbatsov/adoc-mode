@@ -310,7 +310,7 @@ When nil, use the actual size.  Otherwise, use ImageMagick to
 resize larger images to be of the given maximum dimensions.  This
 requires Emacs to be built with ImageMagick support."
   :group 'adoc
-  :package-version '(markdown-mode . "0.8.0")
+  :package-version '(adoc-mode . "0.9.0")
   :type '(choice
           (const :tag "Use actual image width" nil)
           (cons (choice (sexp :tag "Maximum width in pixels")
