@@ -44,6 +44,8 @@
 
 (require 'cl-lib)
 (require 'tempo)
+(require 'mouse)
+(require 'image)
 
 (defconst adoc-mode-version "0.8.0-snapshot"
   "adoc mode version number.
