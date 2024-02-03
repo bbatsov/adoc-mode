@@ -3770,7 +3770,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (when (boundp 'compilation-error-regexp-alist)
     (make-local-variable 'compilation-error-regexp-alist)
     (add-to-list 'compilation-error-regexp-alist 'asciidoc))
-  (when adoc-show-images-at-startup
+  (when (and (display-graphic-p) adoc-show-images-at-startup)
     (adoc-display-images)))
 
 ;;;###autoload
