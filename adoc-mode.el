@@ -51,6 +51,9 @@
     (require 'subr-x)
     ))
 
+(declare-function imagep "image.c")
+(declare-function image-flush "image.c")
+
 (defconst adoc-mode-version "0.8.0-snapshot"
   "adoc mode version number.
 
