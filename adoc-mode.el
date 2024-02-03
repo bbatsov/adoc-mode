@@ -46,6 +46,10 @@
 (require 'tempo)
 (require 'mouse)
 (require 'image)
+(eval-when-compile
+  (when (version< emacs-version "29.0") ;; when-let has moved from subr-x to subr
+    (require 'subr-x)
+    ))
 
 (defconst adoc-mode-version "0.8.0-snapshot"
   "adoc mode version number.
