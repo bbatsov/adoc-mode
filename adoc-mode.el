@@ -323,13 +323,6 @@ requires Emacs to be built with ImageMagick support."
   :group 'adoc
   :type 'booleanp)
 
-(defcustom adoc-use-local-context-menu t
-  "Activate context menu in adoc-mode.
-If deactivated, you can still globally activate
-the context menu with `context-menu-mode'."
-  :group 'adoc
-  :type 'booleanp)
-
 
 ;;;; faces / font lock
 (define-obsolete-face-alias 'adoc-orig-default 'adoc-align-face "23.3")
@@ -1835,7 +1828,7 @@ When LITERAL-P is non-nil, the contained text is literal text."
      '(3 nil)) ; grumbl, I don't know how to get rid of it
    `(4 '(face ,(or del-face adoc-meta-hide-face) adoc-reserved t) t))); close del
 
-(defun adoc-kw-inline-macro (&optional cmd-name unconstrained attribute-list-constraints cmd-face target-faces target-meta-p attribute-list)
+(defun adoc-kw-inline-macro (&optional cmd-name unconstrained attribute-list-constraints cmd-face target-faces target-meta-p attribute-list textprops)
   "Returns a kewyword which highlights an inline macro.
 
 For CMD-NAME and UNCONSTRAINED see
@@ -1845,20 +1838,21 @@ determines face for the target text. If nil `adoc-meta-face' is
 used. If a list, the first is used if the attribute list is the
 empty string, the second is used if its not the empty string. If
 TARGET-META-P is non-nil, the target text is considered to be
-meta characters."
+meta characters.
+TEXTPROPS is an additional plist with textproperties."
   (list
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name nil unconstrained attribute-list-constraints) '(1 2 4 5) '(0)))
-   `(1 '(face ,(or cmd-face adoc-command-face) adoc-reserved t) t) ; cmd-name
-   '(2 '(face adoc-meta-face adoc-reserved t) t)                   ; :
+   `(1 '(face ,(or cmd-face adoc-command-face) adoc-reserved t . ,textprops) t) ; cmd-name
+   '(2 '(face adoc-meta-face adoc-reserved t . ,textprops) t)                   ; :
    `(3 ,(cond ((not target-faces) adoc-meta-face)                  ; target
               ((listp target-faces) `(if (string= (match-string 5) "") ; 5=attribute-list
                                          ,(car target-faces)
                                        ,(cadr target-faces)))
               (t target-faces))
        ,(if target-meta-p t 'append))
-   '(4 '(face adoc-meta-face adoc-reserved t) t) ; [
-   `(5 '(face adoc-meta-face adoc-attribute-list ,(or attribute-list t)) t)
-   '(6 '(face adoc-meta-face adoc-reserved t) t))) ; ]
+   '(4 '(face adoc-meta-face adoc-reserved t . ,textprops) t) ; [
+   `(5 '(face adoc-meta-face adoc-attribute-list ,(or attribute-list t) . ,textprops) t)
+   '(6 '(face adoc-meta-face adoc-reserved t . ,textprops) t))) ; ]
 
 ;; largely copied from adoc-kw-inline-macro
 ;; TODO: output text should be affected by quotes & co, e.g. bold, emph, ...
@@ -2287,7 +2281,7 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    ;; image. The first positional attribute is per definition 'alt', see
    ;; asciidoc manual, sub chapter 'Image macro attributes'.
    (list `(lambda (end) (adoc-kwf-std end ,(adoc-re-block-macro "image") '(0)))
-         '(0 '(face adoc-meta-face adoc-reserved block-del) t) ; whole match
+         '(0 '(face adoc-meta-face adoc-reserved block-del keymap adoc-image-link-map) t) ; whole match
          '(1 adoc-complex-replacement-face t) ; 'image'
          '(2 adoc-internal-reference-face t)  ; file name
          '(3 '(face adoc-meta-face adoc-reserved nil adoc-attribute-list ("alt")) t)) ; attribute list
@@ -2532,7 +2526,7 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    (adoc-kw-inline-macro-urls-attribute-list)
    (adoc-kw-inline-macro "anchor" nil nil nil adoc-anchor-face t '("xreflabel"))
    (adoc-kw-inline-macro "image" nil nil adoc-complex-replacement-face adoc-internal-reference-face t
-                         '("alt"))
+                         '("alt") '(keymap adoc-image-link-map))
    (adoc-kw-inline-macro "xref" nil nil nil '(adoc-reference-face adoc-internal-reference-face) t
                          '(("caption") (("caption" . adoc-reference-face))))
    (adoc-kw-inline-macro "footnote" t nil nil nil nil adoc-secondary-text-face)
@@ -2949,6 +2943,43 @@ See also `adoc-display-remote-images'."
   "Functions called after the creation of an image overlay.
 Each function is called with the created overlay as argument.")
 
+(defvar adoc-image-menu (make-sparse-keymap "Image")
+  "Common menu of image links and image overlays.")
+
+(defvar adoc-image-link-menu
+  (let ((map (make-sparse-keymap "Image")))
+    (set-keymap-parent map adoc-image-menu)
+    (easy-menu-add-item map nil ["Generate Preview At Point"
+                                 (lambda (e) (interactive "e") (adoc-display-image-at e))
+                                 t])
+    map)
+  "Context menu of image links.")
+
+(defvar adoc-image-link-map
+  (let ((map (make-sparse-keymap "Image")))
+    (define-key map (kbd "<down-mouse-3>")
+                (lambda () (interactive) (popup-menu adoc-image-link-menu)))
+    map)
+  "Keymap for image links.")
+
+(fset 'adoc-image-link-map adoc-image-link-map)
+
+(defvar adoc-image-overlay-menu
+  (let ((map (make-sparse-keymap "Image")))
+    (set-keymap-parent map adoc-image-menu)
+    (easy-menu-add-item map nil ["Remove Preview At Point"
+                                 (lambda (e) (interactive "e") (adoc-remove-image-overlay-at e))
+                                 t])
+    map)
+  "Context menu of image overlays.")
+
+(defvar adoc-image-overlay-map
+  (let ((map (make-sparse-keymap "Image")))
+    (define-key map (kbd "<down-mouse-3>")
+                (lambda () (interactive) (popup-menu adoc-image-overlay-menu)))
+    map)
+  "Keymap for image overlays.")
+
 (defun adoc-create-image-overlay (file start end)
   "Create image overlay with START and END displaying image FILE."
   (when (not (zerop (length file)))
@@ -2974,6 +3005,7 @@ Each function is called with the created overlay as argument.")
                     (overlay-put ov 'adoc-image t)
                     (overlay-put ov 'display image)
                     (overlay-put ov 'face 'default)
+                    (overlay-put ov 'keymap adoc-image-overlay-map)
                     (run-hook-with-args 'adoc-image-overlay-functions ov)))))))
 
 (defun adoc-display-images ()
@@ -3120,25 +3152,6 @@ If FLUSH is non-nil also flush the cache for this image."
                    ((imagep image)))
           (image-flush image))
         (delete-overlay ov)))))
-
-(defvar adoc-image-context-menu (make-sparse-keymap "Image")
-  "Context menu shown at image links and corresponding overlays.")
-
-(defun adoc-image-context-menu (menu event)
-  "Add `adoc-image-context-menu' to the context MENU.
-See variable `context-menu-functions' for parameter EVENT."
-  (when (adoc-image-link-at event)
-    (let ((image-menu (make-sparse-keymap "Image")))
-      (set-keymap-parent image-menu adoc-image-context-menu)
-      (if (adoc-image-overlay-at event)
-          (easy-menu-add-item image-menu nil ["Remove Preview At Point"
-                                        (lambda (e) (interactive "e") (adoc-remove-image-overlay-at e))
-                                        t])
-        (easy-menu-add-item image-menu nil ["Generate Preview At Point"
-                                      (lambda (e) (interactive "e") (adoc-display-image-at e))
-                                      t]))
-      (easy-menu-add-item menu nil image-menu)))
-  menu)
 
 
 ;;;; misc
@@ -3748,7 +3761,6 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   ;; nil, or even something else. See also similar comment in sgml-mode.
   (setq-local imenu-create-index-function 'adoc-imenu-create-index)
 
-  (add-hook 'context-menu-functions #'adoc-image-context-menu nil t)
   ;; compilation
   (when (boundp 'compilation-error-regexp-alist-alist)
     (add-to-list 'compilation-error-regexp-alist-alist
@@ -3759,9 +3771,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
     (make-local-variable 'compilation-error-regexp-alist)
     (add-to-list 'compilation-error-regexp-alist 'asciidoc))
   (when adoc-show-images-at-startup
-    (adoc-display-images))
-  (when adoc-use-local-context-menu
-    (setq-local context-menu-mode t)))
+    (adoc-display-images)))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.a\\(?:scii\\)?doc\\'" . adoc-mode))
