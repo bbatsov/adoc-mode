@@ -328,7 +328,7 @@ requires Emacs to be built with ImageMagick support."
 (defcustom adoc-show-images-at-startup t
   "Run `adoc-display-images' in `adoc-mode'."
   :group 'adoc
-  :type 'booleanp)
+  :type 'boolean)
 
 
 ;;;; faces / font lock
