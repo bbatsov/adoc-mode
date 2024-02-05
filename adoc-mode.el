@@ -44,10 +44,7 @@
 
 (require 'cl-lib)
 (require 'tempo)
-(eval-when-compile
-  (when (version< emacs-version "29.0") ;; when-let has moved from subr-x to subr
-    (require 'subr-x)
-    ))
+(require 'subr-x)
 
 (declare-function imagep "image.c")
 (declare-function image-flush "image.c")
