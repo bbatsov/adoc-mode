@@ -44,8 +44,6 @@
 
 (require 'cl-lib)
 (require 'tempo)
-(require 'mouse)
-(require 'image)
 (eval-when-compile
   (when (version< emacs-version "29.0") ;; when-let has moved from subr-x to subr
     (require 'subr-x)
@@ -311,7 +309,7 @@ Also used to delimit the scan for the end delimiter."
   :package-version '(adoc-mode . "0.8.0"))
 
 (defcustom adoc-max-image-size nil
-  "Maximum width and height for displayed inline images.
+  "Maximum width and height for displayed images.
 This variable may be nil or a cons cell (MAX-WIDTH . MAX-HEIGHT).
 When nil, use the actual size.  Otherwise, use ImageMagick to
 resize larger images to be of the given maximum dimensions.  This
@@ -325,9 +323,10 @@ requires Emacs to be built with ImageMagick support."
                 (choice (sexp :tag "Maximum height in pixels")
                         (const :tag "No maximum height" nil)))))
 
-(defcustom adoc-show-images-at-startup t
+(defcustom adoc-display-images-at-startup t
   "Run `adoc-display-images' in `adoc-mode'."
   :group 'adoc
+  :package-version '(adoc-mode . "0.9.0")
   :type 'boolean)
 
 
@@ -1849,7 +1848,8 @@ meta characters.
 TEXTPROPS is an additional plist with textproperties."
   (list
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name nil unconstrained attribute-list-constraints) '(1 2 4 5) '(0)))
-   `(1 '(face ,(or cmd-face adoc-command-face) adoc-reserved t . ,textprops) t) ; cmd-name
+   `(0 '(face nil . ,textprops) t)
+   `(1 '(face ,(or cmd-face adoc-command-face) adoc-reserved t) t) ; cmd-name
    '(2 '(face adoc-meta-face adoc-reserved t . ,textprops) t)                   ; :
    `(3 ,(cond ((not target-faces) adoc-meta-face)                  ; target
               ((listp target-faces) `(if (string= (match-string 5) "") ; 5=attribute-list
@@ -2529,11 +2529,12 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    ;; - same order as in asciidoc.conf (is that in 'reverse'? cause 'default syntax' comes first)
 
    ;; Macros using default syntax, but having special highlighting in adoc-mode
+   ;; Remote inline images may contain an url.  So they must be fontified before general urls.
+   (adoc-kw-inline-macro "image" nil nil adoc-complex-replacement-face adoc-internal-reference-face t
+                         '("alt") '(keymap adoc-image-link-map))
    (adoc-kw-inline-macro-urls-no-attribute-list)
    (adoc-kw-inline-macro-urls-attribute-list)
    (adoc-kw-inline-macro "anchor" nil nil nil adoc-anchor-face t '("xreflabel"))
-   (adoc-kw-inline-macro "image" nil nil adoc-complex-replacement-face adoc-internal-reference-face t
-                         '("alt") '(keymap adoc-image-link-map))
    (adoc-kw-inline-macro "xref" nil nil nil '(adoc-reference-face adoc-internal-reference-face) t
                          '(("caption") (("caption" . adoc-reference-face))))
    (adoc-kw-inline-macro "footnote" t nil nil nil nil adoc-secondary-text-face)
@@ -2913,22 +2914,22 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 ;; Disclaimer: Most of the following stuff is copied from `markdown-mode' and adapted to `adoc-mode'.
 (require 'url-parse)
 
-(defvar adoc-inline-image-overlays nil)
-(make-variable-buffer-local 'adoc-inline-image-overlays)
+(defvar adoc-image-overlays nil)
+(make-variable-buffer-local 'adoc-image-overlays)
 
 (defcustom adoc-display-remote-images nil
   "If non-nil, download and display remote images.
-See also `adoc-inline-image-overlays'.
+See also `adoc-image-overlays'.
 
 Only image URLs specified with a protocol listed in
 `adoc-remote-image-protocols' are displayed."
-  :group 'markdown
+  :group 'adoc
   :type 'boolean)
 
 (defcustom adoc-remote-image-protocols '("https")
   "List of protocols to use to download remote images.
 See also `adoc-display-remote-images'."
-  :group 'markdown
+  :group 'adoc
   :type '(repeat string))
 
 (defvar adoc--remote-image-cache
@@ -3017,8 +3018,8 @@ Each function is called with the created overlay as argument.")
 
 (defun adoc-display-images ()
   "Add inline image overlays to image links in the buffer.
-This can be toggled with `adoc-toggle-inline-images'
-or \\[adoc-toggle-inline-images]."
+This can be toggled with `adoc-toggle-images'
+or \\[adoc-toggle-images]."
   (interactive)
   (unless (display-images-p)
     (error "Cannot show images"))
@@ -3049,7 +3050,7 @@ ignoring any restrictions."
       image-overlays)))
 
 (defun adoc-remove-images ()
-  "Remove inline image overlays from image links in the buffer.
+  "Remove image overlays from image links in the buffer.
 This can be toggled with `adoc-toggle-images'
 or \\[adoc-toggle-images]."
   (interactive)
@@ -3777,7 +3778,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (when (boundp 'compilation-error-regexp-alist)
     (make-local-variable 'compilation-error-regexp-alist)
     (add-to-list 'compilation-error-regexp-alist 'asciidoc))
-  (when (and (display-graphic-p) adoc-show-images-at-startup)
+  (when (and (display-graphic-p) adoc-display-images-at-startup)
     (adoc-display-images)))
 
 ;;;###autoload

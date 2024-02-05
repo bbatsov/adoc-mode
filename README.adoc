@@ -35,6 +35,7 @@ Here are some of the main features of `adoc-mode`:
 
 - sophisticated highlighting
 - native fontification of code blocks
+- toggle between the display of image links and the display of the corresponding images
 - promote / demote title
 - toggle title type between one line title and two line title
 - adjust underline length of a two line title to match title text's length
@@ -44,9 +45,11 @@ Here are some of the main features of `adoc-mode`:
 === Demo
 
 The highlighting emphasizes on how the output will look like. _All_
-characters are visible, however meta characters are displayed in a faint way.
+characters are visible, however meta characters are displayed in a
+faint way.  An exception are image links.  You can toggle between
+the display of the link text and the linked image.
 
-image:images/adoc-mode.png[alt=screenshot]
+image::images/adoc-mode.png[alt=screenshot]
 
 == Installation
 
@@ -111,6 +114,16 @@ This can be tweaked by several configuration options:
 * All programming languages `XYZ` that have an Emacs major mode `XYZ-mode` and use `font-lock` are automatically supported. Some other languages not fitting into that name scheme are supported through the alist `adoc-code-lang-modes`. You can add your own languages and modes there if they work based on `font-lock` and are not automatically supported.
 * The fall-back language mode is `prog-mode` without any fontification. You can set your own default by `adoc-fontify-code-block-default-mode`.
 
+=== Display of Image Links
+
+You can toggle between the display of image links and the display of the corresponding images with the menu item _AsciiDoc → Toggle display of images_. Each image link and each image has a context menu where you can display and remove the image preview at point.
+
+Images in an AsciiDoc file are shown as preview when you open it by default. You can avoid that by deactivating the option `adoc-display-remote-images`.
+
+The maximal size for the preview of images can be set by `adoc-max-image-size`.
+
+An image link can also be given as url to a remote image. The display of remote images is switched off by default. You can activate it by the option `adoc-display-remote-images`.
+Thereby, images are only downloaded if the protocol of the url matches one of those in the list `adoc-remote-image-protocols`. This list can be customized. By default, it only contains the entry `https`.
 === Syntax Highlighting Customization
 
 It is possible to customize the way `adoc-mode` renders different text
