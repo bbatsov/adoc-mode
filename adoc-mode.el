@@ -320,8 +320,8 @@ requires Emacs to be built with ImageMagick support."
                 (choice (sexp :tag "Maximum height in pixels")
                         (const :tag "No maximum height" nil)))))
 
-(defcustom adoc-display-images-at-startup t
-  "Run `adoc-display-images' in `adoc-mode'."
+(defcustom adoc-display-images t
+  "Run `adoc-display-images' in function `adoc-mode'."
   :group 'adoc
   :package-version '(adoc-mode . "0.9.0")
   :type 'boolean)
@@ -3775,7 +3775,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (when (boundp 'compilation-error-regexp-alist)
     (make-local-variable 'compilation-error-regexp-alist)
     (add-to-list 'compilation-error-regexp-alist 'asciidoc))
-  (when (and (display-graphic-p) adoc-display-images-at-startup)
+  (when (and (display-graphic-p) adoc-display-images)
     (adoc-display-images)))
 
 ;;;###autoload
