@@ -3794,7 +3794,9 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   "Function for `flyspell-mode-predicate' property of `adoc-mode'.
 Returns t if word at point should be checked, nil otherwise."
   (font-lock-ensure (line-beginning-position) (line-end-position))
-  (null (get-text-property (point) 'adoc-flyspell-ignore)))
+  (null (get-text-property
+         (1- (point)) ;; preceding word is checked, so 1- should do no harm
+         'adoc-flyspell-ignore)))
 
 (put 'adoc-mode 'flyspell-mode-predicate 'adoc-flyspell-p)
 
