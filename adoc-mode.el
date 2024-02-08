@@ -1847,7 +1847,7 @@ TEXTPROPS is an additional plist with textproperties."
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name nil unconstrained attribute-list-constraints) '(1 2 4 5) '(0)))
    `(0 '(face nil . ,textprops) t)
    `(1 '(face ,(or cmd-face adoc-command-face) adoc-reserved t adoc-flyspell-ignore t) t) ; cmd-name
-   '(2 '(face adoc-meta-face adoc-reserved t. ,textprops) t)                   ; :
+   '(2 '(face adoc-meta-face adoc-reserved t . ,textprops) t)                   ; :
    `(3 (list 'face
              ,(cond
                ((not target-faces) adoc-meta-face)                      ; target
