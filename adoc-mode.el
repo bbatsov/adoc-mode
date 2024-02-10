@@ -2400,11 +2400,11 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    ;; admonition block
    (list "^\\(\\[\\(?:CAUTION\\|WARNING\\|IMPORTANT\\|TIP\\|NOTE\\)\\]\\)[ \t]*$"
          '(1 '(face adoc-complex-replacement-face adoc-reserved block-del)))
-   ;; block id
+   ;; block id [[BLOCK-ID,SECONDARY-TEXT]]
    (list `(lambda (end) (adoc-kwf-std end ,(adoc-re-anchor 'block-id) '(0)))
          '(0 '(face adoc-meta-face adoc-reserved block-del))
-         '(1 adoc-anchor-face t)
-         '(2 adoc-secondary-text-face t t))
+         '(1 '(face adoc-anchor-face adoc-flyspell-ignore t) t) ;; BLOCK-ID
+         '(2 adoc-secondary-text-face t t)) ;; SECONDARY-TEXT
 
    ;; --- general attribute list block element
    ;; ^\[(?P<attrlist>.*)\]$
