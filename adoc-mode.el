@@ -2066,12 +2066,6 @@ START-SRC and END-SRC delimit the actual source code."
                      (put-text-property
                       (+ start-src (1- pos)) (1- (+ start-src next)) 'face
                       val adoc-buffer))))
-        (add-text-properties start-block start-src '(face adoc-meta-face))
-        (add-text-properties end-src end-block '(face adoc-meta-face))
-        (add-text-properties
-         start-block end-block
-         '(font-lock-fontified t fontified t font-lock-multiline t
-                               adoc-code-block t adoc-reserved t))
         (set-buffer-modified-p modified)))))
 
 (defconst adoc-code-block-begin-regexp
@@ -2169,20 +2163,21 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
                  (end-src+nl (if (eq (char-after end-src) ?\n) (1+ end-src) end-src))
                  (size (1+ (- end-src start-src))))
             (if (and
+                 (stringp lang)
                  (if (numberp adoc-fontify-code-blocks-natively)
                      (<= size adoc-fontify-code-blocks-natively)
-                   adoc-fontify-code-blocks-natively)
-                 (stringp lang))
-                (adoc-fontify-code-block-natively lang start-block end-block start-src end-src)
-              (add-text-properties
-               start-src
-               end-src
-               '(font-lock-face adoc-verbatim-face)))
-            ;; Set background for block as well as opening and closing lines.
-            (font-lock-append-text-property
-             start-src end-src+nl 'face 'adoc-native-code-face)
-            (add-text-properties
-             start-src end-src+nl '(font-lock-fontified t font-lock-multiline t adoc-code-block t))
+                   adoc-fontify-code-blocks-natively))
+                (progn
+                  (adoc-fontify-code-block-natively lang start-block end-block start-src end-src)
+                  (font-lock-append-text-property start-src end-src 'face 'adoc-native-code-face)
+                  (add-text-properties end-src end-src+nl '(face adoc-native-code-face)))
+              ;; code block without language attribute or too large
+              (add-text-properties start-src end-src '(face (adoc-verbatim-face adoc-code-face)))
+              (add-text-properties end-src end-src+nl '(face adoc-code-face)))
+            (add-text-properties start-block start-src '(face adoc-meta-face))
+            (put-text-property end-src+nl end-block 'face adoc-meta-face)
+            (add-text-properties start-src end-src+nl '(adoc-code-block t))
+            (add-text-properties start-block end-block '(font-lock-fontified t font-lock-multiline t adoc-reserved t))
             )))
       t)))
 
