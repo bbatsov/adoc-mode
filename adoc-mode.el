@@ -1705,6 +1705,7 @@ text having adoc-reserved set to symbol `block-del'."
   "Creates a keyword for font-lock which highlights one line titles"
   (list
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-one-line-title level) '(0)))
+   '(0 '(face nil adoc-nobreak t) t)
    '(1 '(face adoc-meta-hide-face adoc-reserved block-del) t)
    `(2 ,text-face t)
    '(3  '(face nil adoc-reserved block-del) t)
@@ -1724,7 +1725,7 @@ text having adoc-reserved set to symbol `block-del'."
                (not (equal adoc-enable-two-line-title (length (match-string 2)))))
            (not (text-property-not-all (match-beginning 0) (match-end 0) 'adoc-reserved nil))))
    ;; highlighers
-   `(2 ,text-face t)
+   `(2 '(face ,text-face adoc-nobreak t) t) ;; adoc-nobreak does not hurt here
    `(3 '(face adoc-meta-hide-face adoc-reserved block-del) t)))
 
 ;; (defun adoc-?????-attributes (endpos enddelchar)
@@ -2534,7 +2535,8 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    (adoc-kw-inline-macro-urls-attribute-list)
    (adoc-kw-inline-macro "anchor" nil nil nil adoc-anchor-face t '("xreflabel"))
    (adoc-kw-inline-macro "xref" nil nil nil '(adoc-reference-face adoc-internal-reference-face) t
-                         '(("caption") (("caption" . adoc-reference-face))))
+                         '(("caption") (("caption" . adoc-reference-face)))
+                         '(adoc-nobreak t)) ;; TODO: Currently, multiline does not work on xref.  So I put adoc-nobreak on the link text at least.  That may hurt on long links texts.
    (adoc-kw-inline-macro "footnote" t nil nil nil nil adoc-secondary-text-face)
    (adoc-kw-inline-macro "footnoteref" t 'single-attribute nil nil nil
                          '(("id") (("id" . adoc-internal-reference-face))))
@@ -3749,7 +3751,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
                 nil nil nil nil
                 (font-lock-multiline . t)
                 (font-lock-mark-block-function . adoc-font-lock-mark-block-function)))
-  (setq-local font-lock-extra-managed-props '(adoc-reserved adoc-attribute-list adoc-code-block adoc-flyspell-ignore))
+  (setq-local font-lock-extra-managed-props '(adoc-reserved adoc-attribute-list adoc-code-block adoc-flyspell-ignore adoc-nobreak))
   (setq-local font-lock-unfontify-region-function 'adoc-unfontify-region-function)
   (setq-local font-lock-extend-after-change-region-function #'adoc-font-lock-extend-after-change-region)
 
@@ -3768,6 +3770,8 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   ;; it's the user's decision whether he wants to set imenu-sort-function to
   ;; nil, or even something else. See also similar comment in sgml-mode.
   (setq-local imenu-create-index-function 'adoc-imenu-create-index)
+
+  (add-hook 'fill-nobreak-predicate 'adoc-nobreak-p 90 t)
 
   ;; compilation
   (when (boundp 'compilation-error-regexp-alist-alist)
@@ -3788,7 +3792,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
 (adoc-calc)
 
 
-;; Flyspell
+;; Flyspell and auto-fill
 
 (defun adoc-flyspell-p ()
   "Function for `flyspell-mode-predicate' property of `adoc-mode'.
@@ -3799,6 +3803,11 @@ Returns t if word at point should be checked, nil otherwise."
         'adoc-flyspell-ignore)))
 
 (put 'adoc-mode 'flyspell-mode-predicate 'adoc-flyspell-p)
+
+(defun adoc-nobreak-p ()
+  "Return t if inserting a newline at point by auto-fill is prohibited."
+  (font-lock-ensure (line-beginning-position) (line-end-position 2)) ;; Must work for two-line-title!
+  (get-text-property (point) 'adoc-nobreak))
 
 (provide 'adoc-mode)
 
