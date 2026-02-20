@@ -2962,8 +2962,8 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 ;; Disclaimer: Most of the following stuff is copied from `markdown-mode' and adapted to `adoc-mode'.
 (require 'url-parse)
 
-(defvar adoc-image-overlays nil)
-(make-variable-buffer-local 'adoc-image-overlays)
+(defvar-local adoc-image-overlays nil
+  "List of image overlays in the current buffer.")
 
 (defcustom adoc-display-remote-images nil
   "If non-nil, download and display remote images.
