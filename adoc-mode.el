@@ -2837,7 +2837,7 @@ which can be truthy even without an active region."
         ;; marker is skipped
         ((eq adoc-title-style 'adoc-title-style-two-line)
          '(tr bol (r "text" text) "\n"
-              (adoc-make-two-line-title-underline ,level (if on-region (- tempo-region-stop tempo-region-start)))))
+              (adoc-make-two-line-title-underline ,level (if (adoc-tempo-on-region) (- tempo-region-stop tempo-region-start)))))
         (t
          (error "Unknown title style"))))
      nil
