@@ -221,6 +221,15 @@ delimited block lines have a certain length."
                  number)
   :group 'adoc)
 
+(defcustom adoc-imenu-create-index-function 'adoc-imenu-create-nested-index
+  "Function to create the imenu index.
+Use `adoc-imenu-create-nested-index' for a hierarchical index
+reflecting heading structure, or `adoc-imenu-create-index' for a
+flat list."
+  :type '(choice (function-item adoc-imenu-create-nested-index)
+                 (function-item adoc-imenu-create-index))
+  :group 'adoc)
+
 (defcustom adoc-title-style 'adoc-title-style-one-line
   "Title style used for title tempo templates.
 
@@ -3533,6 +3542,65 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
              (cons (cons title-text title-pos) index-alist))))))
     (nreverse index-alist)))
 
+(defun adoc-imenu-create-nested-index ()
+  "Create a nested imenu index reflecting the heading hierarchy."
+  (let ((flat-index (adoc-imenu-create-index)))
+    (adoc--imenu-nest flat-index)))
+
+(defun adoc--imenu-heading-level (_title-text pos)
+  "Return the heading level (0-4) for heading at POS.
+_TITLE-TEXT is unused but accepted for interface consistency."
+  (save-excursion
+    (goto-char pos)
+    (let ((descriptor (adoc-title-descriptor t)))
+      (if descriptor
+          (nth 2 descriptor)
+        0))))
+
+(defun adoc--imenu-nest (flat-index)
+  "Convert FLAT-INDEX (a flat list of (name . pos)) into a nested alist.
+Each heading contains its sub-headings as a nested menu."
+  (let ((items (mapcar (lambda (item)
+                         (cons (car item)
+                               (cons (cdr item)
+                                     (adoc--imenu-heading-level
+                                      (car item) (cdr item)))))
+                       flat-index)))
+    ;; items is now ((name pos . level) ...)
+    (adoc--imenu-build-tree items 0)))
+
+(defun adoc--imenu-build-tree (items min-level)
+  "Build a nested imenu tree from ITEMS starting at MIN-LEVEL.
+ITEMS is a list of (name pos . level)."
+  (let (result)
+    (while items
+      (let* ((item (car items))
+             (name (car item))
+             (pos (cadr item))
+             (level (cddr item)))
+        (cond
+         ;; Item is at a higher level than we're collecting — return
+         ((< level min-level)
+          (setq items nil))
+         ;; Item is at a deeper level — shouldn't happen if called correctly
+         ((> level min-level)
+          (setq items (cdr items)))
+         ;; Item is at our level — collect it and its children
+         (t
+          (setq items (cdr items))
+          ;; Collect children (items with level > current level, up to
+          ;; next item at same or higher level)
+          (let (children)
+            (while (and items (> (cddr (car items)) level))
+              (push (car items) children)
+              (setq items (cdr items)))
+            (if children
+                (let ((subtree (adoc--imenu-build-tree
+                                (nreverse children) (1+ level))))
+                  (push (cons name (cons (cons nil pos) subtree)) result))
+              (push (cons name pos) result)))))))
+    (nreverse result)))
+
 (defvar adoc-mode-syntax-table
   (let ((table (make-syntax-table)))
     (modify-syntax-entry ?$ "." table)
@@ -3783,7 +3851,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
 
   ;; it's the user's decision whether he wants to set imenu-sort-function to
   ;; nil, or even something else. See also similar comment in sgml-mode.
-  (setq-local imenu-create-index-function 'adoc-imenu-create-index)
+  (setq-local imenu-create-index-function adoc-imenu-create-index-function)
 
   ;; compilation
   (when (boundp 'compilation-error-regexp-alist-alist)

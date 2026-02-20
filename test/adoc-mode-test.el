@@ -1118,6 +1118,30 @@ Don't use it for anything real.")
            (cons "sub chapter 2.1" 262)))))
     (kill-buffer "adoc-test")))
 
+(ert-deftest adoctest-test-imenu-create-nested-index ()
+  (unwind-protect
+      (progn
+        (set-buffer (get-buffer-create "adoc-test"))
+        (insert "= document title\n"
+                "== chapter 1\n"
+                "=== sub chapter 1.1\n"
+                "== chapter 2\n"
+                "=== sub chapter 2.1\n"
+                "=== sub chapter 2.2\n")
+        (should
+         (equal
+          (adoc-imenu-create-nested-index)
+          '(("document title"
+             (nil . 1)
+             ("chapter 1"
+              (nil . 18)
+              ("sub chapter 1.1" . 31))
+             ("chapter 2"
+              (nil . 51)
+              ("sub chapter 2.1" . 64)
+              ("sub chapter 2.2" . 84)))))))
+    (kill-buffer "adoc-test")))
+
 (ert-deftest adoctest-adoc-kw-replacement ()
   (unwind-protect
       (progn

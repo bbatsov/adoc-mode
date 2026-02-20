@@ -7,6 +7,7 @@
 - [#21](https://github.com/bbatsov/adoc-mode/pull/21): Add support for native font-locking in code blocks.
 - [#48](https://github.com/bbatsov/adoc-mode/pull/48): Add support for displaying images.
 - Add font-lock support for Asciidoctor inline macros: `kbd:[]`, `btn:[]`, `menu:[]`, `pass:[]`, `stem:[]`, `latexmath:[]`, `asciimath:[]`.
+- [#59](https://github.com/bbatsov/adoc-mode/issues/59): Add nested `imenu` index support (enabled by default via `adoc-imenu-create-index-function`).
 
 ### Changes
 
