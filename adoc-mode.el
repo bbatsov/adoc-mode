@@ -2050,15 +2050,15 @@ START-SRC and END-SRC delimit the actual source code."
             (insert string))
           (unless (eq major-mode lang-mode) (funcall lang-mode))
           (font-lock-ensure)
-          (with-suppressed-warnings ((lexical interval))
-            (cl-loop for interval being the intervals property 'face
-                     for pos = (car interval)
-                     for next = (cdr interval)
-                     for val = (get-text-property pos 'face)
-                     when val do
-                     (put-text-property
-                      (+ start-src (1- pos)) (1- (+ start-src next)) 'face
-                      val adoc-buffer))))
+          (let ((pos (point-min)))
+            (while (< pos (point-max))
+              (let ((next (next-single-property-change pos 'face nil (point-max)))
+                    (val (get-text-property pos 'face)))
+                (when val
+                  (put-text-property
+                   (+ start-src (1- pos)) (1- (+ start-src next)) 'face
+                   val adoc-buffer))
+                (setq pos next)))))
         (set-buffer-modified-p modified)))))
 
 (defconst adoc-code-block-begin-regexp
