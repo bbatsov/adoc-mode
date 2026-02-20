@@ -2485,7 +2485,7 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    ;; attributes
    ;; ---------------------------------
    ;; attribute reference
-   (cons "{\\(\\w+\\(?:\\w*\\|-\\)*\\)\\([=?!#%@$][^}\n]*\\)?}" 'adoc-replacement-face)
+   (cons "{\\(\\w[[:word:]-]*\\)\\([=?!#%@$][^}\n]*\\)?}" 'adoc-replacement-face)
 
 
    ;; inline macros (that includes anchors, links, footnotes,....)

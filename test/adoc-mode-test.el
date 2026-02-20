@@ -587,6 +587,16 @@ Don't use it for anything real.")
                   "[\"" adoc-meta-face "lorem \\\"ipsum\\\" dolor" adoc-value-face "\"]" adoc-meta-face
                   ))
 
+;; Regression test for https://github.com/bbatsov/adoc-mode/issues/57
+(ert-deftest adoctest-test-attribute-reference ()
+  (adoctest-faces "attribute-reference"
+                  ;; simple attribute reference
+                  "{" adoc-replacement-face "foo" adoc-replacement-face "}" adoc-replacement-face "\n" nil
+                  ;; hyphenated attribute
+                  "{" adoc-replacement-face "my-attr" adoc-replacement-face "}" adoc-replacement-face "\n" nil
+                  ;; escaped braces must not hang or get highlighted
+                  "\\{not-an-attr\\}" 'no-face "\n" nil))
+
 (ert-deftest adoctest-test-block-macro ()
   (adoctest-faces "block-macro"
                   "lorem" adoc-command-face "::" adoc-meta-face "ipsum[]" adoc-meta-face))
