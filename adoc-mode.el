@@ -3255,8 +3255,7 @@ If FLUSH is non-nil also flush the cache for this image."
 
 Is a workaround the problem that tempo's user handlers don't get
 passed the on-region argument."
-  (let* (
-         ;; try to determine the arg with which the tempo-template-xxx was
+  (let* (;; try to determine the arg with which the tempo-template-xxx was
          ;; called that eventually brought us here. If we came here not by an
          ;; interactive call to tempo-template-xxx we can't have a clue - assume
          ;; nil.
@@ -3267,13 +3266,8 @@ passed the on-region argument."
          (on-region (if tempo-insert-region
                         (not arg)
                       arg)))
-    ;; copy from tempo-insert-template
-    (if (or (and (boundp 'transient-mark-mode) ; For Emacs
-                 transient-mark-mode
-                 mark-active)
-            (if (featurep 'xemacs)
-                (and zmacs-regions (mark))))
-        (setq on-region t))
+    (when (region-active-p)
+      (setq on-region t))
     on-region))
 
 (defun adoc-forward-xref (&optional bound)
