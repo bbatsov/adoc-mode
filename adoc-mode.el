@@ -2584,7 +2584,8 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    ;; end of a non-blank line forces a line break.
    ;; Asciidoc bug: If has that affect also on a non blank line.
    ;; TODO: what kind of element is that? Really text formatting? Its not in asciidoc.conf
-   (list "^.*[^ \t\n].*[ \t]\\(\\+\\)[ \t]*$" '(1 adoc-delimiter)) ; bug: only if not adoc-reserved
+   (list (lambda (end) (adoc-kwf-std end "^.*[^ \t\n].*[ \t]\\(\\+\\)[ \t]*$" '(1)))
+         '(1 adoc-delimiter))
 
    ;; -- callout anchors (references are within list)
    ;; commented out because they are only within (literal?) blocks
@@ -3738,11 +3739,11 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (setq-local font-lock-extend-after-change-region-function #'adoc-font-lock-extend-after-change-region)
 
   ;; outline mode
-  ;; BUG: if there are many spaces\tabs after =, level becomes wrong
-  ;; Ideas make it work for two line titles: Investigate into
-  ;; outline-heading-end-regexp. It seams like outline-regexp could also contain
-  ;; newlines.
   (setq-local outline-regexp "=\\{1,5\\}[ \t]+[^ \t\n]")
+  (setq-local outline-level (lambda ()
+                              (save-excursion
+                                (skip-chars-forward "=")
+                                (current-column))))
 
   ;; misc
   (setq-local page-delimiter "^<<<+$")
