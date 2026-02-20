@@ -1096,7 +1096,7 @@ WARNING: See warning about list item nesting level in `adoc-list-descriptor'."
     (when level (error "Adoc-explicitly-numbered: invalid level"))
     (let* ((l '("[0-9]+\\." "[a-z]\\." "[A-Z]\\." "[ivx]+)" "[IVX]+)"))
            (r (cond ((numberp sub-type) (nth sub-type l))
-                    ((or (null sub-type) (eq sub-type 'adoc-all-subtypes)) (mapconcat 'identity l "\\|"))
+                    ((or (null sub-type) (eq sub-type 'adoc-all-subtypes)) (mapconcat #'identity l "\\|"))
                     (t (error "Adoc-explicitly-numbered: invalid subtype")))))
       (concat "^\\([ \t]*\\)\\(" r "\\)\\([ \t]+\\)")))
 
@@ -2017,7 +2017,7 @@ TEXTPROPS is an additional plist with textproperties."
   "Return major mode that should be used for LANG.
 LANG is a string, and the returned major mode is a symbol."
   (cl-find-if
-   'fboundp
+   #'fboundp
    (list (cdr (assoc lang adoc-code-lang-modes))
          (cdr (assoc (downcase lang) adoc-code-lang-modes))
          (intern (concat lang "-mode"))
@@ -2802,8 +2802,8 @@ which can be truthy even without an active region."
 
 (defun adoc-tempo-define (&rest args)
   (if (eq adoc-tempo-frwk 'tempo-snippets)
-      (apply 'tempo-define-snippet args)
-    (apply 'tempo-define-template args)))
+      (apply #'tempo-define-snippet args)
+    (apply #'tempo-define-template args)))
 
 (defun adoc-template-str-title (&optional level title-text)
   "Returns the string tempo-template-adoc-title-x would insert"
