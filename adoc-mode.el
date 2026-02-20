@@ -2364,14 +2364,13 @@ for multiline constructs to be matched."
    ;; ------------------------------
    ;; must come BEFORE block title, else rows starting like .2+| ... | ... are taken as
    (cons "^|=\\{3,\\}[ \t]*$" 'adoc-table-face ) ; ^\|={3,}$
-   (list (concat "^"                  "\\(" (adoc-re-cell-specifier) "\\)" "\\(|\\)"
-                 "\\(?:[^|\n]*?[ \t]" "\\(" (adoc-re-cell-specifier) "\\)" "\\(|\\)"
-                 "\\(?:[^|\n]*?[ \t]" "\\(" (adoc-re-cell-specifier) "\\)" "\\(|\\)"
-                 "\\(?:[^|\n]*?[ \t]" "\\(" (adoc-re-cell-specifier) "\\)" "\\(|\\)" "\\)?\\)?\\)?")
-         '(1 '(face adoc-delimiter adoc-reserved block-del) nil t) '(2 '(face adoc-table-face adoc-reserved block-del) nil t)
-         '(3 '(face adoc-delimiter adoc-reserved block-del) nil t) '(4 '(face adoc-table-face adoc-reserved block-del) nil t)
-         '(5 '(face adoc-delimiter adoc-reserved block-del) nil t) '(6 '(face adoc-table-face adoc-reserved block-del) nil t)
-         '(7 '(face adoc-delimiter adoc-reserved block-del) nil t) '(8 '(face adoc-table-face adoc-reserved block-del) nil t))
+   (list (concat "^\\(" (adoc-re-cell-specifier) "\\)\\(|\\)")
+         '(1 '(face adoc-delimiter adoc-reserved block-del) nil t)
+         '(2 '(face adoc-table-face adoc-reserved block-del) nil t)
+         (list (concat "\\(" (adoc-re-cell-specifier) "\\)\\(|\\)")
+               '(save-excursion (end-of-line) (point)) nil
+               '(1 '(face adoc-delimiter adoc-reserved block-del) nil t)
+               '(2 '(face adoc-table-face adoc-reserved block-del) nil t)))
 
 
    ;; attribute entry
