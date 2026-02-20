@@ -2179,9 +2179,9 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
 (defun adoc-unfontify-region-function (beg end)
   (font-lock-default-unfontify-region beg end)
 
-  (cl-loop for ol being the overlays from beg to end
-           when (overlay-get ol 'adoc-kw-replacement)
-           do (delete-overlay ol))
+  (dolist (ol (overlays-in beg end))
+    (when (overlay-get ol 'adoc-kw-replacement)
+      (delete-overlay ol)))
 
   ;; text properties. Currently only display raise used for sub/superscripts.
   ;; code snipped copied from tex-mode
@@ -3194,9 +3194,8 @@ or an event.  It defaults to \\(point)."
 (defun adoc-image-overlay-at (location)
   "Get image overlay at LOCATION."
   (adoc-with-point-at-event location
-    (cl-loop for ov being the overlays from (1- location) to (1+ location)
-             when (overlay-get ov 'adoc-image)
-             return ov)))
+    (seq-find (lambda (ov) (overlay-get ov 'adoc-image))
+              (overlays-in (1- location) (1+ location)))))
 
 (defun adoc-remove-image-overlay-at (&optional location flush)
   "Delete overlay at LOCATION.
