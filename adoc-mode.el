@@ -2050,14 +2050,15 @@ START-SRC and END-SRC delimit the actual source code."
             (insert string))
           (unless (eq major-mode lang-mode) (funcall lang-mode))
           (font-lock-ensure)
-          (cl-loop for int being the intervals property 'face
-                   for pos = (car int)
-                   for next = (cdr int)
-                   for val = (get-text-property pos 'face)
-                   when val do
-                   (put-text-property
-                    (+ start-src (1- pos)) (1- (+ start-src next)) 'face
-                    val adoc-buffer)))
+          (with-suppressed-warnings ((lexical interval))
+            (cl-loop for interval being the intervals property 'face
+                     for pos = (car interval)
+                     for next = (cdr interval)
+                     for val = (get-text-property pos 'face)
+                     when val do
+                     (put-text-property
+                      (+ start-src (1- pos)) (1- (+ start-src next)) 'face
+                      val adoc-buffer))))
         (set-buffer-modified-p modified)))))
 
 (defconst adoc-code-block-begin-regexp
@@ -3183,7 +3184,7 @@ LOCATION can be a buffer position like `point'
 or an event.  It defaults to \\(point)."
   (interactive "d")
   (adoc-with-point-at-event location
-    (when-let ((link (adoc-image-link-at location)))
+    (when-let* ((link (adoc-image-link-at location)))
       (adoc-create-image-overlay
        (adoc-image-link-uri link)
        (adoc-image-link-begin link)
@@ -3206,7 +3207,7 @@ If FLUSH is non-nil also flush the cache for this image."
   (adoc-with-point-at-event location
     (let ((ov (adoc-image-overlay-at location)))
       (when ov
-        (when-let ((image (and flush (overlay-get ov 'display)))
+        (when-let* ((image (and flush (overlay-get ov 'display)))
                    ((imagep image)))
           (image-flush image))
         (delete-overlay ov)))))
