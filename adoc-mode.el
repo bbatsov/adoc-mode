@@ -2832,7 +2832,7 @@ which can be truthy even without an active region."
 (adoc-tempo-define "adoc-subscript" '("~" (r "text" text) "~"))
 
 ;; Text formatting - misc
-(adoc-tempo-define "adoc-line-break" '((if (looking-back " ") "" " ") "+" %) nil adoc-help-line-break)
+(adoc-tempo-define "adoc-line-break" '((if (eq (char-before) ?\s) "" " ") "+" %) nil adoc-help-line-break)
 (adoc-tempo-define "adoc-page-break" '(bol "<<<" %) nil adoc-help-page-break)
 (adoc-tempo-define "adoc-ruler-line" '(bol "---" %) nil adoc-help-ruler-line)
 
