@@ -4,8 +4,6 @@
 :melpa-stable-badge: http://stable.melpa.org/packages/adoc-mode-badge.svg
 :melpa-package: http://melpa.org/#/adoc-mode
 :melpa-stable-package: http://stable.melpa.org/#/adoc-mode
-:melpa: http://melpa.org
-:melpa-stable: http://stable.melpa.org
 :nongnu-elpa-badge: https://elpa.nongnu.org/nongnu/adoc-mode.svg
 :nongnu-elpa-package: https://elpa.nongnu.org/nongnu/adoc-mode.html
 :license-badge: https://img.shields.io/badge/license-GPL_3-green.svg
@@ -26,7 +24,7 @@ https://asciidoc.org/[AsciiDoc] is a text document format for
 writing short documents, articles, books and UNIX man pages. AsciiDoc files
 can be translated to HTML and DocBook markups.
 
-`adoc-mode` is an Emacs major mode for editing AsciiDoc files. It emphasizes on
+`adoc-mode` is an Emacs major mode for editing AsciiDoc files. It emphasizes
 the idea that the document is highlighted so it pretty much looks like the
 final output. What must be bold is bold, what must be italic is italic etc.
 Meta characters are naturally still visible, but in a faint way, so they can
@@ -38,16 +36,18 @@ Here are some of the main features of `adoc-mode`:
 
 - sophisticated highlighting
 - native fontification of code blocks
+- font-lock support for Asciidoctor inline macros (`kbd:[]`, `btn:[]`, `menu:[]`, etc.)
 - toggle between the display of image links and the display of the corresponding images
 - promote / demote title
 - toggle title type between one line title and two line title
 - adjust underline length of a two line title to match title text's length
-- goto anchor defining a given id, default reading from xref at point
+- follow URLs, `include::` macros, and xrefs at point (`C-c C-o` / `M-.`)
+- nested `imenu` index with hierarchical heading structure
 - support for outline (however only with the one-line title style)
 
 === Demo
 
-The highlighting emphasizes on how the output will look like. _All_
+The highlighting emphasizes how the output will look. _All_
 characters are visible, however meta characters are displayed in a
 faint way.  An exception are image links.  You can toggle between
 the display of the link text and the linked image.
@@ -80,7 +80,7 @@ to generate the previews for the image links in the visible area on
 the first run. But it does not, since it first removes all the
 previews, even if you have not seen them.
 
-Just run `adoc-toggle-images` again if it does not what you expect on
+Just run `adoc-toggle-images` again if it does not do what you expect on
 the first run.
 
 == Installation
@@ -101,7 +101,7 @@ If the installation doesn't work try refreshing the package list:
 
 kbd:[M-x] `package-refresh-contents`
 
-Alternative, you can add something like this to your Emacs config:
+Alternatively, you can add something like this to your Emacs config:
 
 [source,emacs-lisp]
 ----
@@ -208,8 +208,8 @@ Of course, this is only one way to do it. Emacs has a few ways to
 customize faces. Simply, pick the one you prefer.
 
 If your default face is a fixed pitch (monospace) face, but in AsciiDoc files
-you liked to have normal text with a variable pitch face, `buffer-face-mode`
-is one good options for you:
+you'd like to have normal text with a variable pitch face, `buffer-face-mode`
+is one good option for you:
 
 [source,emacs-lisp]
 ----
@@ -277,7 +277,7 @@ evaluating the code you've altered/added with commands like `C-M-x`,
 `eval-buffer` and so on.
 
 Once you've evaluated the new code, you can invoke some interactive command that
-uses it internally or open a Emacs Lisp REPL and experiment with it there. You
+uses it internally or open an Emacs Lisp REPL and experiment with it there. You
 can open an Emacs Lisp REPL with `M-x ielm`.
 
 You can also quickly evaluate some Emacs Lisp code in the minibuffer with `M-:`.
@@ -314,7 +314,7 @@ $ eldev compile
 was halted in 2016 and the mode was dormant for the next 6 years. In 2022
 https://github.com/TobiasZawada[Tobias Zawada] encouraged the Emacs community to revive the development and after a brief period under the https://github.com/emacsorphanage[Emacs Orphanage] org, https://github.com/bbatsov/[Bozhidar Batsov] assumed the project's maintenance.
 
-These days all upstream packages (e.g. on MELPA) are build from Bozhidar's fork.
+These days all upstream packages (e.g. on MELPA) are built from Bozhidar's fork.
 
 == License
 
