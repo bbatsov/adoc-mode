@@ -6,11 +6,14 @@
 :melpa-stable-package: http://stable.melpa.org/#/adoc-mode
 :melpa: http://melpa.org
 :melpa-stable: http://stable.melpa.org
+:nongnu-elpa-badge: https://elpa.nongnu.org/nongnu/adoc-mode.svg
+:nongnu-elpa-package: https://elpa.nongnu.org/nongnu/adoc-mode.html
 :license-badge: https://img.shields.io/badge/license-GPL_3-green.svg
 :copying: http://www.gnu.org/copyleft/gpl.html
 
 
 image:https://github.com/bbatsov/adoc-mode/workflows/CI/badge.svg[link="https://github.com/bbatsov/adoc-mode/actions?query=workflow%3ACI"]
+image:{nongnu-elpa-badge}[link="{nongnu-elpa-package}"]
 image:{melpa-badge}[link="{melpa-package}"]
 image:{melpa-stable-badge}[link="{melpa-stable-package}"]
 image:{license-badge}[link="{copying}"]
@@ -82,12 +85,13 @@ the first run.
 
 == Installation
 
-`adoc-mode` is available on the community-maintained
-link:{melpa-stable-package}[MELPA Stable] and link:{melpa-package}[MELPA] repos.
+`adoc-mode` is available on link:{nongnu-elpa-package}[NonGNU ELPA] (Emacs 28+),
+link:{melpa-stable-package}[MELPA Stable] and link:{melpa-package}[MELPA].
 
-Using MELPA Stable is recommended as it has the latest stable version.
-MELPA has a development snapshot for users who don't mind breakage but
-don't want to run `adoc-mode` from a git checkout.
+NonGNU ELPA is enabled by default in Emacs 28+, so `adoc-mode` can be installed
+without any additional package archive configuration. MELPA Stable carries
+the latest stable version, while MELPA has a development snapshot for users
+who don't mind breakage but don't want to run `adoc-mode` from a git checkout.
 
 You can install `adoc-mode` using the following command:
 
@@ -316,6 +320,6 @@ These days all upstream packages (e.g. on MELPA) are build from Bozhidar's fork.
 
 Copyright © 2009-2016 Florian Kaufmann
 
-Copyright © 2022-2024 Bozhidar Batsov and `adoc-mode` contributors
+Copyright © 2022-2026 Bozhidar Batsov and `adoc-mode` contributors
 
 Distributed under the link:{copying}[GNU General Public License]; type kbd:[C-h] kbd:[C-c] to view it.
