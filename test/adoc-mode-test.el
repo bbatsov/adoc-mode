@@ -1065,11 +1065,6 @@ Don't use it for anything real.")
   (should (equal (adoc-make-two-line-title-underline 2)
                  "~~~~")))
 
-(ert-deftest adoctest-test-repeat-string ()
-  (should (equal (adoc-repeat-string "lorem" 0) ""))
-  (should (equal (adoc-repeat-string "lorem" 1) "lorem"))
-  (should (equal (adoc-repeat-string "lorem" 2) "loremlorem")))
-
 (ert-deftest adoctest-test-indent-by-example ()
   (let ((tab-width 2)
         (indent-tabs-mode nil))

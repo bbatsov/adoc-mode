@@ -3218,13 +3218,6 @@ If FLUSH is non-nil also flush the cache for this image."
   (indent-to (- (* tab-width indent-level) (length str)))
   (insert str))
 
-(defun adoc-repeat-string (str n)
-  "Returns str n times concatenated"
-  (let ((retval ""))
-    (dotimes (_i n)
-      (setq retval (concat retval str)))
-    retval))
-
 (defun adoc-tempo-handler (element)
   "Tempo user element handler, see `tempo-user-elements'."
   (let ((on-region (adoc-tempo-on-region)))
