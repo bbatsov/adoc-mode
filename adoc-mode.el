@@ -1788,16 +1788,16 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
 
 ;; admonition paragraph. Note that there is also the style with the leading attribute list.
 ;; (?s)^\s*(?P<style>NOTE|TIP|IMPORTANT|WARNING|CAUTION):\s+(?P<text>.+)
-(defmacro adoc-kw-admonition-paragraph ()
-  "Creates a keyword which highlights admonition paragraphs"
-  `(list
-    ;; matcher function
-    (lambda (end)
-      (and (adoc-kwf-search "^[ \t]*\\(\\(?:CAUTION\\|WARNING\\|IMPORTANT\\|TIP\\|NOTE\\):\\)\\([ \t]+\\)" end t)
-           (not (text-property-not-all (match-beginning 0) (match-end 0) 'adoc-reserved nil))))
-    ;; highlighers
-    '(1 '(face adoc-complex-replacement-face adoc-reserved t))
-    '(2 '(face adoc-align-face adoc-reserved t))))
+(defun adoc-kw-admonition-paragraph ()
+  "Creates a keyword which highlights admonition paragraphs."
+  (list
+   ;; matcher function
+   (lambda (end)
+     (and (adoc-kwf-search "^[ \t]*\\(\\(?:CAUTION\\|WARNING\\|IMPORTANT\\|TIP\\|NOTE\\):\\)\\([ \t]+\\)" end t)
+          (not (text-property-not-all (match-beginning 0) (match-end 0) 'adoc-reserved nil))))
+   ;; highlighters
+   '(1 '(face adoc-complex-replacement-face adoc-reserved t))
+   '(2 '(face adoc-align-face adoc-reserved t))))
 
 (defun adoc-kw-verbatim-paragraph-sequence ()
   "Creates a keyword which highlights a sequence of verbatim paragraphs."
@@ -1929,37 +1929,34 @@ TEXTPROPS is an additional plist with textproperties."
 ;; possible. The string inserted with the ovlerlay property after-string gets
 ;; the face of the text 'around' it, which is in this case the text following
 ;; the replacement.
-(defmacro adoc-kw-replacement (regexp &optional replacement)
+(defun adoc-kw-replacement (regexp &optional replacement)
   "Creates a keyword for font-lock which highlights replacements."
-  `(list
-    ;; matcher function
-    (lambda (end)
-      (let (found)
-        (while (and (setq found (adoc-kwf-search ,regexp end t))
-                    (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-reserved nil))
-          (goto-char (+ (match-beginning 0) 1)))
-        (when (and found adoc-insert-replacement ,replacement)
-          (let* ((s (cond
-                     ((stringp ,replacement)
-                      ,replacement)
-                     ((functionp ,replacement)
-                      (funcall ,replacement (match-string-no-properties 1)))
-                     (t (error "Invalid replacement type"))))
-                 (o (when (stringp s)
-                      (make-overlay (match-end 1) (match-end 1)))))
-            (setq adoc-replacement-failed (not o))
-            (unless adoc-replacement-failed
-              (overlay-put o 'adoc-kw-replacement t)
-              (overlay-put o 'after-string s))))
-        found))
+  (list
+   ;; matcher function
+   (lambda (end)
+     (let (found)
+       (while (and (setq found (adoc-kwf-search regexp end t))
+                   (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-reserved nil))
+         (goto-char (+ (match-beginning 0) 1)))
+       (when (and found adoc-insert-replacement replacement)
+         (let* ((s (cond
+                    ((stringp replacement)
+                     replacement)
+                    ((functionp replacement)
+                     (funcall replacement (match-string-no-properties 1)))
+                    (t (error "Invalid replacement type"))))
+                (o (when (stringp s)
+                     (make-overlay (match-end 1) (match-end 1)))))
+           (setq adoc-replacement-failed (not o))
+           (unless adoc-replacement-failed
+             (overlay-put o 'adoc-kw-replacement t)
+             (overlay-put o 'after-string s))))
+       found))
 
-    ;; highlighers
-    ;; TODO: replacement instead warining face if resolver is not given
-    (if (and adoc-insert-replacement ,replacement)
-        ;; '((1 (if adoc-replacement-failed adoc-warning-face adoc-hide-delimiter) t)
-        ;;   (1 '(face nil adoc-reserved t) t))
-        '(1 '(face adoc-hide-delimiter adoc-reserved t) t)
-      '(1 '(face adoc-replacement-face adoc-reserved t) t))))
+   ;; highlighters
+   (if (and adoc-insert-replacement replacement)
+       '(1 '(face adoc-hide-delimiter adoc-reserved t) t)
+     '(1 '(face adoc-replacement-face adoc-reserved t) t))))
 
 ;; - To ensure that indented lines are nicely aligned. They only look aligned if
 ;;   the whites at line beginning have a fixed with font.
@@ -2802,7 +2799,7 @@ which can be truthy even without an active region."
 
 (defun adoc-tempo-define (&rest args)
   (if (eq adoc-tempo-frwk 'tempo-snippets)
-      (apply #'tempo-define-snippet args)
+      (apply 'tempo-define-snippet args) ;; optional package, not always available
     (apply #'tempo-define-template args)))
 
 (defun adoc-template-str-title (&optional level title-text)
