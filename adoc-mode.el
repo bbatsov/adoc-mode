@@ -2758,6 +2758,15 @@ new customization demands."
     (require 'tempo-snippets)
   (require 'tempo))
 
+(defun adoc-tempo-insert-template-fix (orig-fn template on-region)
+  "Work around `tempo-insert-template' failing when ON-REGION is
+non-nil but no mark is set.  When `tempo-insert-region' is nil,
+`tempo-define-template' passes the raw prefix arg as ON-REGION,
+which can be truthy even without an active region."
+  (funcall orig-fn template (and on-region (mark t) on-region)))
+
+(advice-add 'tempo-insert-template :around #'adoc-tempo-insert-template-fix)
+
 (defun adoc-tempo-define (&rest args)
   (if (eq adoc-tempo-frwk 'tempo-snippets)
       (apply 'tempo-define-snippet args)
