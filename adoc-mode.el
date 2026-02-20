@@ -260,7 +260,7 @@ are fontified natively regardless of their size."
   :type '(choice :tag "Fontify code blocks " :format "\n%{%t%}: %[Size%] %v"
                  (integer :tag "limited to")
                  (boolean :tag "unlimited"))
-  :safe #'(lambda (x) (or (booleanp x) (numberp x)))
+  :safe (lambda (x) (or (booleanp x) (numberp x)))
   :package-version '(adoc-mode . "0.8.0"))
 
 ;; This is based on `org-src-lang-modes' from org-src.el
@@ -1764,7 +1764,7 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
   (list
    ;; see also regexp of forced line break, which is similar. it is not directly
    ;; obvious from asciidoc sourcecode what the exact rules are.
-   #'(lambda (end) (adoc-kwf-std end "^\\(\\+\\)[ \t]*$" '(1)))
+   (lambda (end) (adoc-kwf-std end "^\\(\\+\\)[ \t]*$" '(1)))
    '(1 '(face adoc-meta-face adoc-reserved block-del) t)))
 
 (defun adoc-kw-delimited-block (del &optional text-face inhibit-text-reserved)
@@ -2421,7 +2421,7 @@ for multiline constructs to be matched."
 
    ;; --- general attribute list block element
    ;; ^\[(?P<attrlist>.*)\]$
-   (list #'(lambda (end) (adoc-kwf-std end "^\\(\\[\\(.*\\)\\]\\)[ \t]*$" '(0)))
+   (list (lambda (end) (adoc-kwf-std end "^\\(\\[\\(.*\\)\\]\\)[ \t]*$" '(0)))
          '(1 '(face adoc-meta-face adoc-reserved block-del))
          '(2 '(face adoc-meta-face adoc-attribute-list t)))
 
