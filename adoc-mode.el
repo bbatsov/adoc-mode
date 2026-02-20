@@ -2185,6 +2185,29 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
             (put-text-property beg next 'display nil))
         (setq beg next)))))
 
+(defvar font-lock-beg)
+(defvar font-lock-end)
+
+(defun adoc-font-lock-extend-region ()
+  "Extend the font-lock region to paragraph boundaries.
+Inline formatting in AsciiDoc can span multiple lines within a
+paragraph, so the fontification region must cover complete paragraphs
+for multiline constructs to be matched."
+  (let ((changed nil))
+    (save-excursion
+      (goto-char font-lock-beg)
+      (let ((new-beg (progn (backward-paragraph) (point))))
+        (when (< new-beg font-lock-beg)
+          (setq font-lock-beg new-beg
+                changed t))))
+    (save-excursion
+      (goto-char font-lock-end)
+      (let ((new-end (progn (forward-paragraph) (point))))
+        (when (> new-end font-lock-end)
+          (setq font-lock-end new-end
+                changed t))))
+    changed))
+
 (defun adoc-font-lock-mark-block-function ()
   (mark-paragraph 2)
   (forward-paragraph -1))
@@ -3737,6 +3760,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (setq-local font-lock-extra-managed-props '(adoc-reserved adoc-attribute-list adoc-code-block adoc-flyspell-ignore))
   (setq-local font-lock-unfontify-region-function 'adoc-unfontify-region-function)
   (setq-local font-lock-extend-after-change-region-function #'adoc-font-lock-extend-after-change-region)
+  (add-hook 'font-lock-extend-region-functions #'adoc-font-lock-extend-region nil t)
 
   ;; outline mode
   (setq-local outline-regexp "=\\{1,5\\}[ \t]+[^ \t\n]")
