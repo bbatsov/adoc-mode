@@ -974,7 +974,7 @@ match-data has these sub groups:
             4--4"
   (let* ((del (if level
                   (make-string (+ level 1) ?=)
-                (concat "=\\{1," (+ adoc-title-max-level 1) "\\}"))))
+                (concat "=\\{1," (number-to-string (1+ adoc-title-max-level)) "\\}"))))
     (concat
      "^\\(" del "[ \t]+\\)"                   ; 1
      "\\([^ \t\n].*?\\)"                          ; 2
