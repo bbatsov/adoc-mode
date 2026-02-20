@@ -1765,7 +1765,7 @@ Concerning TYPE, LEVEL and SUB-TYPE see `adoc-re-llisti'."
    '(0 '(face nil font-lock-multiline t) t)
    '(1 '(face adoc-meta-hide-face adoc-reserved block-del) t)
    (if (not inhibit-text-reserved)
-       `(2 '(face ,text-face face adoc-verbatim-face adoc-reserved t) t t)
+       `(2 '(face ,text-face adoc-reserved t) t t)
      `(2 ,text-face t t))
    '(3 '(face adoc-meta-hide-face adoc-reserved block-del) t)))
 
@@ -1838,7 +1838,7 @@ TEXTPROPS is an additional plist with textproperties."
    `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name nil unconstrained attribute-list-constraints) '(1 2 4 5) '(0)))
    `(0 '(face nil . ,textprops) t)
    `(1 '(face ,(or cmd-face adoc-command-face) adoc-reserved t adoc-flyspell-ignore t) t) ; cmd-name
-   '(2 '(face adoc-meta-face adoc-reserved t . ,textprops) t)                   ; :
+   `(2 '(face adoc-meta-face adoc-reserved t . ,textprops) t)                   ; :
    `(3 (list 'face
              ,(cond
                ((not target-faces) adoc-meta-face)                      ; target
@@ -1849,9 +1849,9 @@ TEXTPROPS is an additional plist with textproperties."
                (t target-faces))
              'adoc-flyspell-ignore t)
        ,(if target-meta-p t 'append))
-   '(4 '(face adoc-meta-face adoc-reserved t . ,textprops) t) ; [
+   `(4 '(face adoc-meta-face adoc-reserved t . ,textprops) t) ; [
    `(5 '(face adoc-meta-face adoc-attribute-list ,(or attribute-list t) . ,textprops) t)
-   '(6 '(face adoc-meta-face adoc-reserved t . ,textprops) t))) ; ]
+   `(6 '(face adoc-meta-face adoc-reserved t . ,textprops) t))) ; ]
 
 ;; largely copied from adoc-kw-inline-macro
 ;; TODO: output text should be affected by quotes & co, e.g. bold, emph, ...

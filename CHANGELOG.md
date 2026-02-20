@@ -22,6 +22,8 @@
 - [#49](https://github.com/bbatsov/adoc-mode/issues/49): Prevent Flyspell from generating overlays for links and alike.
 - Fix `outline-level` calculation for headings with extra whitespace after `=`.
 - Fix forced line break (`+`) highlighting inside reserved regions.
+- Fix backquote/comma usage in `adoc-kw-inline-macro` so `textprops` is properly substituted.
+- Fix duplicate `face` key in `adoc-kw-delimited-block` plist.
 
 ## 0.7.0 (2023-03-09)
 
