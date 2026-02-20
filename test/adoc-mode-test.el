@@ -7,9 +7,9 @@
 ;;; Todo:
 ;; - test for font lock multiline property
 ;; - test for presence of adoc-reserved (we do white-box testing here)
-;; - test also with multiple versions of (X)Emacs
-;; - compare adoc-mode fontification with actuall output from AsciiDoc, being
-;;   almost the ultimative test for correctness
+;; - test also with multiple versions of Emacs
+;; - compare adoc-mode fontification with actual output from AsciiDoc, being
+;;   almost the ultimate test for correctness
 ;;
 
 ;;; Code:
@@ -25,14 +25,15 @@ If PRINT-PROP is non-nil print use that property
 in the output instead of PROP."
   (let ((buf (current-buffer)))
     (with-temp-buffer
-      (cl-loop for int being the intervals of buf property prop do
-	       (insert
-		(format "#(%S %s %S)\n"
-			(with-current-buffer buf
-			  (buffer-substring-no-properties (car int) (cdr int)))
-			(or print-prop prop)
-			(get-text-property (car int) prop buf))
-		))
+      (let ((pos (with-current-buffer buf (point-min)))
+            (end (with-current-buffer buf (point-max))))
+        (while (< pos end)
+          (let* ((next (or (next-single-property-change pos prop buf) end))
+                 (text (with-current-buffer buf
+                         (buffer-substring-no-properties pos next)))
+                 (val (get-text-property pos prop buf)))
+            (insert (format "#(%S %s %S)\n" text (or print-prop prop) val))
+            (setq pos next))))
       (buffer-string))))
 
 ;; todo:
