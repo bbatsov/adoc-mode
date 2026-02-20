@@ -26,6 +26,7 @@
 - Fix duplicate `face` key in `adoc-kw-delimited-block` plist.
 - [#57](https://github.com/bbatsov/adoc-mode/issues/57): Fix Emacs hang on escaped curly braces in attribute reference regex.
 - [#54](https://github.com/bbatsov/adoc-mode/issues/54): Fix multiline font-lock for inline formatting by extending fontification region to paragraph boundaries.
+- [#52](https://github.com/bbatsov/adoc-mode/issues/52): Prevent `auto-fill-mode` from breaking section title lines.
 
 ## 0.7.0 (2023-03-09)
 

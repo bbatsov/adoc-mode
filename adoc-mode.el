@@ -3769,6 +3769,9 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
                                 (skip-chars-forward "=")
                                 (current-column))))
 
+  ;; fill
+  (add-hook 'fill-nobreak-predicate #'adoc-fill-nobreak-p nil t)
+
   ;; misc
   (setq-local page-delimiter "^<<<+$")
   (setq-local require-final-newline mode-require-final-newline)
@@ -3797,6 +3800,16 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
 (adoc-calc)
 
 
+;; Auto-fill
+
+(defun adoc-fill-nobreak-p ()
+  "Return non-nil if the current line is a section title.
+Used as a `fill-nobreak-predicate' to prevent `auto-fill-mode'
+from breaking section title lines."
+  (save-excursion
+    (beginning-of-line)
+    (looking-at-p "=\\{1,6\\}[ \t]")))
+
 ;; Flyspell
 
 (defun adoc-flyspell-p ()
