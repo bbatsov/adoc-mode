@@ -1999,7 +1999,7 @@ TEXTPROPS is an additional plist with textproperties."
             (progn
               (setq meta-p t)
               (setq newfaces (cons (car faces) newfaces)))
-          (if (not (string-match "adoc-" (symbol-name (car faces))))
+          (if (not (string-prefix-p "adoc-" (symbol-name (car faces))))
               (setq newfaces (cons (car faces) newfaces))))
         (setq faces (cdr faces)))
       (if meta-p
