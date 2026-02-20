@@ -7,6 +7,10 @@
 - [#21](https://github.com/bbatsov/adoc-mode/pull/21): Add support for native font-locking in code blocks.
 - [#48](https://github.com/bbatsov/adoc-mode/pull/48): Add support for displaying images.
 
+### Changes
+
+- Require Emacs 28.1.
+
 ### Bugs fixed
 
 - [#33](https://github.com/bbatsov/adoc-mode/issues/33): Address noticeable lag when typing in code blocks.

@@ -8,7 +8,7 @@
 ;; URL: https://github.com/bbatsov/adoc-mode
 ;; Created: 2009
 ;; Version: 0.8.0-snapshot
-;; Package-Requires: ((emacs "26"))
+;; Package-Requires: ((emacs "28.1"))
 ;; Keywords: docs, wp
 ;;
 ;; This file is not part of GNU Emacs.
@@ -50,10 +50,7 @@
 (declare-function image-flush "image.c")
 
 (defconst adoc-mode-version "0.8.0-snapshot"
-  "adoc mode version number.
-
-Based upon AsciiDoc version 8.5.2. I.e. regexeps and rules are
-taken from that version's asciidoc.conf / manual.")
+  "adoc mode version number.")
 
 ;;;; customization
 (defgroup adoc nil "Support for editing AsciiDoc files in GNU Emacs."
@@ -328,7 +325,6 @@ requires Emacs to be built with ImageMagick support."
 
 
 ;;;; faces / font lock
-(define-obsolete-face-alias 'adoc-orig-default 'adoc-align-face "23.3")
 (defface adoc-align-face
   '((t (:inherit (adoc-meta-face))))
   "Face used so the text looks left aligned.
@@ -2023,13 +2019,6 @@ LANG is a string, and the returned major mode is a symbol."
          (intern (concat lang "-mode"))
          (intern (concat (downcase lang) "-mode")))))
 
-(defmacro adoc-cond-let (cond binding &rest body)
-  "Let-bind BINDING when COND is fulfilled at compile-time.
-Execute BODY like `progn'."
-  (declare (debug (form (&rest (symbolp form)) body)) (indent 2))
-  `(let ,(when (eval cond) binding)
-     ,@body))
-
 ;; Based on `org-src-font-lock-fontify-block' from org-src.el.
 (defun adoc-fontify-code-block-natively (lang start-block end-block start-src end-src)
   "Fontify source code block.
@@ -2057,15 +2046,14 @@ START-SRC and END-SRC delimit the actual source code."
             (insert string))
           (unless (eq major-mode lang-mode) (funcall lang-mode))
           (font-lock-ensure)
-          (adoc-cond-let (version< emacs-version "30.0") (int)
-            (cl-loop for int being the intervals property 'face
-                     for pos = (car int)
-                     for next = (cdr int)
-                     for val = (get-text-property pos 'face)
-                     when val do
-                     (put-text-property
-                      (+ start-src (1- pos)) (1- (+ start-src next)) 'face
-                      val adoc-buffer))))
+          (cl-loop for int being the intervals property 'face
+                   for pos = (car int)
+                   for next = (cdr int)
+                   for val = (get-text-property pos 'face)
+                   when val do
+                   (put-text-property
+                    (+ start-src (1- pos)) (1- (+ start-src next)) 'face
+                    val adoc-buffer)))
         (set-buffer-modified-p modified)))))
 
 (defconst adoc-code-block-begin-regexp
