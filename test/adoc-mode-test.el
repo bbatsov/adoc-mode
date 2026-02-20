@@ -213,23 +213,22 @@ Don't use it for anything real.")
                   "====== " adoc-meta-hide-face "chapter 5" adoc-title-5-face " ======" adoc-meta-hide-face "\n" nil))
 
 (ert-deftest adoctest-test-titles-simple-two-line ()
-  (adoctest-faces "titles-simple-two-line"
-                  ;; todo
-                  ;; ensure somehow adoc-enable-two-line-title is t
-                  "document title" adoc-title-0-face "\n" nil
-                  "==============" adoc-meta-hide-face "\n" nil
-                  "\n" nil
-                  "chapter 1" adoc-title-1-face "\n" nil
-                  "---------" adoc-meta-hide-face "\n" nil
-                  "\n" nil
-                  "chapter 2" adoc-title-2-face "\n" nil
-                  "~~~~~~~~~" adoc-meta-hide-face "\n" nil
-                  "\n" nil
-                  "chapter 3" adoc-title-3-face "\n" nil
-                  "^^^^^^^^^" adoc-meta-hide-face "\n" nil
-                  "\n" nil
-                  "chapter 4" adoc-title-4-face "\n" nil
-                  "+++++++++" adoc-meta-hide-face))
+  (let ((adoc-enable-two-line-title t))
+    (adoctest-faces "titles-simple-two-line"
+                    "document title" adoc-title-0-face "\n" nil
+                    "==============" adoc-meta-hide-face "\n" nil
+                    "\n" nil
+                    "chapter 1" adoc-title-1-face "\n" nil
+                    "---------" adoc-meta-hide-face "\n" nil
+                    "\n" nil
+                    "chapter 2" adoc-title-2-face "\n" nil
+                    "~~~~~~~~~" adoc-meta-hide-face "\n" nil
+                    "\n" nil
+                    "chapter 3" adoc-title-3-face "\n" nil
+                    "^^^^^^^^^" adoc-meta-hide-face "\n" nil
+                    "\n" nil
+                    "chapter 4" adoc-title-4-face "\n" nil
+                    "+++++++++" adoc-meta-hide-face)))
 
 (ert-deftest adoctest-test-titles-simple-block-title ()
   (adoctest-faces "titles-simple-block-title"
@@ -608,52 +607,53 @@ Don't use it for anything real.")
                   "Lorem " nil "^" adoc-meta-hide-face " ipsum " adoc-superscript-face "^" adoc-meta-hide-face " dolor"))
 
 (ert-deftest adoctest-test-quotes-medium ()
-  (adoctest-faces "test-quotes-medium"
-                  ;; test wheter constrained/unconstrained quotes can spawn multiple lines
-                  "Lorem " 'no-face "*" adoc-meta-hide-face "ipsum" adoc-bold-face
-                  "\n" nil "dolor" adoc-bold-face "\n" nil "dolor" adoc-bold-face
-                  "\n" nil "dolor" adoc-bold-face "\n" nil "dolor" adoc-bold-face
-                  "*" adoc-meta-hide-face
-                  " sit" 'no-face "\n" nil
+  (let ((adoc-enable-two-line-title t))
+    (adoctest-faces "test-quotes-medium"
+                    ;; test wheter constrained/unconstrained quotes can spawn multiple lines
+                    "Lorem " 'no-face "*" adoc-meta-hide-face "ipsum" adoc-bold-face
+                    "\n" nil "dolor" adoc-bold-face "\n" nil "dolor" adoc-bold-face
+                    "\n" nil "dolor" adoc-bold-face "\n" nil "dolor" adoc-bold-face
+                    "*" adoc-meta-hide-face
+                    " sit" 'no-face "\n" nil
 
-                  "Lorem " 'no-face "__" adoc-meta-hide-face "ipsum" adoc-emphasis-face
-                  "\n" nil "dolor" adoc-emphasis-face "\n" nil "dolor" adoc-emphasis-face
-                  "\n" nil "dolor" adoc-emphasis-face "\n" nil "dolor" adoc-emphasis-face
-                  "__" adoc-meta-hide-face
-                  " sit" 'no-face "\n" nil
+                    "Lorem " 'no-face "__" adoc-meta-hide-face "ipsum" adoc-emphasis-face
+                    "\n" nil "dolor" adoc-emphasis-face "\n" nil "dolor" adoc-emphasis-face
+                    "\n" nil "dolor" adoc-emphasis-face "\n" nil "dolor" adoc-emphasis-face
+                    "__" adoc-meta-hide-face
+                    " sit" 'no-face "\n" nil
 
-                  ;; tests border case that delimiter is at the beginnin/end of an paragraph/line
-                  ;; constrained at beginning
-                  "*" adoc-meta-hide-face "lorem" 'adoc-bold-face "*" adoc-meta-hide-face " ipsum\n" 'no-face
-                  "\n" nil
-                  ;; constrained at end
-                  "lorem " 'no-face "*" adoc-meta-hide-face "ipsum" adoc-bold-face "*" adoc-meta-hide-face "\n" nil
-                  "\n" nil
-                  ;; constrained from beginning to end
-                  "*" adoc-meta-hide-face "lorem" adoc-bold-face "*" adoc-meta-hide-face "\n" nil
-                  "\n" nil
-                  ;; unconstrained at beginning. Note that "** " at the beginning of a line would be a list item.
-                  "__" adoc-meta-hide-face " lorem " 'adoc-emphasis-face "__" adoc-meta-hide-face " ipsum\n" 'no-face
-                  "\n" nil
-                  ;; unconstrained at end
-                  "lorem " 'no-face "__" adoc-meta-hide-face " ipsum " adoc-emphasis-face "__" adoc-meta-hide-face "\n" nil
-                  "\n" nil
-                  ;; unconstrained from beginning to end
-                  "__" adoc-meta-hide-face " lorem " adoc-emphasis-face "__" adoc-meta-hide-face "\n" nil
-                  "\n" nil
+                    ;; tests border case that delimiter is at the beginnin/end of an paragraph/line
+                    ;; constrained at beginning
+                    "*" adoc-meta-hide-face "lorem" 'adoc-bold-face "*" adoc-meta-hide-face " ipsum\n" 'no-face
+                    "\n" nil
+                    ;; constrained at end
+                    "lorem " 'no-face "*" adoc-meta-hide-face "ipsum" adoc-bold-face "*" adoc-meta-hide-face "\n" nil
+                    "\n" nil
+                    ;; constrained from beginning to end
+                    "*" adoc-meta-hide-face "lorem" adoc-bold-face "*" adoc-meta-hide-face "\n" nil
+                    "\n" nil
+                    ;; unconstrained at beginning. Note that "** " at the beginning of a line would be a list item.
+                    "__" adoc-meta-hide-face " lorem " 'adoc-emphasis-face "__" adoc-meta-hide-face " ipsum\n" 'no-face
+                    "\n" nil
+                    ;; unconstrained at end
+                    "lorem " 'no-face "__" adoc-meta-hide-face " ipsum " adoc-emphasis-face "__" adoc-meta-hide-face "\n" nil
+                    "\n" nil
+                    ;; unconstrained from beginning to end
+                    "__" adoc-meta-hide-face " lorem " adoc-emphasis-face "__" adoc-meta-hide-face "\n" nil
+                    "\n" nil
 
-                  ;; test wheter quotes can nest
-                  ;; done by meta-face-cleanup
+                    ;; test wheter quotes can nest
+                    ;; done by meta-face-cleanup
 
-                  ;; tests that quotes work within titles / labeled lists
-                  "== " adoc-meta-hide-face "chapter " adoc-title-1-face "*" adoc-meta-hide-face "1" '(adoc-title-1-face adoc-bold-face) "*" adoc-meta-hide-face " ==" adoc-meta-hide-face "\n" nil
-                  "\n" nil
-                  "chapter " adoc-title-2-face "_" adoc-meta-hide-face "2" '(adoc-title-2-face adoc-emphasis-face) "_" adoc-meta-hide-face "\n" nil
-                  "~~~~~~~~~~~" adoc-meta-hide-face "\n" nil
-                  "." adoc-meta-face "lorem " 'adoc-gen-face "_" adoc-meta-hide-face "ipsum" '(adoc-gen-face adoc-emphasis-face) "_" adoc-meta-hide-face "\n" nil
-                  "\n" nil
-                  "lorem " adoc-gen-face "+" adoc-meta-hide-face "ipsum" '(adoc-gen-face adoc-typewriter-face) "+" adoc-meta-hide-face " sit" adoc-gen-face "::" adoc-list-face " " adoc-align-face
-                  ))
+                    ;; tests that quotes work within titles / labeled lists
+                    "== " adoc-meta-hide-face "chapter " adoc-title-1-face "*" adoc-meta-hide-face "1" '(adoc-title-1-face adoc-bold-face) "*" adoc-meta-hide-face " ==" adoc-meta-hide-face "\n" nil
+                    "\n" nil
+                    "chapter " adoc-title-2-face "_" adoc-meta-hide-face "2" '(adoc-title-2-face adoc-emphasis-face) "_" adoc-meta-hide-face "\n" nil
+                    "~~~~~~~~~~~" adoc-meta-hide-face "\n" nil
+                    "." adoc-meta-face "lorem " 'adoc-gen-face "_" adoc-meta-hide-face "ipsum" '(adoc-gen-face adoc-emphasis-face) "_" adoc-meta-hide-face "\n" nil
+                    "\n" nil
+                    "lorem " adoc-gen-face "+" adoc-meta-hide-face "ipsum" '(adoc-gen-face adoc-typewriter-face) "+" adoc-meta-hide-face " sit" adoc-gen-face "::" adoc-list-face " " adoc-align-face
+                    )))
 
 ;; test border cases where the quote delimiter is at the beginning and/or the
 ;; end of the buffer
@@ -772,6 +772,7 @@ Don't use it for anything real.")
 ;; inline substitutions only within the block they belong to. I.e. don't cross
 ;; block boundaries.
 (ert-deftest adoctest-test-inline-subst-boundaries ()
+  (let ((adoc-enable-two-line-title t))
   (adoctest-faces "inline-subst-boundaries"
 
                   ;; 1) don't cross title boundaries.
@@ -819,7 +820,7 @@ Don't use it for anything real.")
                   "**" adoc-list-face " " nil "dolor ** sit\n" 'no-face
                   ;; don't cross list item boundaries in the case of labeled lists
                   "lorem ** ipsum " adoc-gen-face "::" adoc-list-face " " nil "sit ** dolor\n" 'no-face
-                  "lorem ** ipsum " adoc-gen-face "::" adoc-list-face " " nil "sit ** dolor" 'no-face))
+                  "lorem ** ipsum " adoc-gen-face "::" adoc-list-face " " nil "sit ** dolor" 'no-face)))
 
 (ert-deftest adoctest-test-promote-title ()
   (adoctest-trans "= foo" "== foo" '(adoc-promote-title 1))

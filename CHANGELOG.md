@@ -10,6 +10,7 @@
 ### Changes
 
 - Require Emacs 28.1.
+- `adoc-enable-two-line-title` now defaults to nil (Asciidoctor deprecated Setext-style titles).
 
 ### Bugs fixed
 

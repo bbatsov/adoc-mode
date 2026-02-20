@@ -206,19 +206,16 @@ AsciiDoc config file would the probably be '^[<>]-{4,}$'"
   :type 'integer
   :group 'adoc)
 
-(defcustom adoc-enable-two-line-title t
+(defcustom adoc-enable-two-line-title nil
   "Whether or not two line titles shall be fontified.
 
-nil means never fontify. t means always fontify. A number means
-only fontify if the line below has NOT the length of the given
-number. You could use a number for example when all your
-delimited block lines have a certain length.
+Two-line (Setext) titles are deprecated by Asciidoctor in favor
+of the one-line (atx) style.  This option is nil by default.
 
-This is useful because adoc-mode has troubles to properly
-distinguish between two line titles and a line of text before a
-delimited block. Note however that adoc-mode knows the AsciiDoc
-rule that the length of a two line title underline can differ at
-most 3 chars from the length of the title text."
+nil means never fontify.  t means always fontify.  A number means
+only fontify if the line below has NOT the length of the given
+number.  You could use a number for example when all your
+delimited block lines have a certain length."
   :type '(choice (const nil)
                  (const t)
                  number)
@@ -230,7 +227,7 @@ most 3 chars from the length of the title text."
 See for example `tempo-template-adoc-title-1'."
   :type '(choice (const :tag "== one line" adoc-title-style-one-line)
                  (const :tag "== one line enclosed ==" adoc-title-style-one-line-enclosed)
-                 (const :tag "two line\\n--------" adoc-title-style-two-line))
+                 (const :tag "two line\\n--------  (deprecated)" adoc-title-style-two-line))
   :group 'adoc)
 
 (defcustom adoc-tempo-frwk 'tempo-vanilla
