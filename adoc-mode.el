@@ -338,12 +338,13 @@ aligned.
   :group 'adoc-faces)
 (defvar adoc-align-face 'adoc-align-face)
 
-;; Despite the comment in font-lock.el near 'defvar font-lock-comment-face', it
-;; seems I still need variables to refer to faces in adoc-font-lock-keywords.
-;; Not having variables and only referring to face names in
-;; adoc-font-lock-keywords does not work.
-(defvar adoc-delimiter 'adoc-meta-face)
-(defvar adoc-hide-delimiter 'adoc-meta-hide-face)
+;; Font-lock evaluates FACEFORM in keyword specs as a variable, so face
+;; symbols used as bare (unquoted) FACEFORM values need a corresponding
+;; defvar.  The self-referencing defvars after each defface serve this purpose.
+(defvar adoc-delimiter 'adoc-meta-face
+  "Face used for delimiters.")
+(defvar adoc-hide-delimiter 'adoc-meta-hide-face
+  "Face used for delimiters that should be nearly invisible.")
 
 
 ;;;; misc
@@ -544,9 +545,6 @@ customizable.")
   "Creates a hypertext link to a document anchor. The `<id>`
   refers to an anchor ID. The optional `<caption>` is the link's
   displayed text.")
-(defconst adoc-help-local-doc-link
-  "Hypertext links to files on the local file system are
-  specified using the link inline macro.")
 (defconst adoc-help-local-doc-link
   "Hypertext links to files on the local file system are
   specified using the link inline macro.")
@@ -983,7 +981,7 @@ match-data has these sub groups:
 
 ;; AsciiDoc handles that by source code, there is no regexp in AsciiDoc.  See
 ;; also adoc-re-one-line-title.
-(defun adoc-re-two-line-title-undlerline (&optional del)
+(defun adoc-re-two-line-title-underline (&optional del)
   "Returns a regexp matching the underline of a two line title.
 
 DEL is an element of `adoc-two-line-title-del' or nil. If nil,
@@ -1014,7 +1012,7 @@ Note that even if this regexp matches it still doesn't mean it is
 a two line title. You additionally have to test if the underline
 has the correct length.
 
-DEL is described in `adoc-re-two-line-title-undlerline'.
+DEL is described in `adoc-re-two-line-title-underline'.
 
 match-data has these sub groups:
 
@@ -1030,7 +1028,7 @@ match-data has these sub groups:
    ;; asciidoc src, Title.parse,
    "\\(\\)\\(^.*?[a-zA-Z0-9_].*?\\)[ \t]*\n"
    ;; 2nd line: underline
-   (adoc-re-two-line-title-undlerline del)))
+   (adoc-re-two-line-title-underline del)))
 
 (defun adoc-make-two-line-title (level text)
   "Returns a two line title of given LEVEL containing given TEXT.
@@ -3379,7 +3377,7 @@ and title's text are not preserved, afterwards its always one space."
       ;; replace old title by new
       (let ((end-char (char-before end)))
         (beginning-of-line)
-        (when (and (eq type 2) (looking-at (adoc-re-two-line-title-undlerline)))
+        (when (and (eq type 2) (looking-at (adoc-re-two-line-title-underline)))
           (forward-line -1)
           (beginning-of-line))
         (delete-region start end)
