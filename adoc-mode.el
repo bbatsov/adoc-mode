@@ -2678,6 +2678,30 @@ for multiline constructs to be matched."
     (push-mark)
     (goto-char pos)))
 
+(defun adoc-follow-thing-at-point ()
+  "Follow the link or reference at point.
+When point is on a URL, open it in a browser.
+When point is on an `include::' macro, open the referenced file.
+When point is on an xref or cross-reference, jump to its anchor."
+  (interactive)
+  (cond
+   ;; include:: macro — open the file
+   ((save-excursion
+      (beginning-of-line)
+      (looking-at "include1?::\\([^ \t\n\\[]+\\)"))
+    (let ((file (match-string-no-properties 1)))
+      (if (file-exists-p file)
+          (find-file file)
+        (user-error "File not found: %s" file))))
+   ;; xref at point — jump to anchor
+   ((adoc-xref-id-at-point)
+    (adoc-goto-ref-label (adoc-xref-id-at-point)))
+   ;; URL at point — open in browser
+   ((thing-at-point 'url)
+    (browse-url (thing-at-point 'url t)))
+   (t
+    (user-error "Nothing to follow at point"))))
+
 (defun adoc-promote (&optional arg)
   "Promotes the structure at point ARG levels.
 
@@ -3628,12 +3652,15 @@ ITEMS is a list of (name pos . level)."
     (define-key map "\C-c\C-p" 'adoc-promote)
     (define-key map "\C-c\C-t" 'adoc-toggle-title-type)
     (define-key map "\C-c\C-a" 'adoc-goto-ref-label)
+    (define-key map "\C-c\C-o" 'adoc-follow-thing-at-point)
+    (define-key map (kbd "M-.") 'adoc-follow-thing-at-point)
     (easy-menu-define adoc-mode-menu map "Menu for adoc mode"
       `("AsciiDoc"
         ["Promote" adoc-promote]
         ["Demote" adoc-demote]
         ["Toggle title type" adoc-toggle-title-type]
         ["Adjust title underline" adoc-adjust-title-del]
+        ["Follow thing at point" adoc-follow-thing-at-point]
         ["Goto anchor" adoc-goto-ref-label]
         "---"
         ;; names|wording / rough order/ help texts are from asciidoc manual
