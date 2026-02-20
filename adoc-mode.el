@@ -104,10 +104,10 @@ function returns nil, nothing is done with named character
 entities. Note that if `adoc-insert-replacement' is nil,
 adoc-unichar-name-resolver is not used.
 
-You can set it to `adoc-unichar-by-name'; however it requires
-unichars.el (http://nwalsh.com/emacs/xmlchars/unichars.el). When
-you set adoc-unichar-name-resolver to adoc-unichar-by-name, you
-need to call `adoc-calc' for the change to take effect."
+You can set it to `adoc-unichar-by-name' which uses the built-in
+`sgml-char-names' table.  When you set adoc-unichar-name-resolver
+to adoc-unichar-by-name, you need to call `adoc-calc' for the
+change to take effect."
   :type '(choice (const nil)
                  (const adoc-unichar-by-name)
                  function)
@@ -3416,23 +3416,18 @@ and title's text are not preserved, afterwards its always one space."
         (forward-line -1))
       (move-to-column saved-col))))
 
-(defvar unicode-character-list) ;; From unichars.el
+(defvar sgml-char-names)
 
-(defun adoc-make-unichar-alist()
-  "Creates `adoc-unichar-alist' from `unicode-character-list'"
-  (unless (boundp 'unicode-character-list)
-    (load "unichars"))
-  (let ((i unicode-character-list))
-    (setq adoc-unichar-alist nil)
-    (while i
-      (let ((name (nth 2 (car i)))
-            (codepoint (nth 0 (car i))))
-        (when name
-          (push (cons name codepoint) adoc-unichar-alist))
-        (setq i (cdr i))))))
+(defun adoc-make-unichar-alist ()
+  "Create `adoc-unichar-alist' from the built-in `sgml-char-names'."
+  (require 'sgml-mode)
+  (setq adoc-unichar-alist nil)
+  (dotimes (i (length sgml-char-names))
+    (when (aref sgml-char-names i)
+      (push (cons (aref sgml-char-names i) i) adoc-unichar-alist))))
 
 (defun adoc-unichar-by-name (name)
-  "Returns unicode codepoint of char with the given NAME"
+  "Return unicode codepoint of char with the given NAME."
   (cdr (assoc name adoc-unichar-alist)))
 
 (defun adoc-entity-to-string (entity)
