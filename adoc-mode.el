@@ -2960,7 +2960,7 @@ See also `adoc-display-remote-images'."
         (url-copy-file url dl-path t)
         (puthash url dl-path adoc--remote-image-cache))))
 
-(defconst adoc-re-image "\\<image::?\\(\\_<[^]]+\\)\\(\\[[^]]*\\]\\)"
+(defconst adoc-re-image "\\<image::?\\([^]]+\\)\\(\\[[^]]*\\]\\)"
   "Regexp matching block- and inline-images.")
 
 (defvar adoc-image-overlay-functions nil
@@ -3007,30 +3007,31 @@ Each function is called with the created overlay as argument.")
 (defun adoc-create-image-overlay (file start end)
   "Create image overlay with START and END displaying image FILE."
   (when (not (zerop (length file)))
-            (unless (file-exists-p file)
-              (when (and adoc-display-remote-images
-                         (member (downcase (url-type (url-generic-parse-url file)))
-                                 adoc-remote-image-protocols))
-                (setq file (adoc--get-remote-image file))))
-            (when (file-exists-p file)
-              (let* ((abspath (if (file-name-absolute-p file)
-                                  file
-                                (concat default-directory file)))
-                     (image
-                      (if (and adoc-max-image-size
-                               (image-type-available-p 'imagemagick))
-                          (create-image
-                           abspath 'imagemagick nil
-                           :max-width (car adoc-max-image-size)
-                           :max-height (cdr adoc-max-image-size))
-                        (create-image abspath))))
-                (when image
-                  (let ((ov (make-overlay start end)))
-                    (overlay-put ov 'adoc-image t)
-                    (overlay-put ov 'display image)
-                    (overlay-put ov 'face 'default)
-                    (overlay-put ov 'keymap adoc-image-overlay-map)
-                    (run-hook-with-args 'adoc-image-overlay-functions ov)))))))
+    (unless (file-exists-p file)
+      (when adoc-display-remote-images
+        (let ((url-type (ignore-errors
+                          (downcase (url-type (url-generic-parse-url file))))))
+          (when (member url-type adoc-remote-image-protocols)
+            (setq file (adoc--get-remote-image file))))))
+    (when (file-exists-p file)
+      (let* ((abspath (if (file-name-absolute-p file)
+                          file
+                        (concat default-directory file)))
+             (image
+              (if (and adoc-max-image-size
+                       (image-type-available-p 'imagemagick))
+                  (create-image
+                   abspath 'imagemagick nil
+                   :max-width (car adoc-max-image-size)
+                   :max-height (cdr adoc-max-image-size))
+                (create-image abspath))))
+        (when image
+          (let ((ov (make-overlay start end)))
+            (overlay-put ov 'adoc-image t)
+            (overlay-put ov 'display image)
+            (overlay-put ov 'face 'default)
+            (overlay-put ov 'keymap adoc-image-overlay-map)
+            (run-hook-with-args 'adoc-image-overlay-functions ov)))))))
 
 (defun adoc-display-images ()
   "Add inline image overlays to image links in the buffer.
