@@ -594,9 +594,6 @@ Don't use it for anything real.")
                   "Lorem " nil "$$" adoc-meta-hide-face " ipsum " '(adoc-typewriter-face adoc-verbatim-face) "$$" adoc-meta-hide-face " dolor\n" nil
                   "Lorem " nil "**" adoc-meta-hide-face " ipsum " adoc-bold-face "**" adoc-meta-hide-face " dolor\n" nil
                   "Lorem " nil "*" adoc-meta-hide-face "ipsum" adoc-bold-face "*" adoc-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "``" adoc-replacement-face "ipsum" nil "''" adoc-replacement-face " dolor\n" nil
-                  "Lorem " nil "'" adoc-meta-hide-face "ipsum" adoc-emphasis-face "'" adoc-meta-hide-face " dolor\n" nil
-                  "Lorem " nil "`" adoc-replacement-face "ipsum" nil "'" adoc-replacement-face " dolor\n" nil
                   "Lorem " nil "++" adoc-meta-hide-face " ipsum " adoc-typewriter-face "++" adoc-meta-hide-face " dolor\n" nil
                   "Lorem " nil "+" adoc-meta-hide-face "ipsum" adoc-typewriter-face "+" adoc-meta-hide-face " dolor\n" nil
                   "Lorem " nil "__" adoc-meta-hide-face " ipsum " adoc-emphasis-face "__" adoc-meta-hide-face " dolor\n" nil

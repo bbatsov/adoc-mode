@@ -12,6 +12,7 @@
 
 - Require Emacs 28.1.
 - `adoc-enable-two-line-title` now defaults to nil (Asciidoctor deprecated Setext-style titles).
+- Remove deprecated AsciiDoc backtick-apostrophe quote styles (`` ``text'' `` and `` `text' ``), which are not supported in Asciidoctor.
 
 ### Bugs fixed
 

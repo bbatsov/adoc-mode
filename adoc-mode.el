@@ -2419,25 +2419,15 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    ;; 7. Replacements2
 
 
-   ;; (passthrough stuff removal)
-   ;; ------------------------
-   ;; todo. look in asciidoc source how exactly asciidoc does it
-   ;; 1) BUG: actually only ifdef::no-inline-literal[]
-   ;; 2) TODO: in asciidod.conf (but not yet here) also in inline macro section
-
-   ;; AsciiDoc Manual: constitutes an inline literal passthrough. The enclosed
-   ;; text is rendered in a monospaced font and is only subject to special
-   ;; character substitution.
-   (adoc-kw-quote 'adoc-unconstrained "``" adoc-typewriter-face nil nil t)     ;1)
-   (adoc-kw-quote 'adoc-constrained "`" adoc-typewriter-face nil nil t)     ;1)
-   ;; AsciiDoc Manual: The triple-plus passthrough is functionally identical to
-   ;; the pass macro but you don’t have to escape ] characters and you can
-   ;; prefix with quoted attributes in the inline version
-   (adoc-kw-quote 'adoc-unconstrained "+++" adoc-typewriter-face nil nil t) ;2)
-   ;;The double-dollar passthrough is functionally identical to the triple-plus
-   ;;passthrough with one exception: special characters are escaped.
-   (adoc-kw-quote 'adoc-unconstrained "$$" adoc-typewriter-face nil nil t)  ;2)
-   ;; TODO: add pass:[...], latexmath:[...], asciimath[...]
+   ;; Inline code and passthroughs
+   ;; ----------------------------
+   ;; Asciidoctor: `text` is inline code (monospace literal)
+   (adoc-kw-quote 'adoc-unconstrained "``" adoc-typewriter-face nil nil t)
+   (adoc-kw-quote 'adoc-constrained "`" adoc-typewriter-face nil nil t)
+   ;; +++text+++ passthrough (no substitutions)
+   (adoc-kw-quote 'adoc-unconstrained "+++" adoc-typewriter-face nil nil t)
+   ;; $$text$$ passthrough (special characters escaped)
+   (adoc-kw-quote 'adoc-unconstrained "$$" adoc-typewriter-face nil nil t)
 
    ;; special characters
    ;; ------------------
@@ -2450,11 +2440,10 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    ;; ------------------------------
    (adoc-kw-quote 'adoc-unconstrained "**" adoc-bold-face)
    (adoc-kw-quote 'adoc-constrained "*" adoc-bold-face)
-   (adoc-kw-quote 'adoc-constrained "``" nil adoc-replacement-face "''") ; double quoted text
-   (adoc-kw-quote 'adoc-constrained "'" adoc-emphasis-face)      ; single quoted text
-   (adoc-kw-quote 'adoc-constrained "`" nil adoc-replacement-face "'")
-   ;; `...` , +++...+++, $$...$$ are within passthrough stuff above
-   (adoc-kw-quote 'adoc-unconstrained "++" adoc-typewriter-face) ; AsciiDoc manual: really only '..are rendered in a monospaced font.'
+   ;; The old AsciiDoc ``text'' (double quote) and `text' (single quote)
+   ;; syntaxes are deprecated in Asciidoctor.  Backtick inline code is
+   ;; handled in the passthrough section above.
+   (adoc-kw-quote 'adoc-unconstrained "++" adoc-typewriter-face)
    (adoc-kw-quote 'adoc-constrained "+" adoc-typewriter-face)
    (adoc-kw-quote 'adoc-unconstrained  "__" adoc-emphasis-face)
    (adoc-kw-quote 'adoc-constrained "_" adoc-emphasis-face)
