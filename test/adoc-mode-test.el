@@ -308,6 +308,13 @@ Don't use it for anything real.")
                   "********" adoc-meta-hide-face "\n" nil
                   "********" adoc-meta-hide-face "\n"))
 
+;; Regression test for https://github.com/bbatsov/adoc-mode/issues/64
+(ert-deftest adoctest-test-passthrough-minimal ()
+  (adoctest-faces "passthrough-minimal"
+                  "++++" adoc-meta-hide-face "\n" nil
+                  "\\lambda_{T}" adoc-passthrough-face "\n" nil
+                  "++++" adoc-meta-hide-face))
+
 (ert-deftest adoctest-test-open-block ()
   (adoctest-faces "open-block"
                   "--" adoc-meta-hide-face "\n" nil
