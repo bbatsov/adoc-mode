@@ -714,6 +714,17 @@ Don't use it for anything real.")
   (adoctest-faces "inline-macros"
                   "commandname" adoc-command-face ":target[" adoc-meta-face "attribute list" adoc-value-face "]" adoc-meta-face))
 
+(ert-deftest adoctest-test-asciidoctor-inline-macros ()
+  ;; kbd macro
+  (adoctest-faces "asciidoctor-kbd-macro"
+                  "Press " nil "kbd" adoc-command-face ":[" adoc-meta-face "Ctrl+C" adoc-value-face "]" adoc-meta-face)
+  ;; btn macro
+  (adoctest-faces "asciidoctor-btn-macro"
+                  "Click " nil "btn" adoc-command-face ":[" adoc-meta-face "OK" adoc-value-face "]" adoc-meta-face)
+  ;; pass macro
+  (adoctest-faces "asciidoctor-pass-macro"
+                  "Use " nil "pass" adoc-command-face ":[" adoc-meta-face "raw content" adoc-value-face "]" adoc-meta-face))
+
 (ert-deftest adoctest-test-meta-face-cleanup ()
   ;; begin with a few simple explicit cases which are easier to debug in case of troubles
 

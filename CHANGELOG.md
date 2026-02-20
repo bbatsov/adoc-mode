@@ -6,6 +6,7 @@
 
 - [#21](https://github.com/bbatsov/adoc-mode/pull/21): Add support for native font-locking in code blocks.
 - [#48](https://github.com/bbatsov/adoc-mode/pull/48): Add support for displaying images.
+- Add font-lock support for Asciidoctor inline macros: `kbd:[]`, `btn:[]`, `menu:[]`, `pass:[]`, `stem:[]`, `latexmath:[]`, `asciimath:[]`.
 
 ### Changes
 

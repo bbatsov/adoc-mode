@@ -2522,9 +2522,21 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
    (adoc-kw-inline-macro "footnoteref" t 'single-attribute nil nil nil
                          '(("id") (("id" . adoc-internal-reference-face))))
    (adoc-kw-inline-macro "footnoteref" t nil nil nil nil '("id" "text"))
+
+   ;; Asciidoctor UI macros
+   (adoc-kw-inline-macro "kbd" t nil adoc-command-face nil t)
+   (adoc-kw-inline-macro "btn" t nil adoc-command-face nil t)
+   (adoc-kw-inline-macro "menu" nil nil adoc-command-face nil t)
+
+   ;; Passthrough inline macros
+   (adoc-kw-inline-macro "pass" nil nil nil nil t)
+   (adoc-kw-inline-macro "stem" nil nil nil nil t)
+   (adoc-kw-inline-macro "latexmath" nil nil nil nil t)
+   (adoc-kw-inline-macro "asciimath" nil nil nil nil t)
+
    (adoc-kw-standalone-urls)
 
-   ;; Macros using default syntax and having default highlighting in adoc-mod
+   ;; Macros using default syntax and having default highlighting in adoc-mode
    (adoc-kw-inline-macro)
 
    ;; bibliographic anchor ala [[[id]]]
