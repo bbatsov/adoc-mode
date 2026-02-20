@@ -2673,7 +2673,7 @@ for multiline constructs to be matched."
                    (concat "Goto anchor of reference/label " default-str ": ")
                    nil nil default))))
   (let ((pos (save-excursion
-               (goto-char 0)
+               (goto-char (point-min))
                (re-search-forward (adoc-re-anchor nil id) nil t))))
     (if (null pos) (error (concat "Can't find an anchor defining '" id "'")))
     (push-mark)
@@ -3555,7 +3555,7 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
           (concat "\\(?:" re-all-titles-core "\\)")))
     (save-restriction
       (widen)
-      (goto-char 0)
+      (goto-char (point-min))
       (while (re-search-forward re-all-titles nil t)
         (backward-char) ; skip backwards the trailing \n of a title
         (let* ((descriptor (adoc-title-descriptor t))
