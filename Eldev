@@ -1,1 +1,2 @@
 (eldev-use-package-archive 'melpa)
+(eldev-add-loading-roots 'test "test")
