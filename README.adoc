@@ -34,16 +34,16 @@ be easily ignored.
 
 Here are some of the main features of `adoc-mode`:
 
-- sophisticated highlighting
-- native fontification of code blocks
+- comprehensive syntax highlighting for all AsciiDoc elements
+- native fontification of source code blocks using language-appropriate major modes
 - font-lock support for Asciidoctor inline macros (`kbd:[]`, `btn:[]`, `menu:[]`, etc.)
-- toggle between the display of image links and the display of the corresponding images
-- promote / demote title
-- toggle title type between one line title and two line title
-- adjust underline length of a two line title to match title text's length
-- follow URLs, `include::` macros, and xrefs at point (`C-c C-o` / `M-.`)
+- inline image preview with right-click context menus and remote image support
+- ~50 tempo templates for inserting AsciiDoc markup (formatting, titles, blocks, lists, macros, etc.)
+- title management: promote / demote, toggle between one-line and two-line styles, adjust underline length
+- navigate to anchors (`C-c C-a`) and follow URLs, `include::` macros, and xrefs at point (`C-c C-o` / `M-.`)
 - nested `imenu` index with hierarchical heading structure
-- support for outline (however only with the one-line title style)
+- support for `outline-mode` (one-line title style only)
+- integration with `flyspell-mode` (skips non-prose regions), comment commands (`M-;`), and compilation mode
 
 === Demo
 
