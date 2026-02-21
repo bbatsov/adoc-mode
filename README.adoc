@@ -122,17 +122,14 @@ or if you're into `use-package`:
 
 === General
 
-According to an old AsciiDoc manual, `.txt` is the standard file extension of
-AsciiDoc files. Add the following to your initialization file to open all `.txt`
-files with adoc-mode as major mode automatically:
+The `.adoc` and `.asciidoc` file extensions are associated with `adoc-mode` automatically.
+
+NOTE: An old AsciiDoc manual lists `.txt` as the standard extension. If you want `adoc-mode` for `.txt` files as well, add this to your init file:
 
 [source,emacs-lisp]
 ----
 (add-to-list 'auto-mode-alist (cons "\\.txt\\'" 'adoc-mode))
 ----
-
-Modern conventions for AsciiDoc file extensions favor `.adoc` and
-`.asciidoc` and they are associated with `adoc-mode` automatically.
 
 You can see a list of all configuration options offered by `adoc-mode` by running the following command - kbd:[M-x] `customize-group adoc`.
 
@@ -141,8 +138,8 @@ You can see a list of all configuration options offered by `adoc-mode` by runnin
 Out-of-the-box `adoc-mode` will try to apply native font-locking to source code blocks (e.g. the same font-locking that `ruby-mode` would use for Ruby code blocks).
 This can be tweaked by several configuration options:
 
-* Native fontification of source blocks can be switched off by setting `adoc-fontify-code-blocks-natively` to `nil`.
-* Native fontification of lengthy code blocks can cause performance problems. If the value of `adoc-fontify-code-blocks-natively` is an integer only those code blocks are fontified natively whose length is less or equal to that value.
+* Native fontification of source blocks can be switched off by setting `adoc-fontify-code-blocks-natively` to `nil`. The default value is `5000`, meaning only code blocks of 5000 characters or fewer are fontified natively.
+* Native fontification of lengthy code blocks can cause performance problems. If the value of `adoc-fontify-code-blocks-natively` is an integer only those code blocks are fontified natively whose length is less or equal to that value. Set it to `t` to fontify all code blocks regardless of size.
 * To avoid performance problems with code block beginnings that do not have a matching end yet the scanning for the code block end is delimited by `adoc-font-lock-extend-after-change-max`.
 * All programming languages `XYZ` that have an Emacs major mode `XYZ-mode` and use `font-lock` are automatically supported. Some other languages not fitting into that name scheme are supported through the alist `adoc-code-lang-modes`. You can add your own languages and modes there if they work based on `font-lock` and are not automatically supported.
 * The fall-back language mode is `prog-mode` without any fontification. You can set your own default by `adoc-fontify-code-block-default-mode`.
@@ -157,12 +154,14 @@ You can avoid this by deactivating the option `adoc-display-images`.
 (setq adoc-display-images nil)
 ----
 
-The maximal size (a cons cell with the format `(width . height)`) for the preview of images can be set with `adoc-max-image-size`:
+By default, images are displayed at their actual size. You can limit the maximum dimensions by setting `adoc-max-image-size` to a cons cell of `(MAX-WIDTH . MAX-HEIGHT)` in pixels:
 
 [source,emacs-lisp]
 ----
 (setq adoc-max-image-size '(640 . 480))
 ----
+
+NOTE: Image resizing requires Emacs to be built with ImageMagick support.
 
 An image link can also be given as url to a remote image. The display of remote images is switched off by default. You can activate it by the option `adoc-display-remote-images`.
 
@@ -208,18 +207,12 @@ Of course, this is only one way to do it. Emacs has a few ways to
 customize faces. Simply, pick the one you prefer.
 
 If your default face is a fixed pitch (monospace) face, but in AsciiDoc files
-you'd like to have normal text with a variable pitch face, `buffer-face-mode`
-is one good option for you:
+you'd like to have normal text with a variable pitch face, `variable-pitch-mode`
+is a good option:
 
 [source,emacs-lisp]
 ----
-(defun my-buffer-face-mode-variable ()
-   "Set font to a variable width (proportional) fonts in current buffer."
-   (interactive)
-   (setq buffer-face-mode-face '(:family "DejaVu Sans" :height 100 :width semi-condensed))
-   (buffer-face-mode))
-
-(add-hook 'adoc-mode-hook (lambda() (buffer-face-mode t)))
+(add-hook 'adoc-mode-hook #'variable-pitch-mode)
 ----
 
 == See Also
