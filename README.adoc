@@ -231,7 +231,6 @@ If you're looking for a lighter-weight alternative, check out https://github.com
 Here are some features that we're considering to add in the future:
 
 - Demote / promote for list items
-- Outline support also for two line titles
 - Correctly highlighting backslash escapes
 
 Check out the issue tracker for more details.
