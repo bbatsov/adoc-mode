@@ -54,34 +54,9 @@ the display of the link text and the linked image.
 
 image::images/adoc-mode.png[alt=screenshot]
 
-== Usage
+== See Also
 
-Adoc-mode is designed for intuitive use. Most features are available
-from the _AsciiDoc_ menu in the menu bar.
-
-This section only describes some not so obvious features.
-
-=== Image Preview
-
-If you click kbd:[mouse-3] on an image link like
-`image⁣:path/to/image[]` the _Image_ context menu pops up.
-
-This context menu allows you to generate or remove the preview for
-the linked image.
-
-The menu item _AsciiDoc → Toggle display of images_ runs the command
-`adoc-toggle-images`. It removes all image previews from the buffer
-if there are any. If there are no image previews in the buffer it
-generates them for all image links.
-
-This may be confusing if all image previews are outside the visible
-region of the buffer. In this case, you might expect `adoc-toggle-images`
-to generate the previews for the image links in the visible area on
-the first run. But it does not, since it first removes all the
-previews, even if you have not seen them.
-
-Just run `adoc-toggle-images` again if it does not do what you expect on
-the first run.
+If you're looking for a lighter-weight alternative, check out https://github.com/bbatsov/asciidoc-mode[asciidoc-mode] -- a tree-sitter-based AsciiDoc mode focused on the essentials (highlighting, navigation, folding). It requires Emacs 30.1+ and trades `adoc-mode`'s richer feature set for simplicity and the performance benefits of tree-sitter. Both modes are maintained by the same author.
 
 == Installation
 
@@ -117,6 +92,35 @@ or if you're into `use-package`:
 (use-package adoc-mode
   :ensure t)
 ----
+
+== Usage
+
+Adoc-mode is designed for intuitive use. Most features are available
+from the _AsciiDoc_ menu in the menu bar.
+
+This section only describes some not so obvious features.
+
+=== Image Preview
+
+If you click kbd:[mouse-3] on an image link like
+`image⁣:path/to/image[]` the _Image_ context menu pops up.
+
+This context menu allows you to generate or remove the preview for
+the linked image.
+
+The menu item _AsciiDoc → Toggle display of images_ runs the command
+`adoc-toggle-images`. It removes all image previews from the buffer
+if there are any. If there are no image previews in the buffer it
+generates them for all image links.
+
+This may be confusing if all image previews are outside the visible
+region of the buffer. In this case, you might expect `adoc-toggle-images`
+to generate the previews for the image links in the visible area on
+the first run. But it does not, since it first removes all the
+previews, even if you have not seen them.
+
+Just run `adoc-toggle-images` again if it does not do what you expect on
+the first run.
 
 == Configuration
 
@@ -215,9 +219,13 @@ is a good option:
 (add-hook 'adoc-mode-hook #'variable-pitch-mode)
 ----
 
-== See Also
+== History
 
-If you're looking for a lighter-weight alternative, check out https://github.com/bbatsov/asciidoc-mode[asciidoc-mode] -- a tree-sitter-based AsciiDoc mode focused on the essentials (highlighting, navigation, folding). It requires Emacs 30.1+ and trades `adoc-mode`'s richer feature set for simplicity and the performance benefits of tree-sitter. Both modes are maintained by the same author.
+`adoc-mode` was created by https://github.com/sensorflo/[Florian Kaufmann] in 2009. Eventually the development
+was halted in 2016 and the mode was dormant for the next 6 years. In 2022
+https://github.com/TobiasZawada[Tobias Zawada] encouraged the Emacs community to revive the development and after a brief period under the https://github.com/emacsorphanage[Emacs Orphanage] org, https://github.com/bbatsov/[Bozhidar Batsov] assumed the project's maintenance.
+
+These days all upstream packages (e.g. on MELPA) are built from Bozhidar's fork.
 
 == Roadmap
 
@@ -303,14 +311,6 @@ To check for byte-compilation warnings you can just compile the project with Eld
 ----
 $ eldev compile
 ----
-
-== History
-
-`adoc-mode` was created by https://github.com/sensorflo/[Florian Kaufmann] in 2009. Eventually the development
-was halted in 2016 and the mode was dormant for the next 6 years. In 2022
-https://github.com/TobiasZawada[Tobias Zawada] encouraged the Emacs community to revive the development and after a brief period under the https://github.com/emacsorphanage[Emacs Orphanage] org, https://github.com/bbatsov/[Bozhidar Batsov] assumed the project's maintenance.
-
-These days all upstream packages (e.g. on MELPA) are built from Bozhidar's fork.
 
 == License
 
