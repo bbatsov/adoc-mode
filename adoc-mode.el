@@ -9,7 +9,7 @@
 ;; Created: 2009
 ;; Version: 0.8.0-snapshot
 ;; Package-Requires: ((emacs "28.1"))
-;; Keywords: docs, wp
+;; Keywords: asciidoc, text
 ;;
 ;; This file is not part of GNU Emacs.
 ;;
