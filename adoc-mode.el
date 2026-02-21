@@ -737,7 +737,7 @@ AsciiDoc: *bold emphasis text* or _emphasis text_
 
 (defface adoc-command-face
   '((default (:inherit (adoc-meta-face bold)
-                       :box(
+                       :box (
                             :line-width 2
                             :style released-button)))
     (((background light))(:background "#f5f5f5" :foreground "black" :box (:color "#dcdcdc")))
@@ -759,10 +759,10 @@ AsciiDoc: *bold emphasis text* or _emphasis text_
 
 (defface adoc-passthrough-face
   '((t :inherit (fixed-pitch adoc-gen-face)))
-  "For text that is passed through yet another marser/renderer.
+  "For text that is passed through yet another parser/renderer.
 
   Since this text is passed to an arbitrary renderer, it is unknown
-  wich of its chars are meta characters and which are literal characters."
+  which of its chars are meta characters and which are literal characters."
   :group 'adoc-faces)
 (defvar adoc-passthrough-face 'adoc-passthrough-face)
 
@@ -1180,7 +1180,7 @@ Subgroups:
    "\\)"))
 
 ;; KLUDGE: Contrary to what the AsciiDoc manual specifies, adoc-mode does not
-;; allow that either the first or the last line within a delmited block is
+;; allow that either the first or the last line within a delimited block is
 ;; blank. That shall help to prevent the case that adoc-mode wrongly
 ;; interprets the end of a delimited block as the beginning, and the beginning
 ;; of a following delimited block as the ending, thus wrongly interpreting the
@@ -1221,9 +1221,9 @@ Subgroups:
    ;; 2nd+ line is neither a blank line nor a list continuation line
    "\\(?:\n\\(?:[^+ \t\n]\\|[ \t]+[^ \t\n]\\|\\+[ \t]*[^ \t\n]\\).*?\\)*?"
    ;; paragraph delimited by blank line or list continuation or end of buffer
-   ;; NOTE: now list continuation belongs the the verbatim paragraph sequence,
+   ;; NOTE: now list continuation belongs to the verbatim paragraph sequence,
    ;; but actually we want to highlight it differently. Thus the font lock
-   ;; keywoard handling list continuation must come after verbatim paraphraph
+   ;; keyword handling list continuation must come after verbatim paragraph
    ;; sequence.
    "\\(?:\n[ \t]*\\(?:\n\\|\\'\\)\\|\n\\+[ \t]*\n\\|\\'\\)"
    "\\)+"
@@ -1437,8 +1437,8 @@ subgroups:
      "\\(" qldel "\\)"
      "\\([^ \t\n]\\|[^ \t\n]" (adoc-re-content) "[^ \t\n]\\)"
      "\\(" qrdel "\\)"
-     ;; BUG: now that Emacs doesn't has look-ahead, the match is too long, and
-     ;; adjancted quotes of the same type wouldn't be recognized.
+     ;; BUG: now that Emacs doesn't have look-ahead, the match is too long, and
+     ;; adjacent quotes of the same type wouldn't be recognized.
      "\\(?:[^A-Za-z0-9\n]\\|[ \t]*$\\)")))
 
 (defun adoc-re-quote (type ldel &optional rdel)
