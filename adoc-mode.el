@@ -3178,17 +3178,17 @@ ITEMS is a list of (name pos . level)."
            :help ,adoc-help-single-quote]
           ["``Double quote''" tempo-template-adoc-double-quote
            :help ,adoc-help-double-quote]
-          ["The text [.underline]#underline me# is underlined." tempo-template-doc-underline
+          ["The text [.underline]#underline me# is underlined." tempo-template-adoc-underline
            :help ,adoc-help-underline]
-          ["The text [.overline]#overline me# is overlined." tempo-template-doc-overline
+          ["The text [.overline]#overline me# is overlined." tempo-template-adoc-overline
            :help ,adoc-help-overline]
-          ["The text [.line-through]#line-through me# is line-through." tempo-template-doc-line-through
+          ["The text [.line-through]#line-through me# is line-through." tempo-template-adoc-line-through
            :help ,adoc-help-line-through]
-          ["The text [.nobreak]#no break me# is non-breakable." tempo-template-doc-nobreak
+          ["The text [.nobreak]#no break me# is non-breakable." tempo-template-adoc-nobreak
            :help ,adoc-help-nobreak]
-          ["The text [.nowrap]#no wrap me# is non-wrapable." tempo-template-doc-nowrap
+          ["The text [.nowrap]#no wrap me# is non-wrapable." tempo-template-adoc-nowrap
            :help ,adoc-help-nowrap]
-          ["The text [.pre-wrap]#pre-wrap me# is pre-wrapped." tempo-template-doc-pre-wrap
+          ["The text [.pre-wrap]#pre-wrap me# is pre-wrapped." tempo-template-adoc-pre-wrap
            :help ,adoc-help-pre-wrap]
           ["[attributes]##text##" tempo-template-adoc-attributed
            :help ,adoc-help-attributed])
