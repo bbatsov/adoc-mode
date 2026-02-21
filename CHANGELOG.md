@@ -1,6 +1,8 @@
 # Changelog
 
-## master (unreleased)
+## main (unreleased)
+
+## 0.8.0 (2026-02-21)
 
 ### New features
 
@@ -9,12 +11,15 @@
 - Add font-lock support for Asciidoctor inline macros: `kbd:[]`, `btn:[]`, `menu:[]`, `pass:[]`, `stem:[]`, `latexmath:[]`, `asciimath:[]`.
 - [#59](https://github.com/bbatsov/adoc-mode/issues/59): Add nested `imenu` index support (enabled by default via `adoc-imenu-create-index-function`).
 - [#29](https://github.com/bbatsov/adoc-mode/issues/29): Add `adoc-follow-thing-at-point` to follow URLs, `include::` macros, and xrefs (bound to `C-c C-o` and `M-.`).
+- Add tempo templates for role-based text decorations (`[.underline]#text#`, `[.overline]#text#`, `[.line-through]#text#`, `[.nobreak]#text#`, `[.nowrap]#text#`, `[.pre-wrap]#text#`).
 
 ### Changes
 
 - Require Emacs 28.1.
 - `adoc-enable-two-line-title` now defaults to nil (Asciidoctor deprecated Setext-style titles).
 - Remove deprecated AsciiDoc backtick-apostrophe quote styles (`` ``text'' `` and `` `text' ``), which are not supported in Asciidoctor.
+- Extract image display code into `adoc-mode-image.el`.
+- Extract tempo templates into `adoc-mode-tempo.el`.
 
 ### Bugs fixed
 
@@ -34,6 +39,7 @@
 - [#24](https://github.com/bbatsov/adoc-mode/issues/24): Fix table delimiter highlighting to support any number of columns (was limited to 4).
 - [#9](https://github.com/bbatsov/adoc-mode/issues/9): Fix broken tempo tests and title template compatibility with lexical-binding `tempo.el`.
 - [#62](https://github.com/bbatsov/adoc-mode/issues/62): Fix image display regex to match paths starting with `.` or `/`.
+- Fix broken menu entries for role-based text decoration templates (wrong `doc-` prefix instead of `adoc-`).
 
 ## 0.7.0 (2023-03-09)
 
