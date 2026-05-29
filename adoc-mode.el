@@ -43,8 +43,10 @@
 ;;; Code:
 
 (require 'cl-lib)
+(require 'compile)
 (require 'subr-x)
 (require 'adoc-mode-image)
+(require 'adoc-mode-tempo)
 
 (defconst adoc-mode-version "0.8.0"
   "adoc mode version number.")
@@ -191,16 +193,16 @@ AsciiDoc config file would the probably be '^[<>]-{4,}$'"
                         (regexp :tag "start regexp")
                         (regexp :tag "end regexp")))))
 
-;; TODO: limit value range to 1 or 2
 (defcustom adoc-default-title-type 1
   "Default title type, see `adoc-title-descriptor'."
-  :type 'integer
+  :type '(choice (const :tag "One-line" 1)
+                 (const :tag "Two-line" 2))
   :group 'adoc)
 
-;; TODO: limit value range to 1 or 2
 (defcustom adoc-default-title-sub-type 1
   "Default title sub type, see `adoc-title-descriptor'."
-  :type 'integer
+  :type '(choice (const :tag "Only starting delimiter" 1)
+                 (const :tag "Starting and trailing delimiter" 2))
   :group 'adoc)
 
 (defcustom adoc-enable-two-line-title nil
@@ -388,8 +390,6 @@ customizable.")
 
 (defvar adoc-font-lock-keywords nil
   "Font lock keywords in adoc-mode buffers.")
-
-(defvar adoc-replacement-failed nil )
 
 (define-abbrev-table 'adoc-mode-abbrev-table ())
 
@@ -2070,8 +2070,7 @@ TEXTPROPS is an additional plist with textproperties."
                     (t (error "Invalid replacement type"))))
                 (o (when (stringp s)
                      (make-overlay (match-end 1) (match-end 1)))))
-           (setq adoc-replacement-failed (not o))
-           (unless adoc-replacement-failed
+           (when o
              (overlay-put o 'adoc-kw-replacement t)
              (overlay-put o 'after-string s))))
        found))
@@ -2775,12 +2774,12 @@ for multiline constructs to be matched."
    (list 'adoc-flf-meta-face-cleanup)))
 
 ;;;; interactively-callable commands
-(defun adoc-show-version ()
+(defun adoc-mode-version ()
   "Show the version number in the minibuffer."
   (interactive)
   (message "adoc-mode, version %s" adoc-mode-version))
 
-(defalias 'adoc-mode-version #'adoc-show-version)
+(define-obsolete-function-alias 'adoc-show-version #'adoc-mode-version "0.9")
 
 (defun adoc-goto-ref-label (id)
   "Goto the anchor defining the id ID."
@@ -2859,11 +2858,6 @@ ARG is 0, see `adoc-adjust-title-del'."
   (interactive "p")
   (adoc-promote-title (- arg)))
 
-;; TODO:
-;; - adjust while user is typing title
-;; - tempo template which uses already typed text to insert a 'new' title
-;; - auto convert one line title to two line title. is easy&fast to type, but
-;;   gives two line titles for those liking them
 (defun adoc-adjust-title-del ()
   "Adjusts underline length to match the length of the title's text.
 
@@ -2900,8 +2894,6 @@ new customization demands."
   (when (and font-lock-mode (eq major-mode 'adoc-mode))
     (font-lock-flush)
     (font-lock-ensure)))
-
-(require 'adoc-mode-tempo)
 
 ;;;; misc
 (defun adoc-insert-indented (str indent-level)
@@ -3034,9 +3026,6 @@ and title's text are not preserved, afterwards its always one space."
     (if (or create (not descriptor))
         (error "Point is not on a title"))
 
-    ;; TODO: set descriptor to default
-    ;; (if (not descriptor)
-    ;;     (setq descriptor (list 1 1 2 ?? adoc-default-title-type adoc-default-title-sub-type)))
     (let* ((type (nth 0 descriptor))
            (new-type-val (cond
                           ((eq new-type 1) 2)
@@ -3497,6 +3486,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (setq-local paragraph-ignore-fill-prefix t)
 
   ;; font lock
+  (adoc-calc)
   (setq-local font-lock-defaults
               '(adoc-font-lock-keywords
                 nil nil nil nil
@@ -3527,22 +3517,17 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (setq-local imenu-create-index-function adoc-imenu-create-index-function)
 
   ;; compilation
-  (when (boundp 'compilation-error-regexp-alist-alist)
-    (add-to-list 'compilation-error-regexp-alist-alist
-                 '(asciidoc
-                   "^asciidoc: +\\(?:ERROR\\|\\(WARNING\\|DEPRECATED\\)\\): +\\([^:\n]*\\): line +\\([0-9]+\\)"
-                   2 3 nil (1 . nil))))
-  (when (boundp 'compilation-error-regexp-alist)
-    (make-local-variable 'compilation-error-regexp-alist)
-    (add-to-list 'compilation-error-regexp-alist 'asciidoc))
+  (add-to-list 'compilation-error-regexp-alist-alist
+               '(asciidoc
+                 "^asciidoc: +\\(?:ERROR\\|\\(WARNING\\|DEPRECATED\\)\\): +\\([^:\n]*\\): line +\\([0-9]+\\)"
+                 2 3 nil (1 . nil)))
+  (setq-local compilation-error-regexp-alist
+              (cons 'asciidoc compilation-error-regexp-alist))
   (when (and (display-graphic-p) adoc-display-images)
     (adoc-display-images)))
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.a\\(?:scii\\)?doc\\'" . adoc-mode))
-
-;;;; non-definitions evaluated during load
-(adoc-calc)
 
 
 ;; Auto-fill

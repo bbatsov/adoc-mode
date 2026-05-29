@@ -19,6 +19,9 @@
 - Drop the dated 3D button decoration (`:box (:style released-button)`) and hardcoded hex colours from `adoc-command-face` and `adoc-complex-replacement-face`; inherit from `font-lock-builtin-face` instead.
 - `adoc-meta-hide-face` no longer hardcodes `gray75`/`gray25` foregrounds; it simply inherits from `adoc-meta-face` so the colour tracks the theme. Customise the face if you want hidden markup to fade further into the background.
 - Drop the self-referencing `(defvar adoc-X-face 'adoc-X-face)` boilerplate and the `adoc-delimiter` / `adoc-hide-delimiter` aliases. Font-lock keyword specs now quote face symbols directly. No user-visible change; this is purely an internal cleanup.
+- `adoc-show-version` is now a deprecated alias for `adoc-mode-version`, which is itself the interactive command (still also a `defconst` carrying the version string). The previous `defalias 'adoc-mode-version → adoc-show-version` indirection is gone.
+- `adoc-default-title-type` and `adoc-default-title-sub-type` now use a `choice` widget restricted to 1 or 2, replacing the open-ended `integer` type that allowed nonsensical values.
+- Internal cleanup: `(adoc-calc)` runs from the mode initialization function rather than at file load. `(require 'adoc-mode-tempo)` and `(require 'compile)` moved to the top of the file. Dead `(boundp …)` guards around the `compilation-error-regexp-alist` integration removed. Stale `;; TODO` comments cleaned up. No user-visible change.
 
 ### Bugs fixed
 
