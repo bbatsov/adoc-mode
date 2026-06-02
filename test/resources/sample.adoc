@@ -1,0 +1,197 @@
+= Sample AsciiDoc Document
+:author: Bozhidar Batsov
+:email: bozhidar@example.com
+:toc: left
+:sample-attr: a reusable value
+
+This fixture exercises a broad cross-section of AsciiDoc constructs.  It is
+used by the font-lock smoke test to make sure a realistic, construct-dense
+document fontifies without error, stably, and with the expected faces.
+
+A reference to an attribute: {sample-attr}.
+
+== Inline formatting
+
+Constrained: *bold*, _italic_, `monospace`, #highlight#, and ^super^/~sub~.
+
+Unconstrained: **b**old, __i__talic, ##mark##ed.
+
+Passthroughs are not monospace: +plain text+ and ++unconstrained++, while a
++++raw +++ and $$literal$$ pass content through.
+
+Curved quotes: "`a quotation`" and '`an aside`'.
+
+Escapes stay literal: \*not bold* and \`not code`.
+
+Roles layer on quotes: [.line-through]#struck#, [.underline]#lined#,
+[.overline]#over#.
+
+Replacements: (C), (R), (TM), an ellipsis ..., and arrows -> => <- <=.
+
+A forced line break here +
+continues on the next line.
+
+== Section level one
+
+=== Section level two
+
+==== Section level three
+
+===== Section level four
+
+====== Section level five
+
+[#custom-id]
+== Section with an id shorthand
+
+See <<custom-id>> and <<custom-id,a caption>> and xref:other.adoc[an xref].
+
+[[block-anchor]]
+A block anchor target, referenced via <<block-anchor>>.
+
+[[[bib-entry]]] A bibliography entry.
+
+== Lists
+
+.An unordered list
+* level one
+** level two
+*** level three
+- a dash bullet
+
+.An ordered list
+. implicit one
+. implicit two
+.. implicit nested
+1. explicit arabic
+a. explicit alpha
+
+.A checklist
+* [ ] todo item
+* [x] done item
+* [*] also done
+
+.A description list
+First term:: Its definition.
+Second term:: Another definition.
+
+.A callout list
+[source,ruby]
+----
+puts "hello" # <1>
+----
+<1> Prints a greeting.
+
+== Admonitions
+
+NOTE: This is an admonition paragraph.
+
+[WARNING]
+====
+This is an admonition block with a delimited body.
+====
+
+== Delimited blocks
+
+.A listing block
+----
+plain listing, no language
+----
+
+.A Ruby source block
+[source,ruby]
+----
+def greet(name)
+  # say hello
+  puts "Hello, #{name}!"
+end
+----
+
+.A shell source block
+[source,shell]
+----
+rubocop --auto-correct --format simple
+----
+
+.A literal block
+....
+literal text, rendered verbatim
+....
+
+.A quote block
+[quote, Anonymous]
+____
+The body of a quotation.
+____
+
+.A sidebar
+****
+An aside in a sidebar.
+****
+
+.A passthrough block
+++++
+<custom-html>passed through</custom-html>
+++++
+
+.An open block
+--
+An open block body.
+--
+
+////
+A comment block that should be ignored entirely.
+////
+
+// a single-line comment
+
+== Tables
+
+.A small table
+[cols="1,1",options="header"]
+|===
+| Name | Value
+
+| alpha
+| one
+
+| beta
+| two
+|===
+
+== Macros
+
+A link: https://example.com/page[the docs] and a bare URL
+https://example.com/raw and an email contact@example.com.
+
+An image: image:logo.png[Logo,32,32] and a block image:
+
+image::diagram.png[Architecture diagram]
+
+A footnote.footnote:[The footnote text.] and a UI macro kbd:[C-c C-c],
+a button btn:[OK], a menu menu:File[Save As], and an icon icon:heart[2x].
+
+Math via STEM: stem:[a^2 + b^2 = c^2], latexmath:[E = mc^2],
+asciimath:[sqrt(x)].
+
+An index term (((indexing, terms))) appears here.
+
+A passthrough macro: pass:[<b>raw</b>].
+
+== Directives
+
+ifdef::sample-attr[Shown when the attribute is set.]
+
+include::partial.adoc[]
+
+== Breaks
+
+A thematic break:
+
+'''
+
+A page break:
+
+<<<
+
+The end.

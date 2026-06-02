@@ -15,6 +15,29 @@
 (require 'adoc-mode)
 (require 'cl-lib)
 
+;;;; Test resources
+
+(defconst adoc-test-resources-directory
+  (expand-file-name
+   "resources"
+   (file-name-directory (or load-file-name buffer-file-name default-directory)))
+  "Absolute path to the test resources directory (test/resources/).")
+
+(defun adoc-test-resource (name)
+  "Return the absolute path of resource file NAME under test/resources/."
+  (expand-file-name name adoc-test-resources-directory))
+
+(defun adoc-test-buffer-faces ()
+  "Return the set of distinct `face' values present in the current buffer."
+  (let ((faces '())
+        (pos (point-min)))
+    (while (< pos (point-max))
+      (let ((f (get-text-property pos 'face)))
+        (when (and f (not (member f faces)))
+          (push f faces)))
+      (setq pos (1+ pos)))
+    faces))
+
 ;;;; String helpers
 
 (defun adoc-test--dedent (string)
