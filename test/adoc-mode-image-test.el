@@ -1,92 +1,40 @@
-;;; adoc-mode-image-test.el --- tests for adoc-mode image support -*- lexical-binding: t; -*-
+;;; adoc-mode-image-test.el --- Image tests for adoc-mode -*- lexical-binding: t; -*-
+
+;; Copyright © 2025-2026 Bozhidar Batsov
 
 ;;; Commentary:
 
-;; Tests for image font-lock highlighting in adoc-mode.
+;; Buttercup tests for adoc-mode image handling (attribute-reference
+;; resolution in image paths).
 
 ;;; Code:
 
-(require 'ert)
-(require 'adoc-mode)
-(require 'adoc-mode-test)
+(require 'adoc-mode-test-helpers)
 
-(ert-deftest adoctest-test-images ()
-  (adoctest-faces "images"
-                  ;; block macros
-                  ;; empty arglist
-                  "image" 'adoc-complex-replacement-face "::" 'adoc-meta-face
-                  "./foo/bar.png" 'adoc-internal-reference-face
-                  "[]" 'adoc-meta-face "\n" nil
-                  ;; pos attribute 0 = alternate text
-                  "image" 'adoc-complex-replacement-face "::" 'adoc-meta-face
-                  "./foo/bar.png" 'adoc-internal-reference-face
-                  "[" 'adoc-meta-face "lorem ipsum" 'adoc-secondary-text-face "]" 'adoc-meta-face "\n" nil
-                  ;; keyword title
-                  "image" 'adoc-complex-replacement-face "::" 'adoc-meta-face
-                  "./foo/bar.png" 'adoc-internal-reference-face
-                  "[" 'adoc-meta-face "alt" 'adoc-attribute-face "=" 'adoc-meta-face "lorem ipsum" 'adoc-secondary-text-face "]" 'adoc-meta-face "\n" nil
-                  ;; keyword alt and title
-                  "image" 'adoc-complex-replacement-face "::" 'adoc-meta-face
-                  "./foo/bar.png" 'adoc-internal-reference-face
-                  "[" 'adoc-meta-face "alt" 'adoc-attribute-face "=" 'adoc-meta-face "lorem ipsum" 'adoc-secondary-text-face "," 'adoc-meta-face
-                  "title" 'adoc-attribute-face "=" 'adoc-meta-face "lorem ipsum" 'adoc-secondary-text-face "]" 'adoc-meta-face "\n" nil
-                  ;; multiline alt and title
-                  "image" 'adoc-complex-replacement-face "::" 'adoc-meta-face
-                  "./foo/bar.png" 'adoc-internal-reference-face
-                  "[" 'adoc-meta-face "alt" 'adoc-attribute-face "=" 'adoc-meta-face
-                  "lorem\nipsum\nsit" 'adoc-secondary-text-face "," 'adoc-meta-face
-                  "title" 'adoc-attribute-face "=" 'adoc-meta-face
-                  "lorem\nipsum\nsit" 'adoc-secondary-text-face "]" 'adoc-meta-face "\n" nil
+(describe "adoc-mode image attribute references"
 
-                  ;; no everything again with inline macros
-                  "foo " 'no-face "image" 'adoc-complex-replacement-face ":" 'adoc-meta-face
-                  "./foo/bar.png" 'adoc-internal-reference-face
-                  "[]" 'adoc-meta-face "bar" 'no-face "\n" nil
-
-                  "foo " 'no-face "image" 'adoc-complex-replacement-face ":" 'adoc-meta-face
-                  "./foo/bar.png" 'adoc-internal-reference-face
-                  "[" 'adoc-meta-face "lorem ipsum" 'adoc-secondary-text-face "]" 'adoc-meta-face "bar" 'no-face "\n" nil
-
-                  "foo " 'no-face "image" 'adoc-complex-replacement-face ":" 'adoc-meta-face
-                  "./foo/bar.png" 'adoc-internal-reference-face
-                  "[" 'adoc-meta-face "alt" 'adoc-attribute-face "=" 'adoc-meta-face "lorem ipsum" 'adoc-secondary-text-face "]" 'adoc-meta-face "bar" 'no-face "\n" nil
-
-                  "foo " 'no-face "image" 'adoc-complex-replacement-face ":" 'adoc-meta-face
-                  "./foo/bar.png" 'adoc-internal-reference-face
-                  "[" 'adoc-meta-face "alt" 'adoc-attribute-face "=" 'adoc-meta-face "lorem ipsum" 'adoc-secondary-text-face "," 'adoc-meta-face
-                  "title" 'adoc-attribute-face "=" 'adoc-meta-face "lorem ipsum" 'adoc-secondary-text-face "]" 'adoc-meta-face "bar" 'no-face "\n" nil
-
-                  "image" 'adoc-complex-replacement-face ":" 'adoc-meta-face
-                  "./foo/bar.png" 'adoc-internal-reference-face
-                  "[" 'adoc-meta-face "alt" 'adoc-attribute-face "=" 'adoc-meta-face
-                  "lorem\nipsum\nsit" 'adoc-secondary-text-face "," 'adoc-meta-face
-                  "title" 'adoc-attribute-face "=" 'adoc-meta-face
-                  "lorem\nipsum\nsit" 'adoc-secondary-text-face "]" 'adoc-meta-face "\n" nil))
-
-(ert-deftest adoctest-test-resolve-attribute-references ()
-  (with-temp-buffer
-    (adoc-mode)
-    (insert ":my-url: https://example.com/image.png\n"
-            ":badge: http://melpa.org/badge.svg\n"
-            "\n"
-            "image:{my-url}[]\n"
-            "image:{badge}[alt]\n"
-            "image:{undefined}[]\n"
-            "image:plain.png[]\n")
-    ;; Single reference
-    (should (equal (adoc--resolve-attribute-references "{my-url}")
-                   "https://example.com/image.png"))
-    ;; Another reference
-    (should (equal (adoc--resolve-attribute-references "{badge}")
-                   "http://melpa.org/badge.svg"))
-    ;; Undefined reference is left unchanged
-    (should (equal (adoc--resolve-attribute-references "{undefined}")
-                   "{undefined}"))
-    ;; No references - returned as-is
-    (should (equal (adoc--resolve-attribute-references "plain.png")
-                   "plain.png"))
-    ;; Empty string
-    (should (equal (adoc--resolve-attribute-references "")
-                   ""))))
+  (it "resolves attribute references in image paths"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert ":my-url: https://example.com/image.png\n"
+              ":badge: http://melpa.org/badge.svg\n"
+              "\n"
+              "image:{my-url}[]\n"
+              "image:{badge}[alt]\n"
+              "image:{undefined}[]\n"
+              "image:plain.png[]\n")
+      ;; a defined single reference is resolved
+      (expect (adoc--resolve-attribute-references "{my-url}")
+              :to-equal "https://example.com/image.png")
+      (expect (adoc--resolve-attribute-references "{badge}")
+              :to-equal "http://melpa.org/badge.svg")
+      ;; an undefined reference is left unchanged
+      (expect (adoc--resolve-attribute-references "{undefined}")
+              :to-equal "{undefined}")
+      ;; plain paths and empty strings are returned as-is
+      (expect (adoc--resolve-attribute-references "plain.png")
+              :to-equal "plain.png")
+      (expect (adoc--resolve-attribute-references "")
+              :to-equal ""))))
 
 ;;; adoc-mode-image-test.el ends here

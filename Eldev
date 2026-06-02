@@ -1,2 +1,14 @@
+; -*- mode: emacs-lisp; lexical-binding: t -*-
+
+(eldev-use-package-archive 'gnu-elpa)
+(eldev-use-package-archive 'nongnu-elpa)
 (eldev-use-package-archive 'melpa)
+
+(eldev-add-extra-dependencies 'test 'buttercup)
 (eldev-add-loading-roots 'test "test")
+
+(setq eldev-project-main-file "adoc-mode.el")
+
+;; configuration for the default linters
+(setq checkdoc-force-docstrings-flag nil)
+(setq checkdoc-permit-comma-termination-flag t)
