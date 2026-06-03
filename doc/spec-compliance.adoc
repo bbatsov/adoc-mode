@@ -226,9 +226,10 @@ Findings are graded:
 | -
 
 | Two-line (setext) titles
-| Editing commands (promote/demote, imenu, navigation) understand them,
-  but highlighting is *off by default* (`adoc-enable-two-line-title` is
-  nil) - which matches their deprecated status
+| Off by default (`adoc-enable-two-line-title` is nil), matching their
+  deprecated status. Highlighting, navigation, and imenu all honour the
+  flag, so they ignore two-line titles unless you opt in; promote/demote
+  still understand them so old documents can be converted
 | -
 
 | Auto-generated IDs, section refs `<<id>>`

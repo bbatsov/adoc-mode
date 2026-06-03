@@ -15,35 +15,41 @@
   (it "builds a flat index, ignoring non-title content"
     (with-temp-buffer
       (adoc-mode)
+      ;; The `==' lines inside the example and source blocks must not be
+      ;; picked up as titles.
       (insert "= document title\n"
               "== chapter 1\n"
               "[IMPORTANT]\n"
               ".Important announcement\n"
               "====\n"
-              "This should not be a title\n"
+              "== this should not be a title\n"
               "====\n"
               "=== sub chapter 1.1\n"
               "[source,rust]\n"
               "----\n"
               "// here is a comment\n"
               "----\n"
-              "chapter 2\n"
-              "----------\n"
-              "[latexmath#einstein]\n"
-              "++++\n"
-              "\begin{equation}\n"
-              "e = mc^{2}\n"
-              "\end{equation}\n"
-              "++++\n"
-              "sub chapter 2.1\n"
-              "~~~~~~~~~~~~~~\n")
+              "== chapter 2\n"
+              "=== sub chapter 2.1\n")
       (expect (adoc-imenu-create-index)
               :to-equal
               (list (cons "document title" 1)
                     (cons "chapter 1" 18)
-                    (cons "sub chapter 1.1" 104)
-                    (cons "chapter 2" 169)
-                    (cons "sub chapter 2.1" 262)))))
+                    (cons "sub chapter 1.1" 107)
+                    (cons "chapter 2" 172)
+                    (cons "sub chapter 2.1" 185)))))
+
+  (it "indexes two-line titles only when they are enabled"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "= One-line Doc\n\nintro\n\nTwo Line\n========\n\nbody\n")
+      ;; Off by default: the setext title is not fontified, so not indexed.
+      (expect (adoc-imenu-create-index)
+              :to-equal (list (cons "One-line Doc" 1)))
+      (setq-local adoc-enable-two-line-title t)
+      (expect (adoc-imenu-create-index)
+              :to-equal (list (cons "One-line Doc" 1)
+                              (cons "Two Line" 24)))))
 
   (it "builds a nested index reflecting the heading hierarchy"
     (with-temp-buffer

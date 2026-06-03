@@ -3505,8 +3505,14 @@ and title's text are not preserved, afterwards its always one space."
 ;;;; Heading navigation
 
 (defun adoc--re-all-titles ()
-  "Return a regexp matching any section title (one-line or two-line)."
-  (let* ((two-line-count (length adoc-two-line-title-del))
+  "Return a regexp matching any section title.
+Two-line (setext) titles are only included when
+`adoc-enable-two-line-title' is non-nil, mirroring fontification -
+otherwise a line of body text followed by a delimited-block line
+\(e.g. `----') would be mistaken for a two-line title underline."
+  (let* ((two-line-count (if adoc-enable-two-line-title
+                             (length adoc-two-line-title-del)
+                           0))
          (core
           (mapconcat
            (lambda (level)
@@ -3520,11 +3526,61 @@ and title's text are not preserved, afterwards its always one space."
            "\\)\\|\\(?:")))
     (concat "\\(?:" core "\\)")))
 
+(defconst adoc--title-faces
+  '(adoc-title-0-face adoc-title-1-face adoc-title-2-face
+    adoc-title-3-face adoc-title-4-face adoc-title-5-face)
+  "The faces font-lock applies to the text of a section title.")
+
+(defun adoc--face-memq (faces value)
+  "Return non-nil when the `face' text-property VALUE includes a FACES member.
+VALUE may be a face symbol, an anonymous face spec, or a list of
+either."
+  (cond ((symbolp value) (memq value faces))
+        ((listp value) (cl-some (lambda (v) (adoc--face-memq faces v)) value))))
+
+(defun adoc--fontified-as-title-p (start end)
+  "Return non-nil when font-lock fontified START..END as a section title.
+Navigation and imenu use this so that they agree with what is
+highlighted: a `==' line inside a code or other delimited block, and
+a two-line title when `adoc-enable-two-line-title' is disabled, are
+not fontified as titles and so are not treated as headings.  The
+region must already be fontified - the heading-navigation commands
+and `adoc-imenu-create-index' call `font-lock-ensure' first.
+
+For a one-line title the leading delimiter at START carries
+`adoc-meta-hide-face'.  Inline markup in the title text does not
+touch that delimiter (so a title made entirely of a macro is still
+recognised), whereas a surrounding delimited block repaints the
+whole line and thus the delimiter too - which is precisely why a
+`==' line inside a block is rejected.  The check therefore relies on
+the block keywords winning the face-override war on the delimiter;
+the navigation tests guard that assumption.  A two-line title has no
+such delimiter, so fall back to looking for a title face on its
+text."
+  (or (adoc--face-memq '(adoc-meta-hide-face) (get-text-property start 'face))
+      (let ((pos start) found)
+        (while (and (not found) (< pos end))
+          (when (adoc--face-memq adoc--title-faces (get-text-property pos 'face))
+            (setq found t))
+          (setq pos (next-single-property-change pos 'face nil end)))
+        found)))
+
+(defun adoc--heading-descriptor-at-point ()
+  "Return the title descriptor at point when it is a navigable heading.
+Like `adoc-title-descriptor', but only accepts a match that
+font-lock actually fontified as a section title (see
+`adoc--fontified-as-title-p'), keeping navigation in step with the
+highlighting."
+  (let ((descriptor (adoc-title-descriptor)))
+    (when (and descriptor
+               (adoc--fontified-as-title-p (nth 4 descriptor) (nth 5 descriptor)))
+      descriptor)))
+
 (defun adoc--title-bounds ()
   "Return (LEVEL START END) when point is on a section title, else nil.
 START and END delimit the whole title (both lines for a two-line
 title); point need not be on the first line."
-  (let ((descriptor (adoc-title-descriptor)))
+  (let ((descriptor (adoc--heading-descriptor-at-point)))
     (when descriptor
       (list (nth 2 descriptor) (nth 4 descriptor) (nth 5 descriptor)))))
 
@@ -3540,10 +3596,11 @@ Point is left unchanged when nil is returned."
     (when bounds (goto-char (nth 2 bounds)))
     (while (and (not level) (re-search-forward re nil t))
       (goto-char (match-beginning 0))
-      (let ((descriptor (adoc-title-descriptor)))
+      (let ((descriptor (adoc--heading-descriptor-at-point)))
         (if descriptor
             (setq level (nth 2 descriptor))
-          ;; A regexp match the descriptor rejects; skip the line and retry.
+          ;; A regexp match the descriptor rejects (e.g. a code line
+          ;; inside a listing block); skip the line and retry.
           (forward-line 1))))
     (unless level (goto-char orig))
     level))
@@ -3559,7 +3616,7 @@ Point is left unchanged when nil is returned."
     (when bounds (goto-char (nth 1 bounds)))
     (while (and (not level) (re-search-backward re nil t))
       (goto-char (match-beginning 0))
-      (let ((descriptor (adoc-title-descriptor)))
+      (let ((descriptor (adoc--heading-descriptor-at-point)))
         (when descriptor (setq level (nth 2 descriptor)))))
     (unless level (goto-char orig))
     level))
@@ -3581,6 +3638,9 @@ With a negative ARG, move backward (see
   (interactive "p")
   (if (< arg 0)
       (adoc-previous-visible-heading (- arg))
+    ;; Fontify first so `adoc--fontified-as-title-p' can tell real
+    ;; titles from title-looking lines inside code or other blocks.
+    (font-lock-ensure)
     (let ((orig (point))
           level)
       (dotimes (_ arg)
@@ -3597,6 +3657,7 @@ With a negative ARG, move forward (see
   (interactive "p")
   (if (< arg 0)
       (adoc-next-visible-heading (- arg))
+    (font-lock-ensure)
     (let ((orig (point))
           level)
       (dotimes (_ arg)
@@ -3613,6 +3674,7 @@ buffer stops the search.  With a negative ARG, move backward."
   (interactive "p")
   (if (< arg 0)
       (adoc-backward-same-level (- arg))
+    (font-lock-ensure)
     (let ((orig (point))
           (level (adoc--back-to-heading)))
       (dotimes (_ arg)
@@ -3634,6 +3696,7 @@ buffer stops the search.  With a negative ARG, move forward."
   (interactive "p")
   (if (< arg 0)
       (adoc-forward-same-level (- arg))
+    (font-lock-ensure)
     (let ((orig (point))
           (level (adoc--back-to-heading)))
       (dotimes (_ arg)
@@ -3651,6 +3714,7 @@ buffer stops the search.  With a negative ARG, move forward."
 (defun adoc-up-heading (arg)
   "Move to the visible parent title, ARG levels up."
   (interactive "p")
+  (font-lock-ensure)
   (let ((orig (point))
         (level (adoc--back-to-heading)))
     (dotimes (_ arg)
@@ -3883,13 +3947,16 @@ LOCAL-ATTRIBUTE-FACE-ALIST before it is looked up in
          (re-all-titles (adoc--re-all-titles)))
     (save-restriction
       (widen)
+      ;; Fontify so we can skip title-looking lines inside code blocks.
+      (font-lock-ensure)
       (goto-char (point-min))
       (while (re-search-forward re-all-titles nil t)
         (backward-char) ; skip backwards the trailing \n of a title
         (let* ((descriptor (adoc-title-descriptor t))
                (title-text (nth 3 descriptor))
                (title-pos (nth 4 descriptor)))
-          (unless (null title-text)
+          (when (and title-text
+                     (adoc--fontified-as-title-p title-pos (nth 5 descriptor)))
             (setq
              index-alist
              (cons (cons title-text title-pos) index-alist))))))

@@ -115,6 +115,8 @@
     (it "navigates two-line (setext) titles"
       (with-temp-buffer
         (adoc-mode)
+        ;; Two-line titles are off by default; opt in for this test.
+        (setq-local adoc-enable-two-line-title t)
         (insert "Doc Title\n=========\n\n"
                 "intro\n\n"
                 "Section A\n---------\n\n"
@@ -127,7 +129,110 @@
         (adoc-forward-same-level 1)
         (expect (looking-at-p "Section B$") :to-be-truthy)
         (adoc-up-heading 1)
-        (expect (looking-at-p "Doc Title$") :to-be-truthy)))))
+        (expect (looking-at-p "Doc Title$") :to-be-truthy))))
+
+  (describe "two-line titles disabled by default"
+    (it "does not treat setext underlines as headings"
+      (with-temp-buffer
+        (adoc-mode)
+        (insert "Doc Title\n=========\n\n"
+                "intro\n\n"
+                "Section A\n---------\n\n"
+                "text\n")
+        (goto-char (point-min))
+        ;; adoc-enable-two-line-title is nil, so navigation finds nothing.
+        (let ((pos (point)))
+          (expect (adoc-next-visible-heading 1) :to-throw 'user-error)
+          (expect (point) :to-equal pos)))))
+
+  (describe "code and verbatim blocks"
+    (it "skips one-line titles inside a listing block"
+      (with-temp-buffer
+        (adoc-mode)
+        (insert "= Doc\n\n"
+                "== Real A\n\ntext\n\n"
+                "----\n"
+                "== this is code, not a heading\n"
+                "more code\n"
+                "----\n\n"
+                "== Real B\n\nbody\n")
+        (goto-char (point-min))
+        (adoc-next-visible-heading 1)
+        (expect (looking-at-p "== Real A$") :to-be-truthy)
+        ;; Jumps straight over the listing block to the next real title.
+        (adoc-next-visible-heading 1)
+        (expect (looking-at-p "== Real B$") :to-be-truthy)))
+
+    (it "skips one-line titles inside an example block"
+      ;; Example/sidebar/quote/open blocks are not fontified as titles
+      ;; either, so a `==' line inside them is not a heading.
+      (with-temp-buffer
+        (adoc-mode)
+        (insert "= Doc\n\n"
+                "== Real A\n\ntext\n\n"
+                "====\n"
+                "== this is block content, not a heading\n"
+                "====\n\n"
+                "== Real B\n\nbody\n")
+        (goto-char (point-min))
+        (adoc-next-visible-heading 1)
+        (expect (looking-at-p "== Real A$") :to-be-truthy)
+        (adoc-next-visible-heading 1)
+        (expect (looking-at-p "== Real B$") :to-be-truthy)))
+
+    (it "still recognizes a title whose text is entirely a macro"
+      ;; The link/image keyword overrides the title face on the text, but
+      ;; the leading `==' delimiter keeps its title highlighting.
+      (with-temp-buffer
+        (adoc-mode)
+        (insert "= Doc\n\n"
+                "== https://example.com[Home]\n\nbody\n\n"
+                "== image:logo.png[Logo]\n\nmore\n")
+        (goto-char (point-min))
+        (adoc-next-visible-heading 1)
+        (expect (looking-at-p "== https://example.com\\[Home]$") :to-be-truthy)
+        (adoc-next-visible-heading 1)
+        (expect (looking-at-p "== image:logo.png\\[Logo]$") :to-be-truthy)))
+
+    (it "skips a code line that mimics a two-line title underline"
+      (with-temp-buffer
+        (adoc-mode)
+        ;; `end' followed by `----' (the closing listing delimiter) looks
+        ;; exactly like a two-line title - it must not stop navigation.
+        (insert "= Doc\n\n"
+                "== Real A\n\ntext\n\n"
+                "[source,ruby]\n----\ndef foo\nend\n----\n\n"
+                "== Real B\n\nbody\n")
+        (goto-char (point-min))
+        (adoc-next-visible-heading 1)
+        (expect (looking-at-p "== Real A$") :to-be-truthy)
+        (adoc-next-visible-heading 1)
+        (expect (looking-at-p "== Real B$") :to-be-truthy)))
+
+    (it "climbs out of a block when navigating backward"
+      (with-temp-buffer
+        (adoc-mode)
+        (insert "= Doc\n\n"
+                "== Real A\n\ntext\n\n"
+                "----\n== fake heading\nmore\n----\n\n"
+                "== Real B\n\nbody\n")
+        ;; Start inside the block and move to the previous real heading.
+        (goto-char (point-min))
+        (search-forward "more")
+        (beginning-of-line)
+        (adoc-previous-visible-heading 1)
+        (expect (looking-at-p "== Real A$") :to-be-truthy)))
+
+    (it "omits code-block lines from the imenu index"
+      (with-temp-buffer
+        (adoc-mode)
+        (insert "= Doc\n\n"
+                "== Real A\n\n"
+                "----\n== not a heading\n----\n\n"
+                "== Real B\n")
+        (expect (mapcar (lambda (e) (substring-no-properties (car e)))
+                        (adoc-imenu-create-index))
+                :to-equal '("Doc" "Real A" "Real B"))))))
 
 (describe "adoc-mode outline cycling"
 

@@ -6,6 +6,11 @@
 
 - `[source,ocaml]` code blocks now fontify with `neocaml-mode` when it is available, falling back to `tuareg-mode` and then `caml-mode`. To support this, a value in `adoc-code-lang-modes` may now be either a single major mode or a list of candidate modes tried in order (the first defined one wins).
 
+### Bugs fixed
+
+- Heading navigation (`C-c C-n` and friends) and the imenu index no longer get confused by code and other delimited blocks. A `==`-style line inside a listing, source, literal, example, sidebar, quote, or open block, or a code line followed by `----` (which looks just like a two-line title underline), is no longer mistaken for a section title. Navigation and imenu now stay in step with what is actually highlighted as a title.
+- Heading navigation and imenu now honour `adoc-enable-two-line-title`. It is nil by default, so two-line (setext) titles are no longer picked up unless you opt in, matching their fontification. Previously they were always recognised, which was the main source of the code-block confusion above.
+
 ## 0.9.0 (2026-06-02)
 
 ### New features
