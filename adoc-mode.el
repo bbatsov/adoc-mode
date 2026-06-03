@@ -274,22 +274,24 @@ are fontified natively regardless of their size."
     ("ditaa" . artist-mode)
     ("dot" . fundamental-mode)
     ("elisp" . emacs-lisp-mode)
-    ("ocaml" . tuareg-mode)
+    ("ocaml" . (neocaml-mode tuareg-mode caml-mode))
     ("screen" . shell-script-mode)
     ("shell" . sh-mode)
     ("sqlite" . sql-mode)
     )
   "Alist mapping languages to their major mode.
-The key is the language name, the value is the major mode.  For
-many languages this is simple, but for language where this is not
-the case, this variable provides a way to simplify things on the
-user side.  For example, there is no ocaml-mode in Emacs, but the
-mode to use is `tuareg-mode'."
+The key is the language name.  The value is either a single major
+mode or a list of candidate modes tried in order, the first
+defined one being used.  This makes it possible to map a language
+to a preferred mode with fallbacks: for example there is no
+ocaml-mode in Emacs, so `ocaml' maps to `neocaml-mode', then
+`tuareg-mode', then `caml-mode'."
   :group 'adoc
   :type '(repeat
           (cons
            (string "Language name")
-           (symbol "Major mode")))
+           (choice (symbol "Major mode")
+                   (repeat (symbol "Major mode")))))
   :package-version '(adoc-mode . "0.8.0"))
 
 (defcustom adoc-fontify-code-block-default-mode 'prog-mode
@@ -2208,13 +2210,16 @@ TEXTPROPS is an additional plist with textproperties."
 
 (defun adoc-get-lang-mode (lang)
   "Return major mode that should be used for LANG.
-LANG is a string, and the returned major mode is a symbol."
-  (cl-find-if
-   #'fboundp
-   (list (cdr (assoc lang adoc-code-lang-modes))
-         (cdr (assoc (downcase lang) adoc-code-lang-modes))
-         (intern (concat lang "-mode"))
-         (intern (concat (downcase lang) "-mode")))))
+LANG is a string, and the returned major mode is a symbol.  A
+value in `adoc-code-lang-modes' may be a single mode or a list of
+candidate modes; the first one that is defined is used."
+  (cl-flet ((candidates (value) (if (listp value) value (list value))))
+    (cl-find-if
+     #'fboundp
+     (append (candidates (cdr (assoc lang adoc-code-lang-modes)))
+             (candidates (cdr (assoc (downcase lang) adoc-code-lang-modes)))
+             (list (intern (concat lang "-mode"))
+                   (intern (concat (downcase lang) "-mode")))))))
 
 ;; Based on `org-src-font-lock-fontify-block' from org-src.el.
 (defun adoc-fontify-code-block-natively (lang start-block end-block start-src end-src)

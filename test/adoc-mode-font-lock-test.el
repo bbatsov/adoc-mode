@@ -413,6 +413,25 @@
         (expect (adoc-test-face-at-range (match-beginning 0) (1- (match-end 0)))
                 :to-equal '(adoc-verbatim-face adoc-code-face)))))
 
+  ;; ---- Language -> major mode resolution -----------------------------
+
+  (describe "language mode resolution"
+    (it "uses a single mapped mode"
+      (let ((adoc-code-lang-modes '(("demo" . emacs-lisp-mode))))
+        (expect (adoc-get-lang-mode "demo") :to-equal 'emacs-lisp-mode)))
+
+    (it "tries a list of candidate modes in order, first defined wins"
+      (let ((adoc-code-lang-modes
+             '(("demo" . (adoc-no-such-mode-1 adoc-no-such-mode-2 emacs-lisp-mode)))))
+        (expect (adoc-get-lang-mode "demo") :to-equal 'emacs-lisp-mode)))
+
+    (it "falls back to <lang>-mode when there is no mapping"
+      (expect (adoc-get-lang-mode "emacs-lisp") :to-equal 'emacs-lisp-mode))
+
+    (it "returns nil when no candidate mode is available"
+      (let ((adoc-code-lang-modes '(("demo" . (adoc-no-such-mode-1 adoc-no-such-mode-2)))))
+        (expect (adoc-get-lang-mode "demo") :to-be nil))))
+
   ;; ---- Character replacements (display overlays) ---------------------
 
   (describe "character replacements"
