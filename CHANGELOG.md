@@ -8,6 +8,7 @@
 - Add context-aware completion via `completion-at-point` (kbd:[M-TAB], or any of corfu/company/built-in completion). Inside `<<` or `xref:` it completes cross-reference ids from the explicit anchors defined in the buffer (`[[id]]`, `[#id]`, `[[[biblio]]]`); inside `{` it completes attribute names (the ones defined with `:name:` plus a set of common built-ins); after `include::` it completes file paths; and inside `[source,` it completes source-block language names. It stays out of the way in plain prose.
 - Add a Flymake backend (`adoc-flymake`) that runs the buffer through Asciidoctor and reports its parser errors and warnings inline. It's registered automatically, so enabling `flymake-mode` is enough. The check feeds the buffer to Asciidoctor over its standard input, so it works on unsaved edits.
 - Make references clickable. Cross-references (`<<id>>`, `xref:id[]`), links and URLs (`link:`, `https:`, `mailto:`, ...), and `include::` macros now highlight on hover and follow with a `mouse-1` (or `mouse-2`) click - the same action as `C-c C-o` / `M-.`. As part of this, `adoc-follow-thing-at-point` now also follows `link:` macros (opening a local target or a URL) and no longer passes the `[label]` along when opening a URL macro.
+- Add an `xref` backend over AsciiDoc anchors. In an `adoc-mode` buffer, `M-?` (`xref-find-references`) lists every cross-reference to the anchor at point, and the standard xref machinery (the marker stack, the completion-read prompt, `consult-xref`, ...) now works for AsciiDoc ids. Definitions are anchors (`[[id]]`, `[#id]`, `[[[biblio]]]`) and references are `<<id>>` / `xref:id[]` usages, resolved within the current buffer. `M-.` keeps following URLs and `include::` too, via `adoc-follow-thing-at-point`.
 
 ### Changes
 
@@ -16,6 +17,7 @@
 
 ### Bugs fixed
 
+- Following a cross-reference at point (`C-c C-o` / `M-.`, and the new `xref` commands) now works for a plain `<<id>>` even when a captioned `<<id,caption>>` appears later on the same or an adjacent line, and ignores the whitespace in forms like `<<id >>`. Previously `adoc-xref-id-at-point` could return nil or an id with a trailing space in those cases.
 - Heading navigation (`C-c C-n` and friends) and the imenu index no longer get confused by code and other delimited blocks. A `==`-style line inside a listing, source, literal, example, sidebar, quote, or open block, or a code line followed by `----` (which looks just like a two-line title underline), is no longer mistaken for a section title. Navigation and imenu now stay in step with what is actually highlighted as a title.
 - Heading navigation and imenu now honour `adoc-enable-two-line-title`. It is nil by default, so two-line (setext) titles are no longer picked up unless you opt in, matching their fontification. Previously they were always recognised, which was the main source of the code-block confusion above.
 

@@ -374,4 +374,70 @@
       (goto-char (point-min))
       (expect (adoc--inline-link-at-point) :to-be nil))))
 
+(describe "xref backend"
+  (defmacro adoc-test--with-xref-doc (&rest body)
+    "Run BODY in an adoc-mode buffer holding a doc with anchors and xrefs."
+    `(with-temp-buffer
+       (insert "[[intro]]\n= Doc\n\n"
+               "See <<intro>> and <<intro,the intro>>.\n\n"
+               "More in xref:intro[here].\n\n"
+               "[[other]]\nunrelated\n")
+       (adoc-mode)
+       (goto-char (point-min))
+       ,@body))
+
+  (it "is selected as the backend in adoc-mode buffers"
+    (adoc-test--with-xref-doc
+     (expect (xref-find-backend) :to-be 'adoc)))
+
+  (it "offers all anchor ids as the completion table"
+    (adoc-test--with-xref-doc
+     (expect (sort (xref-backend-identifier-completion-table 'adoc) #'string<)
+             :to-equal '("intro" "other"))))
+
+  (it "returns the id at point on a usage and on an anchor"
+    (adoc-test--with-xref-doc
+     (search-forward "<<intro")
+     (expect (xref-backend-identifier-at-point 'adoc) :to-equal "intro")
+     (goto-char (point-min))
+     (search-forward "[[intro")
+     (expect (xref-backend-identifier-at-point 'adoc) :to-equal "intro")))
+
+  (it "finds the anchor as the definition"
+    (adoc-test--with-xref-doc
+     (let ((defs (xref-backend-definitions 'adoc "intro")))
+       (expect (length defs) :to-equal 1)
+       (expect (xref-item-summary (car defs)) :to-match "\\[\\[intro\\]\\]"))))
+
+  (it "finds every usage as a reference, but not the definition"
+    (adoc-test--with-xref-doc
+     (let ((refs (xref-backend-references 'adoc "intro")))
+       ;; <<intro>>, <<intro,the intro>>, xref:intro[here]
+       (expect (length refs) :to-equal 3)
+       (dolist (r refs)
+         (expect (xref-item-summary r) :not :to-match "\\`\\[\\[")))))
+
+  (it "matches anchors by pattern via apropos"
+    (adoc-test--with-xref-doc
+     (expect (length (xref-backend-apropos 'adoc "intro")) :to-equal 1)))
+
+  (it "ignores whitespace inside an xref id"
+    (with-temp-buffer
+      (insert "[[foo]]\nSee <<foo >> and <<foo ,Cap>>.\n")
+      (adoc-mode)
+      (goto-char (point-min))
+      (search-forward "<<foo ")
+      ;; the id has no trailing space
+      (expect (xref-backend-identifier-at-point 'adoc) :to-equal "foo")
+      ;; and the whitespace-tolerant references are still found
+      (expect (length (xref-backend-references 'adoc "foo")) :to-equal 2)
+      (expect (length (xref-backend-definitions 'adoc "foo")) :to-equal 1)))
+
+  (it "does not confuse an id with a longer one sharing its prefix"
+    (with-temp-buffer
+      (insert "[[foo]]\n[[foobar]]\n<<foo>> <<foobar>> xref:foobar[x]\n")
+      (adoc-mode)
+      (expect (length (xref-backend-definitions 'adoc "foo")) :to-equal 1)
+      (expect (length (xref-backend-references 'adoc "foo")) :to-equal 1))))
+
 ;;; adoc-mode-navigation-test.el ends here

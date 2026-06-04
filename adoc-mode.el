@@ -51,6 +51,7 @@
 (require 'compile)
 (require 'outline)
 (require 'subr-x)
+(require 'xref)
 (require 'adoc-mode-image)
 (require 'adoc-mode-tempo)
 (require 'adoc-asciidoctor)
@@ -3369,17 +3370,35 @@ new customization demands."
 
 
 (defun adoc-forward-xref (&optional bound)
-  "Move forward to next xref and return its id.
+  "Move forward to the next xref and return its id.
 
-Match data is the one of the found xref. Returns nil if there was
-no xref found."
-  (cond
-   ((or (re-search-forward (adoc-re-xref 'inline-special-with-caption) bound t)
-        (re-search-forward (adoc-re-xref 'inline-special-no-caption) bound t))
-    (match-string-no-properties 2))
-   ((re-search-forward (adoc-re-xref 'inline-general-macro) bound t)
-    (match-string-no-properties 3))
-   (t nil)))
+Search for the nearest cross-reference of any form - `<<id>>',
+`<<id,caption>>' or `xref:id[...]' - set the match data to it and move
+point to its end.  Return nil, leaving point unmoved, when none is found
+before BOUND.
+
+Searching for each form independently and taking the earliest match
+matters: a plain `<<id>>' must not be skipped just because a
+`<<id,caption>>' happens to appear later in the search range."
+  (let ((start (point))
+        (best nil)
+        (best-id nil)
+        (best-data nil))
+    (dolist (spec '((inline-special-with-caption . 2)
+                    (inline-special-no-caption . 2)
+                    (inline-general-macro . 3)))
+      (goto-char start)
+      (when (and (re-search-forward (adoc-re-xref (car spec)) bound t)
+                 (or (null best) (< (match-beginning 0) best)))
+        (setq best (match-beginning 0)
+              best-id (match-string-no-properties (cdr spec))
+              best-data (match-data))))
+    (if best
+        (progn (set-match-data best-data)
+               (goto-char (match-end 0))
+               best-id)
+      (goto-char start)
+      nil)))
 
 (defun adoc-xref-id-at-point ()
   "Returns id referenced by the xref point is at.
@@ -3395,7 +3414,9 @@ Returns nil if there was no xref found."
       (while (and (setq id (adoc-forward-xref end))
                   (or (< saved-point (match-beginning 0))
                       (> saved-point (match-end 0)))))
-      id)))
+      ;; `adoc-re-xref' captures trailing whitespace inside the id group
+      ;; (e.g. `<<foo >>'); the actual anchor id has none.
+      (and id (string-trim id)))))
 
 (defun adoc-title-descriptor (&optional strict-match )
   "Returns title descriptor of title point is in.
@@ -3736,6 +3757,88 @@ inside `[source,'."
             :annotation-function (lambda (_) " file")
             :company-kind (lambda (_) 'file)
             :exclusive 'no)))))
+
+;;;; xref backend
+
+;; A single-buffer `xref' backend over AsciiDoc anchors: definitions are
+;; anchors (`[[id]]', `[#id]', `[[[biblio]]]') and references are the xrefs
+;; that point at them (`<<id>>', `<<id,text>>', `xref:id[...]').  Registering
+;; it lights up `M-?' (`xref-find-references') and the xref marker stack;
+;; `M-.' stays on `adoc-follow-thing-at-point' (which also follows URLs and
+;; `include::').
+
+(defun adoc--xref-backend ()
+  "Return the `xref' backend for `adoc-mode'."
+  'adoc)
+
+(defun adoc--anchor-id-at-point ()
+  "Return the id of the anchor definition point is on, or nil."
+  (save-excursion
+    (let ((pos (point))
+          (eol (line-end-position))
+          (found nil))
+      (beginning-of-line)
+      (dolist (type '(block-id block-id-shorthand inline-special biblio) found)
+        (unless found
+          (save-excursion
+            (let ((re (adoc-re-anchor type)))
+              (while (and (not found) (re-search-forward re eol t))
+                (when (and (<= (match-beginning 0) pos) (<= pos (match-end 0)))
+                  (setq found
+                        (pcase type
+                          ((or 'block-id 'block-id-shorthand)
+                           (match-string-no-properties 1))
+                          ('inline-special
+                           (car (split-string (match-string-no-properties 2)
+                                               "[ \t,]" t)))
+                          ('biblio
+                           (string-trim (match-string-no-properties 2)
+                                        "\\[" "\\]"))))))))))) ))
+
+(defun adoc--re-xref-to (id)
+  "Return a regexp matching a cross-reference to the anchor ID.
+Trailing whitespace is tolerated after the id (as in `<<foo >>'), the
+same way `adoc-re-xref' permits it."
+  (let ((q (regexp-quote id)))
+    (concat "<<" q "[ \t\n]*\\(?:,\\|>>\\)\\|xref:" q "\\[")))
+
+(defun adoc--xref-collect (regexp)
+  "Return a list of xref items, one per match of REGEXP in the buffer.
+Each item's summary is the matched line; its location is the start of
+the match."
+  (let ((buffer (current-buffer))
+        (items '()))
+    (save-excursion
+      (save-match-data
+        (goto-char (point-min))
+        (while (re-search-forward regexp nil t)
+          (let ((pos (match-beginning 0))
+                (summary (buffer-substring-no-properties
+                          (line-beginning-position) (line-end-position))))
+            (push (xref-make (string-trim summary)
+                             (xref-make-buffer-location buffer pos))
+                  items)))))
+    (nreverse items)))
+
+(cl-defmethod xref-backend-identifier-at-point ((_backend (eql adoc)))
+  (or (adoc-xref-id-at-point)
+      (adoc--anchor-id-at-point)))
+
+(cl-defmethod xref-backend-identifier-completion-table ((_backend (eql adoc)))
+  (adoc--collect-anchor-ids))
+
+(cl-defmethod xref-backend-definitions ((_backend (eql adoc)) identifier)
+  (adoc--xref-collect (adoc-re-anchor nil identifier)))
+
+(cl-defmethod xref-backend-references ((_backend (eql adoc)) identifier)
+  (adoc--xref-collect (adoc--re-xref-to identifier)))
+
+(cl-defmethod xref-backend-apropos ((_backend (eql adoc)) pattern)
+  (require 'apropos)                    ; for `apropos-parse-pattern'
+  (let ((re (xref-apropos-regexp pattern)))
+    (cl-loop for id in (adoc--collect-anchor-ids)
+             when (string-match-p re id)
+             append (adoc--xref-collect (adoc-re-anchor nil id)))))
 
 ;;;; Heading navigation
 
@@ -4554,6 +4657,9 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
 
   ;; diagnostics (opt-in: contributes when the user enables `flymake-mode')
   (add-hook 'flymake-diagnostic-functions #'adoc-flymake nil t)
+
+  ;; cross-references (`M-?' for references, the xref marker stack, etc.)
+  (add-hook 'xref-backend-functions #'adoc--xref-backend nil t)
 
   ;; misc
   (setq-local page-delimiter "^<<<+$")
