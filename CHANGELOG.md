@@ -2,8 +2,13 @@
 
 ## main (unreleased)
 
+### New features
+
+- Add Asciidoctor integration for previewing and exporting documents, reachable from the new `adoc-asciidoctor-menu` transient on `C-c C-c` (and the AsciiDoc menu). `adoc-preview` renders the current buffer with `asciidoctor` and shows the HTML in a side pane - an xwidget WebKit widget when available, otherwise `eww`, configurable via `adoc-preview-backend` - and `adoc-live-preview-mode` re-renders on every save. The preview feeds the buffer to `asciidoctor` through its standard input, so unsaved edits and relative `include::` / image paths both keep working. Export commands `adoc-export-html`, `adoc-export-docbook`, `adoc-export-pdf`, and `adoc-export-epub` run through `compile`, so Asciidoctor's warnings and errors are navigable.
+
 ### Changes
 
+- The compilation error matcher now also recognises modern `asciidoctor:` diagnostics, not just the legacy AsciiDoc.py `asciidoc:` format, so jumping to warnings and errors works with current Asciidoctor output.
 - `[source,ocaml]` code blocks now fontify with `neocaml-mode` when it is available, falling back to `tuareg-mode` and then `caml-mode`. To support this, a value in `adoc-code-lang-modes` may now be either a single major mode or a list of candidate modes tried in order (the first defined one wins).
 
 ### Bugs fixed

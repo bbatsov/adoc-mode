@@ -53,6 +53,7 @@
 (require 'subr-x)
 (require 'adoc-mode-image)
 (require 'adoc-mode-tempo)
+(require 'adoc-asciidoctor)
 
 (defconst adoc-mode-version "0.9.0"
   "adoc mode version number.")
@@ -4061,6 +4062,7 @@ ITEMS is a list of (name pos . level)."
     (define-key map "\C-c\C-a" 'adoc-goto-ref-label)
     (define-key map "\C-c\C-o" 'adoc-follow-thing-at-point)
     (define-key map (kbd "M-.") 'adoc-follow-thing-at-point)
+    (define-key map "\C-c\C-c" 'adoc-asciidoctor-menu)
     (easy-menu-define adoc-mode-menu map "Menu for adoc mode"
       `("AsciiDoc"
         ["Next heading" adoc-next-visible-heading]
@@ -4091,6 +4093,16 @@ ITEMS is a list of (name pos . level)."
         ["Adjust title underline" adoc-adjust-title-del]
         ["Follow thing at point" adoc-follow-thing-at-point]
         ["Goto anchor" adoc-goto-ref-label]
+        "---"
+        ("Preview / Export"
+         ["Preview" adoc-preview]
+         ["Live preview mode" adoc-live-preview-mode
+          :style toggle :selected adoc-live-preview-mode]
+         "---"
+         ["Export to HTML5" adoc-export-html]
+         ["Export to DocBook 5" adoc-export-docbook]
+         ["Export to PDF" adoc-export-pdf]
+         ["Export to EPUB3" adoc-export-epub])
         "---"
         ;; names|wording / rough order/ help texts are from asciidoc manual
         ("Templates / cheat sheet"
@@ -4313,9 +4325,11 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (setq-local imenu-create-index-function adoc-imenu-create-index-function)
 
   ;; compilation
+  ;; Matches both the modern Asciidoctor (`asciidoctor: ...') and the legacy
+  ;; Python AsciiDoc (`asciidoc: ...') diagnostic formats.
   (add-to-list 'compilation-error-regexp-alist-alist
                '(asciidoc
-                 "^asciidoc: +\\(?:ERROR\\|\\(WARNING\\|DEPRECATED\\)\\): +\\([^:\n]*\\): line +\\([0-9]+\\)"
+                 "^asciidoc\\(?:tor\\)?: +\\(?:ERROR\\|\\(WARNING\\|DEPRECATED\\)\\): +\\([^:\n]*\\): line +\\([0-9]+\\)"
                  2 3 nil (1 . nil)))
   (setq-local compilation-error-regexp-alist
               (cons 'asciidoc compilation-error-regexp-alist))

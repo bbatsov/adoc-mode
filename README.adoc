@@ -51,7 +51,8 @@ Here are some of the main features of `adoc-mode`:
 - navigate to anchors (`C-c C-a`) and follow URLs, `include::` macros, and xrefs at point (`C-c C-o` / `M-.`)
 - nested `imenu` index with hierarchical heading structure
 - outline folding built on `outline-minor-mode` (enabled out of the box): `TAB` cycles the subtree at point, `S-TAB` cycles the whole buffer (overview / contents / show all), one-line title style only
-- integration with `flyspell-mode` (skips non-prose regions), comment commands (`M-;`), and compilation mode
+- preview and export via Asciidoctor (`C-c C-c`): live HTML preview in an xwidget or `eww` side pane, plus export to HTML, DocBook, PDF, and EPUB with navigable warnings and errors
+- integration with `flyspell-mode` (skips non-prose regions) and comment commands (`M-;`)
 - filling that respects AsciiDoc hard line breaks (a line ending in ` +`) and section titles
 
 === Demo
@@ -108,6 +109,45 @@ Adoc-mode is designed for intuitive use. Most features are available
 from the _AsciiDoc_ menu in the menu bar.
 
 This section only describes some not so obvious features.
+
+=== Preview and Export
+
+`adoc-mode` can render and export documents by shelling out to the
+https://asciidoctor.org/[Asciidoctor] command-line tool, so you need
+`asciidoctor` on your `PATH` for these commands to work. PDF and EPUB export
+additionally need the `asciidoctor-pdf` and `asciidoctor-epub3` converters.
+
+Press kbd:[C-c C-c] to open the _Asciidoctor_ transient menu, or use the
+_AsciiDoc → Preview / Export_ menu. From there you can:
+
+- `adoc-preview` - render the current buffer and show the HTML in a side pane.
+- `adoc-live-preview-mode` - a minor mode that re-renders the preview every time
+  you save the buffer.
+- `adoc-export-html` / `adoc-export-docbook` / `adoc-export-pdf` /
+  `adoc-export-epub` - export the file next to the source. These run through
+  `compile`, so you can jump to any warnings or errors with kbd:[M-g M-n].
+
+The preview feeds the buffer to Asciidoctor through its standard input, so it
+reflects unsaved edits and resolves relative `include::` and image paths.
+
+The preview pane is chosen by `adoc-preview-backend`. By default
+(`auto`) it uses an embedded WebKit widget when your Emacs was built with
+xwidget support, and falls back to `eww` otherwise. You can force a specific
+backend:
+
+[source,emacs-lisp]
+----
+;; one of: auto (default), xwidget, eww, browser
+(setq adoc-preview-backend 'eww)
+----
+
+Pass extra arguments to every Asciidoctor invocation via
+`adoc-asciidoctor-extra-args`, e.g. to enable section numbers:
+
+[source,emacs-lisp]
+----
+(setq adoc-asciidoctor-extra-args '("-a" "sectnums"))
+----
 
 === Image Preview
 
