@@ -53,6 +53,7 @@ Here are some of the main features of `adoc-mode`:
 - nested `imenu` index with hierarchical heading structure
 - outline folding built on `outline-minor-mode` (enabled out of the box): `TAB` cycles the subtree at point, `S-TAB` cycles the whole buffer (overview / contents / show all), one-line title style only
 - preview and export via Asciidoctor (`C-c C-c`): live HTML preview in an xwidget or `eww` side pane, plus export to HTML, DocBook, PDF, and EPUB with navigable warnings and errors
+- on-the-fly diagnostics through a built-in Flymake backend (and out-of-the-box support for Flycheck's `asciidoctor` checker)
 - integration with `flyspell-mode` (skips non-prose regions) and comment commands (`M-;`)
 - filling that respects AsciiDoc hard line breaks (a line ending in ` +`) and section titles
 
@@ -169,15 +170,23 @@ Pass extra arguments to every Asciidoctor invocation via
 
 === Syntax Checking
 
-If you use https://www.flycheck.org/[Flycheck], it ships a built-in
-`asciidoctor` checker that works in `adoc-mode` out of the box - it runs the
-`asciidoctor` command and reports its errors and warnings inline. Just enable
-`flycheck-mode` (and make sure `asciidoctor` is on your `PATH`):
+`adoc-mode` ships a https://www.gnu.org/software/emacs/manual/html_node/flymake/[Flymake]
+backend that runs the buffer through Asciidoctor and reports its parser errors
+and warnings inline. It's registered automatically, so you just turn on
+`flymake-mode` (and make sure `asciidoctor` is on your `PATH`):
 
 [source,emacs-lisp]
 ----
-(add-hook 'adoc-mode-hook #'flycheck-mode)
+(add-hook 'adoc-mode-hook #'flymake-mode)
 ----
+
+The check feeds the buffer to Asciidoctor over its standard input, so it runs
+on unsaved edits, and it jumps with the usual `flymake-goto-next-error` /
+`flymake-goto-prev-error`.
+
+Prefer https://www.flycheck.org/[Flycheck]? It ships its own built-in
+`asciidoctor` checker that also works in `adoc-mode` out of the box - just
+enable `flycheck-mode` instead.
 
 === Image Preview
 

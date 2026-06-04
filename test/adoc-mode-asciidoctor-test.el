@@ -123,6 +123,90 @@
         (expect (match-string 2 line) :to-equal "doc.txt")
         (expect (match-string 3 line) :to-equal "9")))))
 
+(describe "adoc--flymake-parse-output"
+  ;; A source buffer with enough lines for the diagnostics to map onto.
+  (defun adoc-test--flymake-source ()
+    (let ((buf (generate-new-buffer " *adoc-flymake-src*")))
+      (with-current-buffer buf
+        (insert "l1\nl2\nl3\nl4\nl5\nl6\nl7\n"))
+      buf))
+
+  (it "maps ERROR and WARNING lines to diagnostics"
+    (let* ((src (adoc-test--flymake-source))
+           (out (concat
+                 "asciidoctor: ERROR: <stdin>: line 5: include file not found: x\n"
+                 "asciidoctor: WARNING: <stdin>: line 7: unterminated table block\n"))
+           (diags (adoc--flymake-parse-output out src 0)))
+      (unwind-protect
+          (progn
+            (expect (length diags) :to-equal 2)
+            (expect (flymake-diagnostic-type (nth 0 diags)) :to-be :error)
+            (expect (flymake-diagnostic-text (nth 0 diags))
+                    :to-equal "include file not found: x")
+            (expect (flymake-diagnostic-type (nth 1 diags)) :to-be :warning))
+        (kill-buffer src))))
+
+  (it "matches the capitalised `Line' form some Asciidoctor versions emit"
+    (let* ((src (adoc-test--flymake-source))
+           (diags (adoc--flymake-parse-output
+                   "asciidoctor: WARNING: <stdin>: Line 3: something\n" src 0)))
+      (unwind-protect
+          (expect (length diags) :to-equal 1)
+        (kill-buffer src))))
+
+  (it "reports a fatal failure with no locatable line as a top-of-buffer error"
+    (let* ((src (adoc-test--flymake-source))
+           (diags (adoc--flymake-parse-output
+                   "asciidoctor: FAILED: 'asciidoctor-pdf' could not be loaded\n"
+                   src 1)))
+      (unwind-protect
+          (progn
+            (expect (length diags) :to-equal 1)
+            (expect (flymake-diagnostic-type (car diags)) :to-be :error))
+        (kill-buffer src))))
+
+  (it "returns no diagnostics for clean output"
+    (let ((src (adoc-test--flymake-source)))
+      (unwind-protect
+          (expect (adoc--flymake-parse-output "" src 0) :to-be nil)
+        (kill-buffer src)))))
+
+(describe "adoc-flymake (integration)"
+  (it "reports real Asciidoctor diagnostics end to end"
+    (assume (executable-find "asciidoctor") "asciidoctor not installed")
+    (with-temp-buffer
+      (insert "= Title\n\n== A\n\ninclude::/no/such.adoc[]\n")
+      (adoc-mode)
+      (let ((result :pending))
+        (adoc-flymake (lambda (diags &rest _) (setq result diags)))
+        (let ((tries 0))
+          (while (and (eq result :pending) (< tries 100))
+            (accept-process-output adoc--flymake-proc 0.1)
+            (setq tries (1+ tries))))
+        (expect result :not :to-be :pending)
+        (expect (cl-some (lambda (d) (eq (flymake-diagnostic-type d) :error))
+                         result)
+                :to-be-truthy))))
+
+  (it "does not error when the source buffer is killed mid-check"
+    (assume (executable-find "asciidoctor") "asciidoctor not installed")
+    (let ((buf (generate-new-buffer "adoc-flymake-kill.adoc"))
+          (called nil))
+      (with-current-buffer buf
+        (insert "= Title\n\ninclude::/no/such.adoc[]\n")
+        (adoc-mode)
+        (adoc-flymake (lambda (&rest _) (setq called t))))
+      (let ((proc (buffer-local-value 'adoc--flymake-proc buf)))
+        ;; kill the source buffer while asciidoctor is still running
+        (kill-buffer buf)
+        ;; draining the sentinel must not signal, and report-fn must not run
+        (let ((tries 0))
+          (while (and (process-live-p proc) (< tries 100))
+            (accept-process-output proc 0.1)
+            (setq tries (1+ tries))))
+        (expect (process-live-p proc) :to-be nil)
+        (expect called :to-be nil)))))
+
 (provide 'adoc-mode-asciidoctor-test)
 
 ;;; adoc-mode-asciidoctor-test.el ends here

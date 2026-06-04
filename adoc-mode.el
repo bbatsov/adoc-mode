@@ -4499,6 +4499,9 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   ;; completion
   (add-hook 'completion-at-point-functions #'adoc-completion-at-point nil t)
 
+  ;; diagnostics (opt-in: contributes when the user enables `flymake-mode')
+  (add-hook 'flymake-diagnostic-functions #'adoc-flymake nil t)
+
   ;; misc
   (setq-local page-delimiter "^<<<+$")
   (setq-local require-final-newline mode-require-final-newline)
