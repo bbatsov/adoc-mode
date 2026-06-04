@@ -3503,6 +3503,187 @@ and title's text are not preserved, afterwards its always one space."
         (forward-line -1))
       (move-to-column saved-col))))
 
+;;;; Completion
+
+(defconst adoc-intrinsic-attributes
+  '("doctitle" "author" "authorinitials" "firstname" "middlename" "lastname"
+    "email" "revnumber" "revdate" "revremark" "docdate" "doctime" "docdatetime"
+    "localdate" "localtime" "localdatetime" "sectnums" "sectnumlevels"
+    "sectlinks" "sectanchors" "toc" "toclevels" "toc-title" "icons" "iconfont"
+    "experimental" "nofooter" "noheader" "source-highlighter" "imagesdir"
+    "iconsdir" "stylesheet" "stylesdir" "linkcss" "data-uri" "idprefix"
+    "idseparator" "leveloffset" "tabsize" "version-label" "lang" "encoding")
+  "Common intrinsic AsciiDoc attribute names offered for completion.
+These supplement the attributes actually defined in the buffer.")
+
+(defconst adoc--completion-common-langs
+  '("c" "clojure" "cpp" "csharp" "css" "diff" "elixir" "emacs-lisp" "erlang"
+    "go" "groovy" "haskell" "html" "java" "javascript" "json" "kotlin" "lua"
+    "ocaml" "perl" "php" "python" "ruby" "rust" "scala" "sh" "shell" "sql"
+    "swift" "toml" "typescript" "xml" "yaml")
+  "Common source-block language names offered for completion.")
+
+(defun adoc--collect-anchor-ids ()
+  "Return a list of the explicit anchor ids defined in the buffer.
+Scans for block ids (`[[id]]', `[#id]'), inline anchors
+\(`[[id,reftext]]') and bibliography anchors (`[[[ref]]]').  Computed
+section auto-ids are intentionally not included."
+  (let ((ids '()))
+    (save-excursion
+      (save-match-data
+        ;; block-id and block-id-shorthand expose the bare id in group 1.
+        (dolist (type '(block-id block-id-shorthand))
+          (goto-char (point-min))
+          (let ((re (adoc-re-anchor type)))
+            (while (re-search-forward re nil t)
+              (push (match-string-no-properties 1) ids))))
+        ;; inline-special is `[[id,reftext]]'; group 2 is `id,reftext'.
+        (goto-char (point-min))
+        (let ((re (adoc-re-anchor 'inline-special)))
+          (while (re-search-forward re nil t)
+            (let ((attrlist (match-string-no-properties 2)))
+              (push (car (split-string attrlist "[ \t,]" t)) ids))))
+        ;; biblio is `[[[ref]]]'; group 2 is `[ref]'.
+        (goto-char (point-min))
+        (let ((re (adoc-re-anchor 'biblio)))
+          (while (re-search-forward re nil t)
+            (push (string-trim (match-string-no-properties 2) "\\[" "\\]")
+                  ids)))))
+    (delete-dups (delq nil ids))))
+
+(defun adoc--collect-attribute-names ()
+  "Return attribute names for completion.
+The union of the attributes defined in the buffer (`:name:' entries)
+and `adoc-intrinsic-attributes'."
+  (let ((names (copy-sequence adoc-intrinsic-attributes)))
+    (save-excursion
+      (save-match-data
+        (goto-char (point-min))
+        (let ((re (adoc-re-attribute-entry)))
+          (while (re-search-forward re nil t)
+            ;; Group 1 is `:name[.subname]:' (optionally `:!name:' to unset).
+            ;; The bare name is the first run of id chars after the leading
+            ;; colon, stopping before any `.subname' or the closing colon.
+            (let ((raw (match-string-no-properties 1)))
+              (when (string-match ":!?\\([-a-zA-Z0-9_]+\\)" raw)
+                (push (match-string 1 raw) names)))))))
+    (delete-dups names)))
+
+(defun adoc--completion-langs ()
+  "Return the source-block language names offered for completion."
+  (delete-dups
+   (append (mapcar #'car adoc-code-lang-modes)
+           adoc--completion-common-langs)))
+
+(defun adoc--completion-token-bounds (&optional chars)
+  "Return the bounds (START . END) of the token around point.
+CHARS is the `skip-chars-backward' set delimiting the token; it
+defaults to the id characters allowed in attribute names and the like."
+  (save-excursion
+    (let ((end (point))
+          (start (progn (skip-chars-backward (or chars "-a-zA-Z0-9_"))
+                        (point))))
+      (cons start end))))
+
+(defun adoc--completion-xref-bounds ()
+  "Return token bounds when point is inside an unclosed xref reference.
+Handles both the `<<id' and `xref:id' forms.  Returns nil otherwise."
+  (let ((line-start (line-beginning-position))
+        (orig (point)))
+    (save-excursion
+      (when (or
+             ;; `<<' not yet closed by `>>', point before any `,'.
+             (save-excursion
+               (and (re-search-backward "<<" line-start t)
+                    (goto-char (match-end 0))
+                    (not (re-search-forward "\\(>>\\|,\\)" orig t))))
+             ;; `xref:' target, point before the `[' or `,'.
+             (save-excursion
+               (and (re-search-backward "xref:" line-start t)
+                    (goto-char (match-end 0))
+                    (not (re-search-forward "[][,]" orig t)))))
+        ;; Anchor ids may contain `.' (biblio / inline anchors), so include
+        ;; it in the token even though `adoc-re-id' itself is narrower.
+        (adoc--completion-token-bounds "-a-zA-Z0-9_.")))))
+
+(defun adoc--completion-attribute-bounds ()
+  "Return token bounds when point is inside an unclosed `{' reference.
+Returns nil otherwise."
+  (let ((line-start (line-beginning-position))
+        (orig (point)))
+    (save-excursion
+      (when (save-excursion
+              (and (re-search-backward "{" line-start t)
+                   (goto-char (match-end 0))
+                   (not (re-search-forward "[{}]" orig t))))
+        (adoc--completion-token-bounds)))))
+
+(defun adoc--completion-include-bounds ()
+  "Return path bounds when point is inside an `include::' target.
+Returns nil otherwise."
+  (save-excursion
+    (let ((bol (line-beginning-position))
+          (pos (point)))
+      (goto-char bol)
+      (when (and (looking-at "include1?::")
+                 (<= (match-end 0) pos))
+        (let ((start (match-end 0)))
+          (goto-char start)
+          (unless (re-search-forward "\\[" pos t)
+            (cons start pos)))))))
+
+(defun adoc--completion-source-lang-bounds ()
+  "Return language-token bounds when point is in a `[source,LANG' field.
+Returns nil otherwise."
+  (save-excursion
+    (let ((bol (line-beginning-position))
+          (pos (point)))
+      (goto-char bol)
+      (when (and (looking-at "\\[source,[ \t]*")
+                 (<= (match-end 0) pos))
+        (let ((start (match-end 0)))
+          (goto-char start)
+          (unless (re-search-forward "[],]" pos t)
+            (cons start pos)))))))
+
+(defun adoc-completion-at-point ()
+  "Complete the AsciiDoc construct at point.
+A `completion-at-point-functions' entry that offers candidates for
+cross-reference / anchor ids inside `<<' and `xref:', attribute names
+inside `{', file paths after `include::', and source-block languages
+inside `[source,'."
+  (let (bounds)
+    (cond
+     ;; An unclosed `{' means an attribute reference, even when it sits inside
+     ;; an xref target or a `[source,' field, so check it first.
+     ((setq bounds (adoc--completion-attribute-bounds))
+      (list (car bounds) (cdr bounds)
+            (completion-table-dynamic
+             (lambda (_) (adoc--collect-attribute-names)))
+            :annotation-function (lambda (_) " attribute")
+            :company-kind (lambda (_) 'variable)
+            :exclusive 'no))
+     ((setq bounds (adoc--completion-xref-bounds))
+      (list (car bounds) (cdr bounds)
+            (completion-table-dynamic
+             (lambda (_) (adoc--collect-anchor-ids)))
+            :annotation-function (lambda (_) " anchor")
+            :company-kind (lambda (_) 'reference)
+            :exclusive 'no))
+     ((setq bounds (adoc--completion-source-lang-bounds))
+      (list (car bounds) (cdr bounds)
+            (completion-table-dynamic
+             (lambda (_) (adoc--completion-langs)))
+            :annotation-function (lambda (_) " lang")
+            :company-kind (lambda (_) 'enum)
+            :exclusive 'no))
+     ((setq bounds (adoc--completion-include-bounds))
+      (list (car bounds) (cdr bounds)
+            #'completion-file-name-table
+            :annotation-function (lambda (_) " file")
+            :company-kind (lambda (_) 'file)
+            :exclusive 'no)))))
+
 ;;;; Heading navigation
 
 (defun adoc--re-all-titles ()
@@ -4314,6 +4495,9 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   ;; fill
   (add-hook 'fill-nobreak-predicate #'adoc-fill-nobreak-p nil t)
   (setq-local fill-paragraph-function #'adoc-fill-paragraph)
+
+  ;; completion
+  (add-hook 'completion-at-point-functions #'adoc-completion-at-point nil t)
 
   ;; misc
   (setq-local page-delimiter "^<<<+$")

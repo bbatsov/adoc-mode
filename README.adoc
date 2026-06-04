@@ -49,6 +49,7 @@ Here are some of the main features of `adoc-mode`:
 - title management: promote / demote (`M-left` / `M-right`), toggle between one-line and two-line styles, adjust underline length
 - list editing: `M-left` / `M-right` nest the list item at point deeper or shallower, `M-RET` inserts a sibling item (incrementing the number for explicitly-numbered lists), `M-up` / `M-down` move an item (with its sub-items) past its siblings, and `M-x adoc-renumber-list` renumbers an explicitly-numbered list
 - navigate to anchors (`C-c C-a`) and follow URLs, `include::` macros, and xrefs at point (`C-c C-o` / `M-.`)
+- context-aware completion via `completion-at-point`: cross-reference ids inside `<<` / `xref:`, attribute names inside `{`, file paths after `include::`, and source-block languages inside `[source,`
 - nested `imenu` index with hierarchical heading structure
 - outline folding built on `outline-minor-mode` (enabled out of the box): `TAB` cycles the subtree at point, `S-TAB` cycles the whole buffer (overview / contents / show all), one-line title style only
 - preview and export via Asciidoctor (`C-c C-c`): live HTML preview in an xwidget or `eww` side pane, plus export to HTML, DocBook, PDF, and EPUB with navigable warnings and errors
@@ -109,6 +110,23 @@ Adoc-mode is designed for intuitive use. Most features are available
 from the _AsciiDoc_ menu in the menu bar.
 
 This section only describes some not so obvious features.
+
+=== Completion
+
+`adoc-mode` registers a `completion-at-point` function, so kbd:[M-TAB] (or a
+completion UI like https://github.com/minad/corfu[Corfu] or
+https://github.com/company-mode/company-mode[Company]) offers candidates based
+on the construct at point:
+
+- inside `<<` or `xref:` - cross-reference ids, taken from the explicit anchors
+  defined in the buffer (`[[id]]`, `[#id]`, `[[[biblio]]]`)
+- inside `{` - attribute names, both the ones defined with `:name:` in the
+  buffer and a set of common built-in attributes
+- after `include::` - file paths, relative to the document
+- inside `[source,` - source-block language names
+
+In plain prose the completion function yields to whatever else you have on
+`completion-at-point-functions`.
 
 === Preview and Export
 

@@ -5,6 +5,7 @@
 ### New features
 
 - Add Asciidoctor integration for previewing and exporting documents, reachable from the new `adoc-asciidoctor-menu` transient on `C-c C-c` (and the AsciiDoc menu). `adoc-preview` renders the current buffer with `asciidoctor` and shows the HTML in a side pane - an xwidget WebKit widget when available, otherwise `eww`, configurable via `adoc-preview-backend` - and `adoc-live-preview-mode` re-renders on every save. The preview feeds the buffer to `asciidoctor` through its standard input, so unsaved edits and relative `include::` / image paths both keep working. Export commands `adoc-export-html`, `adoc-export-docbook`, `adoc-export-pdf`, and `adoc-export-epub` run through `compile`, so Asciidoctor's warnings and errors are navigable.
+- Add context-aware completion via `completion-at-point` (kbd:[M-TAB], or any of corfu/company/built-in completion). Inside `<<` or `xref:` it completes cross-reference ids from the explicit anchors defined in the buffer (`[[id]]`, `[#id]`, `[[[biblio]]]`); inside `{` it completes attribute names (the ones defined with `:name:` plus a set of common built-ins); after `include::` it completes file paths; and inside `[source,` it completes source-block language names. It stays out of the way in plain prose.
 
 ### Changes
 
