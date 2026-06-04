@@ -2068,6 +2068,7 @@ TEXTPROPS is an additional plist with textproperties."
   (let ((cmd-name (regexp-opt '("http" "https" "ftp" "file" "irc" "mailto" "callto" "link"))))
     (list
      `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name) '(0) '(0)))
+     '(0 '(face nil keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: visit this link")) ; clickable
      `(1 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t) t) ; cmd-name
      `(2 '(face adoc-url-face adoc-reserved t) t) ; :
      `(3 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t) t) ; target
@@ -2079,6 +2080,7 @@ TEXTPROPS is an additional plist with textproperties."
   (let ((cmd-name (regexp-opt '("http" "https" "ftp" "file" "irc" "mailto" "callto" "link"))))
     (list
      `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name nil nil 'empty) '(0) '(0)))
+     '(0 '(face nil keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: visit this link")) ; clickable
      '(1 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t) append) ; cmd-name
      '(2 '(face adoc-url-face adoc-reserved t) append)               ; :
      '(3 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t) append)               ; target
@@ -2122,7 +2124,7 @@ TEXTPROPS is an additional plist with textproperties."
          (both (concat "\\(?:" url "\\)\\|\\(?:" url<> "\\)\\|\\(?:" email "\\)")))
     (list
      `(lambda (end) (adoc-kwf-std end ,both '(0) '(0)))
-     '(0 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t) append t))))
+     '(0 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: visit this URL") append t))))
 
 ;; bug: escapes are not handled yet
 ;; TODO: give the inserted character a specific face. But I fear that is not
@@ -2476,7 +2478,7 @@ for multiline constructs to be matched."
          '(4 '(face adoc-meta-hide-face adoc-reserved block-del))) ; ]
    ;; include
    (list "^\\(\\(include1?::\\)\\([^ \t\n]*?\\)\\(\\[\\)\\(.*?\\)\\(\\]\\)\\)[ \t]*$"
-         '(1 '(face nil adoc-reserved block-del)) ; the whole match
+         '(1 '(face nil adoc-reserved block-del keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: open this include")) ; the whole match
          '(2 '(face adoc-preprocessor-face adoc-flyspell-ignore t))      ; macro name
          '(3 '(face adoc-meta-face adoc-flyspell-ignore t))              ; file name
          '(4 'adoc-meta-hide-face)         ; [
@@ -2765,7 +2767,8 @@ for multiline constructs to be matched."
    (adoc-kw-inline-macro-urls-attribute-list)
    (adoc-kw-inline-macro "anchor" nil nil nil 'adoc-anchor-face t '("xreflabel"))
    (adoc-kw-inline-macro "xref" nil nil nil '(adoc-reference-face adoc-internal-reference-face) t
-                         '(("caption") (("caption" . adoc-reference-face))))
+                         '(("caption") (("caption" . adoc-reference-face)))
+                         '(keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: jump to this anchor"))
    (adoc-kw-inline-macro "footnote" t nil 'adoc-footnote-marker-face nil nil 'adoc-footnote-text-face)
    (adoc-kw-inline-macro "footnoteref" t 'single-attribute 'adoc-footnote-marker-face nil nil
                          '(("id") (("id" . adoc-internal-reference-face))))
@@ -2808,6 +2811,9 @@ for multiline constructs to be matched."
    ;; see also xref: within inline macros
    ;; reference with own/explicit caption
    (list (adoc-re-xref 'inline-special-with-caption t)
+         ;; clickable, but not inside code/literal blocks (those set adoc-reserved)
+         '(0 (unless (get-text-property (match-beginning 0) 'adoc-reserved)
+               '(face nil keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: jump to this anchor")))
          '(1 'adoc-meta-hide-face)       ; <<
          '(2 'adoc-meta-face)            ; anchor-id
          '(3 'adoc-meta-hide-face)       ; ,
@@ -2815,6 +2821,8 @@ for multiline constructs to be matched."
          '(5 'adoc-meta-hide-face))      ; >>
    ;; reference without caption
    (list (adoc-re-xref 'inline-special-no-caption t)
+         '(0 (unless (get-text-property (match-beginning 0) 'adoc-reserved)
+               '(face nil keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: jump to this anchor")))
          '(1 'adoc-meta-hide-face)       ; <<
          '(2 'adoc-reference-face)       ; link text = anchor id
          '(3 'adoc-meta-hide-face))      ; >>
@@ -2906,13 +2914,37 @@ for multiline constructs to be matched."
   (let ((pos (save-excursion
                (goto-char (point-min))
                (re-search-forward (adoc-re-anchor nil id) nil t))))
-    (if (null pos) (error (concat "Can't find an anchor defining '" id "'")))
+    (if (null pos) (user-error "Can't find an anchor defining '%s'" id))
     (push-mark)
     (goto-char pos)))
 
+(defun adoc--inline-link-at-point ()
+  "Return the target of an inline link or URL macro covering point, or nil.
+Handles `link:target[...]' and `scheme:target[...]' (for the http,
+https, ftp, file, irc, mailto and callto schemes).  The result is the
+string to open: the bare target for `link:', or `scheme:target' for the
+URL schemes (the attribute list / label is dropped)."
+  (save-excursion
+    (let ((pos (point))
+          (eol (line-end-position))
+          (re (adoc-re-inline-macro
+               (regexp-opt '("http" "https" "ftp" "file" "irc" "mailto"
+                             "callto" "link")))))
+      (beginning-of-line)
+      (catch 'found
+        (while (re-search-forward re eol t)
+          (when (and (<= (match-beginning 0) pos) (<= pos (match-end 0)))
+            (let ((cmd (match-string-no-properties 1))
+                  (target (match-string-no-properties 3)))
+              (throw 'found
+                     (if (string= cmd "link")
+                         target
+                       (concat cmd ":" target))))))
+        nil))))
+
 (defun adoc-follow-thing-at-point ()
   "Follow the link or reference at point.
-When point is on a URL, open it in a browser.
+When point is on a URL or `link:' macro, open it.
 When point is on an `include::' macro, open the referenced file.
 When point is on an xref or cross-reference, jump to its anchor."
   (interactive)
@@ -2928,11 +2960,32 @@ When point is on an xref or cross-reference, jump to its anchor."
    ;; xref at point — jump to anchor
    ((adoc-xref-id-at-point)
     (adoc-goto-ref-label (adoc-xref-id-at-point)))
-   ;; URL at point — open in browser
+   ;; link:/URL inline macro — follow the target, ignoring the label
+   ((adoc--inline-link-at-point)
+    (let ((target (adoc--inline-link-at-point)))
+      (cond
+       ((string-match-p
+         "\\`\\(?:https?\\|ftp\\|file\\|irc\\|mailto\\|callto\\):" target)
+        (browse-url target))
+       ((file-exists-p target) (find-file target))
+       (t (user-error "File not found: %s" target)))))
+   ;; bare URL at point — open in browser
    ((thing-at-point 'url)
     (browse-url (thing-at-point 'url t)))
    (t
     (user-error "Nothing to follow at point"))))
+
+(defvar adoc-link-keymap
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mouse-2] #'adoc-follow-thing-at-point)
+    (define-key map [follow-link] 'mouse-face)
+    map)
+  "Keymap on clickable references (xrefs, links, URLs, `include::').
+A quick `mouse-1' or a `mouse-2' click follows the reference via
+`adoc-follow-thing-at-point'.  It is attached to those constructs as a
+`keymap' text property during fontification.")
+;; Make the symbol usable as the value of a `keymap' text property.
+(fset 'adoc-link-keymap adoc-link-keymap)
 
 (defun adoc-promote (&optional arg)
   "Promote the structure at point ARG levels.

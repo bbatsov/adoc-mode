@@ -310,4 +310,68 @@
       (re-search-backward "bli")
       (expect (adoc-xref-id-at-point) :to-equal "foo"))))
 
+(describe "clickable references"
+  (defun adoc-test--prop-at (content needle prop)
+    "Fontify CONTENT and return text property PROP at the start of NEEDLE."
+    (with-temp-buffer
+      (insert content)
+      (adoc-mode)
+      (font-lock-ensure)
+      (goto-char (point-min))
+      (and (search-forward needle nil t)
+           (get-text-property (match-beginning 0) prop))))
+
+  (it "marks every reference construct with the link keymap"
+    (let ((doc (concat "[[target]]\n= Doc\n\n"
+                       "See <<target>> and <<target,the target>>.\n\n"
+                       "Also xref:target[here] and https://example.com[site].\n\n"
+                       "A bare https://bare.example.com link.\n\n"
+                       "include::other.adoc[]\n")))
+      (dolist (needle '("<<target>>" "<<target,the target>>" "xref:target[here]"
+                        "https://example.com[site]" "bare.example.com"
+                        "include::other.adoc[]"))
+        (expect (adoc-test--prop-at doc needle 'keymap) :to-be 'adoc-link-keymap)
+        (expect (adoc-test--prop-at doc needle 'mouse-face) :to-be 'highlight)
+        (expect (adoc-test--prop-at doc needle 'help-echo) :to-be-truthy))))
+
+  (it "leaves plain prose unclickable"
+    (expect (adoc-test--prop-at "just some ordinary prose\n" "ordinary" 'keymap)
+            :to-be nil))
+
+  (it "does not make an xref inside a code block clickable"
+    (expect (adoc-test--prop-at "----\n<<dead>>\n----\n" "<<dead>>" 'keymap)
+            :to-be nil)
+    ;; but the same xref outside the block is clickable
+    (expect (adoc-test--prop-at "<<live>>\n\n----\ncode\n----\n" "<<live>>" 'keymap)
+            :to-be 'adoc-link-keymap))
+
+  (it "binds mouse-2 and follow-link in the link keymap"
+    (expect (lookup-key adoc-link-keymap [mouse-2])
+            :to-be #'adoc-follow-thing-at-point)
+    (expect (lookup-key adoc-link-keymap [follow-link]) :to-be 'mouse-face)))
+
+(describe "adoc--inline-link-at-point"
+  (it "extracts a URL macro target without its label"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "see https://example.com[Example] ok")
+      (goto-char (point-min))
+      (search-forward "example")
+      (expect (adoc--inline-link-at-point) :to-equal "https://example.com")))
+
+  (it "extracts a link: macro target"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "see link:other.adoc[the doc] ok")
+      (goto-char (point-min))
+      (search-forward "other")
+      (expect (adoc--inline-link-at-point) :to-equal "other.adoc")))
+
+  (it "returns nil away from any link macro"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "just prose")
+      (goto-char (point-min))
+      (expect (adoc--inline-link-at-point) :to-be nil))))
+
 ;;; adoc-mode-navigation-test.el ends here
