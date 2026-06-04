@@ -289,6 +289,22 @@
       (adoc-goto-ref-label "bar")
       (expect (line-number-at-pos) :to-equal 3)))
 
+  (it "offers the buffer's anchors when read interactively"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "[[alpha]]\n[[beta]]\nbody\n")
+      (goto-char (point-max))
+      (let (candidates)
+        (spy-on 'completing-read :and-call-fake
+                (lambda (_prompt collection &rest _)
+                  (setq candidates (all-completions "" collection))
+                  "alpha"))
+        (call-interactively #'adoc-goto-ref-label)
+        ;; the buffer's anchors were offered as candidates
+        (expect (sort candidates #'string<) :to-equal '("alpha" "beta"))
+        ;; and the chosen one was jumped to
+        (expect (line-number-at-pos) :to-equal 1))))
+
   (it "follows the block id shorthand, including the style#id form"
     (with-temp-buffer
       (adoc-mode)

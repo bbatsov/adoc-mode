@@ -2909,9 +2909,12 @@ for multiline constructs to be matched."
   (interactive (let* ((default (adoc-xref-id-at-point))
                       (default-str (if default (concat "(default " default ")") "")))
                  (list
-                  (read-string
+                  ;; Offer the buffer's anchors as candidates, but stay
+                  ;; permissive (require-match nil) so a not-yet-defined id can
+                  ;; still be entered.
+                  (completing-read
                    (concat "Goto anchor of reference/label " default-str ": ")
-                   nil nil default))))
+                   (adoc--collect-anchor-ids) nil nil nil nil default))))
   (let ((pos (save-excursion
                (goto-char (point-min))
                (re-search-forward (adoc-re-anchor nil id) nil t))))
