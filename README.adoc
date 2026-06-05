@@ -154,7 +154,9 @@ buffer's ids.
 `adoc-mode` also registers an `xref` backend, so the standard cross-reference
 keys work for AsciiDoc ids: kbd:[M-?] (`xref-find-references`) lists every
 `<<id>>` / `xref:id[]` that points at the id under point, and kbd:[M-,]
-(`xref-go-back`) returns after a jump.
+(`xref-go-back`) returns after a jump. In an Antora component kbd:[M-?]
+searches the whole component, so cross-page references (`xref:this/page.adoc#id[]`
+from other pages) are included.
 
 === Preview and Export
 

@@ -3871,6 +3871,38 @@ resolved relative to the current buffer's Antora component."
         (delete-dups (append (adoc--collect-anchor-ids)
                              (adoc--collect-section-ids)))))))
 
+(defun adoc--antora-current-page-targets ()
+  "Return the xref target form(s) other pages use to reference this page.
+A list of the module-pages-relative path and its `module:'-qualified
+form, or nil when the buffer is not a page in an Antora component."
+  (let ((root (adoc--antora-root)))
+    (when (and root buffer-file-name)
+      (let* ((module (adoc--antora-current-module root buffer-file-name))
+             (pages (and module
+                         (expand-file-name (concat "modules/" module "/pages")
+                                           root)))
+             (rel (and pages (file-relative-name buffer-file-name pages))))
+        (when (and rel (not (string-prefix-p ".." rel)))
+          (list rel (concat module ":" rel)))))))
+
+(defun adoc--antora-references (id)
+  "Return cross-references to ID across the current Antora component.
+Searches the component's `.adoc' files for same-page references
+\(`<<id>>', `xref:id[]', `xref:#id[]') and cross-page references to this
+page's id (`xref:this/page.adoc#id[]')."
+  (let* ((root (adoc--antora-root))
+         (qid (regexp-quote id))
+         (targets (adoc--antora-current-page-targets))
+         (same (concat "<<" qid "[,>]\\|xref:#?" qid "\\["))
+         ;; A flat alternation (no shy group): `grep -E' under POSIX/GNU grep
+         ;; rejects the `(?:...)' that a shy group would translate to.
+         (cross (when targets
+                  (mapconcat (lambda (target)
+                               (concat "xref:" (regexp-quote target) "#" qid "\\["))
+                             targets "\\|")))
+         (regexp (if cross (concat same "\\|" cross) same)))
+    (xref-matches-in-directory regexp "*.adoc" root nil)))
+
 (defun adoc--completion-xref-target-bounds ()
   "Return (START . END) of the `xref:' target text up to point, or nil.
 Only matches when point is within the target portion of an `xref:'
@@ -4173,7 +4205,11 @@ the match."
           (adoc--section-definitions identifier)))
 
 (cl-defmethod xref-backend-references ((_backend (eql adoc)) identifier)
-  (adoc--xref-collect (adoc--re-xref-to identifier)))
+  ;; In an Antora component search the whole component (so cross-page
+  ;; references show up); otherwise stay within the current buffer.
+  (if (adoc--antora-root)
+      (adoc--antora-references identifier)
+    (adoc--xref-collect (adoc--re-xref-to identifier))))
 
 (cl-defmethod xref-backend-apropos ((_backend (eql adoc)) pattern)
   (require 'apropos)                    ; for `apropos-parse-pattern'

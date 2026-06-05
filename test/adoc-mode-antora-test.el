@@ -212,6 +212,50 @@ LINE is inserted at end of the page (under ROOT's ROOT module) first."
             (expect (member "local-bit" cands) :to-be-truthy))
         (delete-directory root t)))))
 
+(describe "Antora project-wide references"
+  (it "computes this page's reference target forms"
+    (let ((root (adoc-test--make-antora '(("sub/p.adoc" . "= P\n")))))
+      (unwind-protect
+          (with-current-buffer
+              (find-file-noselect
+               (expand-file-name "modules/ROOT/pages/sub/p.adoc" root))
+            (unwind-protect
+                (expect (adoc--antora-current-page-targets)
+                        :to-equal '("sub/p.adoc" "ROOT:sub/p.adoc"))
+              (kill-buffer)))
+        (delete-directory root t))))
+
+  (it "finds same-page, same-module and other-module references"
+    (let* ((root (make-temp-file "adoc-antora-" t))
+           (rootpages (expand-file-name "modules/ROOT/pages" root))
+           (extrapages (expand-file-name "modules/extra/pages" root)))
+      (make-directory rootpages t)
+      (make-directory extrapages t)
+      (with-temp-file (expand-file-name "antora.yml" root) (insert "name: demo\n"))
+      (with-temp-file (expand-file-name "guide.adoc" rootpages)
+        (insert "= Guide\n\n== Deep Section\n\nSelf <<deep-section>>.\n"))
+      (with-temp-file (expand-file-name "intro.adoc" rootpages)
+        (insert "= Intro\n\nxref:guide.adoc#deep-section[x].\n"))
+      (with-temp-file (expand-file-name "o.adoc" extrapages)
+        (insert "= O\n\nxref:ROOT:guide.adoc#deep-section[y].\n"))
+      ;; a different fragment and a same-id-but-different-page reference: neither
+      ;; should match
+      (with-temp-file (expand-file-name "noise.adoc" rootpages)
+        (insert "xref:guide.adoc#other[a] xref:elsewhere.adoc#deep-section[b]\n"))
+      (unwind-protect
+          (with-current-buffer
+              (find-file-noselect (expand-file-name "guide.adoc" rootpages))
+            (unwind-protect
+                (let* ((refs (xref-backend-references 'adoc "deep-section"))
+                       (summaries (mapcar #'xref-item-summary refs)))
+                  (expect (length refs) :to-equal 3)
+                  (expect (cl-some (lambda (s) (string-match-p "#other" s)) summaries)
+                          :to-be nil)
+                  (expect (cl-some (lambda (s) (string-match-p "elsewhere" s)) summaries)
+                          :to-be nil))
+              (kill-buffer)))
+        (delete-directory root t)))))
+
 (provide 'adoc-mode-antora-test)
 
 ;;; adoc-mode-antora-test.el ends here
