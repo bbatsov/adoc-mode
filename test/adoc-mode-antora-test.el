@@ -146,6 +146,72 @@ FILES is an alist of (RELPATH . CONTENT) created under
               (kill-buffer)))
         (delete-directory root t)))))
 
+(defun adoc-test--antora-capf (root relpath line)
+  "Return the capf candidates with point after LINE in component page RELPATH.
+LINE is inserted at end of the page (under ROOT's ROOT module) first."
+  (let ((file (expand-file-name (concat "modules/ROOT/pages/" relpath) root)))
+    (with-current-buffer (find-file-noselect file)
+      (unwind-protect
+          (progn
+            (goto-char (point-max))
+            (insert "\n" line)
+            (goto-char (point-max))
+            (let ((capf (adoc-completion-at-point)))
+              (when capf (all-completions "" (nth 2 capf)))))
+        (set-buffer-modified-p nil)
+        (kill-buffer)))))
+
+(describe "Antora xref completion"
+  (it "lists component pages as xref targets, other modules prefixed"
+    (let ((root (adoc-test--make-antora
+                 '(("src.adoc" . "= Src\n")
+                   ("sub/target.adoc" . "= T\n")))))
+      (unwind-protect
+          (progn
+            ;; add a page in another module
+            (let ((other (expand-file-name "modules/extra/pages/o.adoc" root)))
+              (make-directory (file-name-directory other) t)
+              (with-temp-file other (insert "= O\n")))
+            (let ((cands (adoc-test--antora-capf root "src.adoc" "see xref:")))
+              (expect (member "sub/target.adoc" cands) :to-be-truthy)
+              (expect (member "extra:o.adoc" cands) :to-be-truthy)))
+        (delete-directory root t))))
+
+  (it "completes #fragments from the target page"
+    (let ((root (adoc-test--make-antora
+                 '(("src.adoc" . "= Src\n")
+                   ("target.adoc" . "= T\n\n== Deep Section\n\n[[explicit]]\nx\n")))))
+      (unwind-protect
+          (let ((cands (adoc-test--antora-capf
+                        root "src.adoc" "see xref:target.adoc#")))
+            (expect (member "deep-section" cands) :to-be-truthy) ; section auto-id
+            (expect (member "explicit" cands) :to-be-truthy))    ; explicit anchor
+        (delete-directory root t))))
+
+  (it "does not offer lock files, dotfiles, or pages in hidden dirs"
+    (let ((root (adoc-test--make-antora
+                 '(("src.adoc" . "= Src\n")
+                   (".hidden/buried.adoc" . "= H\n")))))
+      (unwind-protect
+          (progn
+            ;; simulate an editor lock file next to a page
+            (with-temp-file (expand-file-name "modules/ROOT/pages/.#busy.adoc" root)
+              (insert "x"))
+            (let ((cands (adoc-test--antora-capf root "src.adoc" "see xref:")))
+              (expect (cl-find-if (lambda (c) (string-match-p "\\(?:\\`\\|/\\)\\." c))
+                                  cands)
+                      :to-be nil)))
+        (delete-directory root t))))
+
+  (it "completes a same-page #fragment against the current buffer"
+    (let ((root (adoc-test--make-antora '(("src.adoc" . "= Src\n")))))
+      (unwind-protect
+          (let ((cands (adoc-test--antora-capf
+                        root "src.adoc"
+                        "== Local Bit\n\nsee xref:#")))
+            (expect (member "local-bit" cands) :to-be-truthy))
+        (delete-directory root t)))))
+
 (provide 'adoc-mode-antora-test)
 
 ;;; adoc-mode-antora-test.el ends here

@@ -3833,6 +3833,59 @@ in-buffer id) qualifies."
                           target)))))
         nil))))
 
+(defun adoc--antora-page-targets ()
+  "Return the component's pages as xref targets, or nil outside Antora.
+Pages in the current module are listed by their path relative to that
+module's `pages' directory; pages in other modules are prefixed with
+`module:'."
+  (let ((root (adoc--antora-root)))
+    (when (and root buffer-file-name)
+      (let ((current (adoc--antora-current-module root buffer-file-name))
+            (modules-dir (expand-file-name "modules" root))
+            (targets '()))
+        (when (file-directory-p modules-dir)
+          (dolist (mdir (directory-files modules-dir t "\\`[^.]"))
+            (let ((pages (expand-file-name "pages" mdir)))
+              (when (file-directory-p pages)
+                (let ((module (file-name-nondirectory mdir)))
+                  (dolist (file (directory-files-recursively pages "\\.adoc\\'"))
+                    (let ((rel (file-relative-name file pages)))
+                      ;; skip any dot-prefixed segment: lock files
+                      ;; (`.#foo.adoc') and hidden dirs (`.git/...'), which
+                      ;; Antora ignores
+                      (unless (string-match-p "\\(?:\\`\\|/\\)\\." rel)
+                        (push (if (equal module current) rel
+                                (concat module ":" rel))
+                              targets)))))))))
+        (nreverse targets)))))
+
+(defun adoc--antora-page-fragments (page)
+  "Return the section ids and anchors defined in the xref target PAGE.
+PAGE is an xref page target (e.g. `topic/p.adoc' or `mod:p.adoc')
+resolved relative to the current buffer's Antora component."
+  (let ((resolved (adoc--antora-resolve-page page)))
+    (when (and resolved
+               (file-exists-p (car resolved))
+               (not (file-directory-p (car resolved))))
+      (with-current-buffer (find-file-noselect (car resolved))
+        (delete-dups (append (adoc--collect-anchor-ids)
+                             (adoc--collect-section-ids)))))))
+
+(defun adoc--completion-xref-target-bounds ()
+  "Return (START . END) of the `xref:' target text up to point, or nil.
+Only matches when point is within the target portion of an `xref:'
+macro (after `xref:', before the `[' or any whitespace)."
+  (save-excursion
+    (let ((pos (point))
+          (bol (line-beginning-position)))
+      (when (re-search-backward "xref:" bol t)
+        (let ((start (match-end 0)))
+          (when (and (<= start pos)
+                     (not (save-excursion
+                            (goto-char start)
+                            (re-search-forward "[][ \t]" pos t))))
+            (cons start pos)))))))
+
 ;;;; Completion
 
 (defconst adoc-intrinsic-attributes
@@ -3993,6 +4046,37 @@ inside `[source,'."
             :annotation-function (lambda (_) " attribute")
             :company-kind (lambda (_) 'variable)
             :exclusive 'no))
+     ;; Antora `xref:' target - complete page paths, and section ids/anchors
+     ;; after a `#fragment'.  Falls through to the generic xref branch outside
+     ;; an Antora component.
+     ((and (adoc--antora-root)
+           (setq bounds (adoc--completion-xref-target-bounds)))
+      (let* ((start (car bounds))
+             (end (cdr bounds))
+             (text (buffer-substring-no-properties start end))
+             (hash (string-match "#" text)))
+        (if hash
+            (let ((page (substring text 0 hash)))
+              (list (+ start hash 1) end
+                    (completion-table-dynamic
+                     (lambda (_)
+                       ;; an empty page (`xref:#frag') is a same-page
+                       ;; reference - complete against this buffer
+                       (if (string-empty-p page)
+                           (delete-dups (append (adoc--collect-anchor-ids)
+                                                (adoc--collect-section-ids)))
+                         (adoc--antora-page-fragments page))))
+                    :annotation-function (lambda (_) " section")
+                    :company-kind (lambda (_) 'reference)
+                    :exclusive 'no))
+          (list start end
+                (completion-table-dynamic
+                 (lambda (_) (append (adoc--antora-page-targets)
+                                     (adoc--collect-anchor-ids)
+                                     (adoc--collect-section-ids))))
+                :annotation-function (lambda (_) " page")
+                :company-kind (lambda (_) 'file)
+                :exclusive 'no))))
      ((setq bounds (adoc--completion-xref-bounds))
       (list (car bounds) (cdr bounds)
             (completion-table-dynamic
