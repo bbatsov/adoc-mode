@@ -2938,14 +2938,13 @@ for multiline constructs to be matched."
                    (delete-dups (append (adoc--collect-anchor-ids)
                                         (adoc--collect-section-ids)))
                    nil nil nil nil default))))
-  (let ((pos (or (save-excursion
-                   (goto-char (point-min))
-                   (re-search-forward (adoc-re-anchor nil id) nil t))
-                 ;; fall back to a section whose auto-id (or title) matches
-                 (adoc--section-position id))))
-    (if (null pos) (user-error "Can't find an anchor defining '%s'" id))
+  (let ((target (save-excursion
+                  ;; resolve against an explicit anchor or a section (auto-id
+                  ;; or title) without moving point yet
+                  (when (adoc--goto-id id) (point)))))
+    (if (null target) (user-error "Can't find an anchor defining '%s'" id))
     (push-mark)
-    (goto-char pos)))
+    (goto-char target)))
 
 (defun adoc--inline-link-at-point ()
   "Return the target of an inline link or URL macro covering point, or nil.
@@ -2973,6 +2972,8 @@ URL schemes (the attribute list / label is dropped)."
 
 (defun adoc-follow-thing-at-point ()
   "Follow the link or reference at point.
+When point is on an Antora page `xref:' (e.g. `xref:other.adoc#frag[]'),
+open the resolved page and jump to its fragment.
 When point is on a URL or `link:' macro, open it.
 When point is on an `include::' macro, open the referenced file.
 When point is on an xref or cross-reference, jump to its anchor."
@@ -2986,6 +2987,24 @@ When point is on an xref or cross-reference, jump to its anchor."
       (if (file-exists-p file)
           (find-file file)
         (user-error "File not found: %s" file))))
+   ;; Antora page xref — resolve to a file in the component and open it
+   ;; (only in an Antora component, so a plain `.adoc' xref elsewhere falls
+   ;; through to the in-buffer handling).
+   ((and (adoc--antora-root) (adoc--antora-page-xref-at-point))
+    (let* ((target (adoc--antora-page-xref-at-point))
+           (resolved (adoc--antora-resolve-page target)))
+      (cond
+       ((null resolved)
+        (user-error "Cannot resolve Antora xref: %s" target))
+       ((not (file-exists-p (car resolved)))
+        (user-error "Antora xref target not found: %s" (car resolved)))
+       (t
+        (xref-push-marker-stack)
+        (find-file (car resolved))
+        (when (cdr resolved)
+          (or (adoc--goto-id (cdr resolved))
+              (message "No anchor or section `%s' in %s"
+                       (cdr resolved) (file-name-nondirectory (car resolved)))))))))
    ;; xref at point — jump to anchor
    ((adoc-xref-id-at-point)
     (adoc-goto-ref-label (adoc-xref-id-at-point)))
@@ -3728,6 +3747,91 @@ cross-reference, when its title does."
                       (xref-make (nth 1 s)
                                  (xref-make-buffer-location buffer (nth 2 s)))))
                   (adoc--collect-sections)))))
+
+(defun adoc--goto-id (id)
+  "Move point to the anchor or section identified by ID in this buffer.
+Search explicit anchors first (`[[id]]', `[#id]', ...), then fall back
+to a section whose auto-id or title matches.  Return non-nil on success,
+leaving point on the target; return nil and do not move otherwise."
+  (let ((pos (or (save-excursion
+                   (goto-char (point-min))
+                   (re-search-forward (adoc-re-anchor nil id) nil t))
+                 (adoc--section-position id))))
+    (when pos
+      (goto-char pos)
+      t)))
+
+;;;; Antora cross-references
+
+;; Antora lays a documentation component out as `<root>/antora.yml' plus
+;; `<root>/modules/<module>/pages/...'.  Cross-references between pages use a
+;; resource id - `xref:[module:]relative/path.adoc[#fragment][text]' - where
+;; the path is relative to the target module's `pages' directory.  Resolution
+;; here is intentionally limited to the current component (cross-component and
+;; explicit `version@' targets need Antora's site catalog, which we lack).
+
+(defun adoc--antora-root ()
+  "Return the Antora component root (the dir holding `antora.yml'), or nil."
+  (and buffer-file-name
+       (locate-dominating-file buffer-file-name "antora.yml")))
+
+(defun adoc--antora-current-module (root file)
+  "Return the Antora module name FILE lives in, relative to ROOT, or nil."
+  (let ((rel (file-relative-name file root)))
+    (when (string-match "\\`modules/\\([^/]+\\)/" rel)
+      (match-string 1 rel))))
+
+(defun adoc--antora-resolve-page (target)
+  "Resolve an Antora page xref TARGET to (FILE . FRAGMENT), or nil.
+TARGET is the raw xref target, e.g. `basics/install.adoc#frag' or
+`other-module:page.adoc'.  FRAGMENT is nil when none is given.  Returns
+nil when the buffer is not in an Antora component or the target names a
+different component (out of scope)."
+  (let ((root (adoc--antora-root)))
+    (when (and root buffer-file-name)
+      (let ((module (adoc--antora-current-module root buffer-file-name))
+            (coord target)
+            (fragment nil))
+        ;; Drop a leading `version@', but only when a module/component
+        ;; coordinate follows (an `@' before the first `:') so a filename
+        ;; that merely contains `@' is left intact.
+        (let ((at (string-match "@" coord))
+              (colon (string-match ":" coord)))
+          (when (and at colon (< at colon))
+            (setq coord (substring coord (1+ at)))))
+        ;; Split off the `#fragment'; an empty fragment counts as none.
+        (when (string-match "#" coord)
+          (let ((frag (substring coord (1+ (match-beginning 0)))))
+            (setq fragment (unless (string-empty-p frag) frag)
+                  coord (substring coord 0 (match-beginning 0)))))
+        (let* ((parts (split-string coord ":"))
+               (path (pcase (length parts)
+                       (1 (car parts))
+                       (2 (setq module (car parts)) (cadr parts))
+                       (_ nil))))           ; component:module:path -> out of scope
+          (when (and path module)
+            ;; Strip a leading family coordinate (e.g. `page$').
+            (setq path (replace-regexp-in-string "\\`[a-z]+\\$" "" path))
+            (cons (expand-file-name (concat "modules/" module "/pages/" path) root)
+                  fragment)))))))
+
+(defun adoc--antora-page-xref-at-point ()
+  "Return the page-xref TARGET at point, or nil.
+Only an `xref:' whose target names a `.adoc' page (as opposed to an
+in-buffer id) qualifies."
+  (save-excursion
+    (let ((pos (point))
+          (eol (line-end-position))
+          (re (adoc-re-inline-macro "xref")))
+      (beginning-of-line)
+      (catch 'found
+        (while (re-search-forward re eol t)
+          (when (and (<= (match-beginning 0) pos) (<= pos (match-end 0)))
+            (let ((target (match-string-no-properties 3)))
+              (throw 'found
+                     (and (string-match-p "\\.adoc\\(?:#\\|\\'\\)" target)
+                          target)))))
+        nil))))
 
 ;;;; Completion
 
