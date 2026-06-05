@@ -122,8 +122,10 @@ completion UI like https://github.com/minad/corfu[Corfu] or
 https://github.com/company-mode/company-mode[Company]) offers candidates based
 on the construct at point:
 
-- inside `<<` or `xref:` - cross-reference ids, taken from the explicit anchors
-  defined in the buffer (`[[id]]`, `[#id]`, `[[[biblio]]]`)
+- inside `<<` or `xref:` - cross-reference ids: explicit anchors (`[[id]]`,
+  `[#id]`, `[[[biblio]]]`) and section auto-ids. In an Antora component an
+  `xref:` also completes the component's pages as targets and, after a `#`,
+  the sections of the target page
 - inside `{` - attribute names, both the ones defined with `:name:` in the
   buffer and a set of common built-in attributes
 - after `include::` - file paths, relative to the document
@@ -131,6 +133,28 @@ on the construct at point:
 
 In plain prose the completion function yields to whatever else you have on
 `completion-at-point-functions`.
+
+=== Cross-references and navigation
+
+Put point on a reference and follow it with kbd:[C-c C-o] (or kbd:[M-.]), or
+just click it with the mouse - references highlight on hover. This follows
+URLs, `link:` and `include::` macros, and cross-references:
+
+- an `<<id>>` or `xref:id[]` jumps to the matching anchor or section in the
+  buffer (section auto-ids work as targets, so you can point at a section even
+  without an explicit anchor)
+- in an Antora component, an `xref:` to another page (e.g.
+  `xref:topic/page.adoc#section[]`) opens the resolved page under the right
+  module's `pages/` directory and jumps to the `#fragment`. Resolution stays
+  within the current component
+
+kbd:[C-c C-a] jumps to an anchor or section by name, completing over the
+buffer's ids.
+
+`adoc-mode` also registers an `xref` backend, so the standard cross-reference
+keys work for AsciiDoc ids: kbd:[M-?] (`xref-find-references`) lists every
+`<<id>>` / `xref:id[]` that points at the id under point, and kbd:[M-,]
+(`xref-go-back`) returns after a jump.
 
 === Preview and Export
 
