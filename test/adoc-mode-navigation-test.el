@@ -347,8 +347,11 @@
                         "https://example.com[site]" "bare.example.com"
                         "include::other.adoc[]"))
         (expect (adoc-test--prop-at doc needle 'keymap) :to-be 'adoc-link-keymap)
-        (expect (adoc-test--prop-at doc needle 'mouse-face) :to-be 'highlight)
+        (expect (adoc-test--prop-at doc needle 'mouse-face) :to-be 'adoc-link-mouse-face)
         (expect (adoc-test--prop-at doc needle 'help-echo) :to-be-truthy))))
+
+  (it "underlines references under the mouse pointer"
+    (expect (face-attribute 'adoc-link-mouse-face :underline nil t) :to-be-truthy))
 
   (it "leaves plain prose unclickable"
     (expect (adoc-test--prop-at "just some ordinary prose\n" "ordinary" 'keymap)

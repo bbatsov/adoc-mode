@@ -830,6 +830,11 @@ For example the URL part of `http://example.com[foo]', or a raw
   "Face for reference link titles."
   :group 'adoc-faces)
 
+(defface adoc-link-mouse-face
+  '((t (:inherit highlight :underline t)))
+  "Face used to highlight a link, URL or anchor under the mouse pointer."
+  :group 'adoc-faces)
+
 (defface adoc-comment-face
   '((t (:inherit font-lock-comment-face)))
   "Face for HTML comments."
@@ -2090,7 +2095,7 @@ TEXTPROPS is an additional plist with textproperties."
   (let ((cmd-name (regexp-opt '("http" "https" "ftp" "file" "irc" "mailto" "callto" "link"))))
     (list
      `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name) '(0) '(0)))
-     '(0 '(face nil keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: visit this link")) ; clickable
+     '(0 '(face nil keymap adoc-link-keymap mouse-face adoc-link-mouse-face help-echo "mouse-1: visit this link")) ; clickable
      `(1 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t) t) ; cmd-name
      `(2 '(face adoc-url-face adoc-reserved t) t) ; :
      `(3 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t) t) ; target
@@ -2102,7 +2107,7 @@ TEXTPROPS is an additional plist with textproperties."
   (let ((cmd-name (regexp-opt '("http" "https" "ftp" "file" "irc" "mailto" "callto" "link"))))
     (list
      `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name nil nil 'empty) '(0) '(0)))
-     '(0 '(face nil keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: visit this link")) ; clickable
+     '(0 '(face nil keymap adoc-link-keymap mouse-face adoc-link-mouse-face help-echo "mouse-1: visit this link")) ; clickable
      '(1 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t) append) ; cmd-name
      '(2 '(face adoc-url-face adoc-reserved t) append)               ; :
      '(3 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t) append)               ; target
@@ -2146,7 +2151,7 @@ TEXTPROPS is an additional plist with textproperties."
          (both (concat "\\(?:" url "\\)\\|\\(?:" url<> "\\)\\|\\(?:" email "\\)")))
     (list
      `(lambda (end) (adoc-kwf-std end ,both '(0) '(0)))
-     '(0 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: visit this URL") append t))))
+     '(0 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t keymap adoc-link-keymap mouse-face adoc-link-mouse-face help-echo "mouse-1: visit this URL") append t))))
 
 ;; bug: escapes are not handled yet
 ;; TODO: give the inserted character a specific face. But I fear that is not
@@ -2500,7 +2505,7 @@ for multiline constructs to be matched."
          '(4 '(face adoc-meta-hide-face adoc-reserved block-del))) ; ]
    ;; include
    (list "^\\(\\(include1?::\\)\\([^ \t\n]*?\\)\\(\\[\\)\\(.*?\\)\\(\\]\\)\\)[ \t]*$"
-         '(1 '(face nil adoc-reserved block-del keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: open this include")) ; the whole match
+         '(1 '(face nil adoc-reserved block-del keymap adoc-link-keymap mouse-face adoc-link-mouse-face help-echo "mouse-1: open this include")) ; the whole match
          '(2 '(face adoc-preprocessor-face adoc-flyspell-ignore t))      ; macro name
          '(3 '(face adoc-meta-face adoc-flyspell-ignore t))              ; file name
          '(4 'adoc-meta-hide-face)         ; [
@@ -2790,7 +2795,7 @@ for multiline constructs to be matched."
    (adoc-kw-inline-macro "anchor" nil nil nil 'adoc-anchor-face t '("xreflabel"))
    (adoc-kw-inline-macro "xref" nil nil nil '(adoc-reference-face adoc-internal-reference-face) t
                          '(("caption") (("caption" . adoc-reference-face)))
-                         '(keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: jump to this anchor"))
+                         '(keymap adoc-link-keymap mouse-face adoc-link-mouse-face help-echo "mouse-1: jump to this anchor"))
    (adoc-kw-inline-macro "footnote" t nil 'adoc-footnote-marker-face nil nil 'adoc-footnote-text-face)
    (adoc-kw-inline-macro "footnoteref" t 'single-attribute 'adoc-footnote-marker-face nil nil
                          '(("id") (("id" . adoc-internal-reference-face))))
@@ -2835,7 +2840,7 @@ for multiline constructs to be matched."
    (list (adoc-re-xref 'inline-special-with-caption t)
          ;; clickable, but not inside code/literal blocks (those set adoc-reserved)
          '(0 (unless (get-text-property (match-beginning 0) 'adoc-reserved)
-               '(face nil keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: jump to this anchor")))
+               '(face nil keymap adoc-link-keymap mouse-face adoc-link-mouse-face help-echo "mouse-1: jump to this anchor")))
          '(1 'adoc-meta-hide-face)       ; <<
          '(2 'adoc-meta-face)            ; anchor-id
          '(3 'adoc-meta-hide-face)       ; ,
@@ -2844,7 +2849,7 @@ for multiline constructs to be matched."
    ;; reference without caption
    (list (adoc-re-xref 'inline-special-no-caption t)
          '(0 (unless (get-text-property (match-beginning 0) 'adoc-reserved)
-               '(face nil keymap adoc-link-keymap mouse-face highlight help-echo "mouse-1: jump to this anchor")))
+               '(face nil keymap adoc-link-keymap mouse-face adoc-link-mouse-face help-echo "mouse-1: jump to this anchor")))
          '(1 'adoc-meta-hide-face)       ; <<
          '(2 'adoc-reference-face)       ; link text = anchor id
          '(3 'adoc-meta-hide-face))      ; >>
