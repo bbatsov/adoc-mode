@@ -61,6 +61,10 @@
       ("a __emph__ word"
        ("emph" adoc-emphasis-face)))
 
+    (it "keeps the bold and emphasis faces plain (no tint)"
+      (expect (face-attribute 'adoc-bold-face :inherit) :to-equal 'bold)
+      (expect (face-attribute 'adoc-emphasis-face :inherit) :to-equal 'italic))
+
     (when-fontifying-it "fontifies monospace via backticks"
       ("a `mono` word"
        ("mono" (adoc-typewriter-face adoc-verbatim-face))))

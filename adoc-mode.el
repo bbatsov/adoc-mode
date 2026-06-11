@@ -673,13 +673,17 @@ or italic styling from a surrounding constrained quote."
   :group 'adoc-faces)
 
 (defface adoc-bold-face
-  '((t (:inherit (adoc-gen-face bold))))
-  "Face for bold text."
+  '((t (:inherit bold)))
+  "Face for bold text.
+Plain `bold' rather than a tinted face, matching `asciidoc-mode' and the
+convention in `markdown-mode' / `org-mode'."
   :group 'adoc-faces)
 
 (defface adoc-emphasis-face
-  '((t :inherit (adoc-gen-face italic)))
-  "For emphasized text."
+  '((t :inherit italic))
+  "For emphasized text.
+Plain `italic' rather than a tinted face, matching `asciidoc-mode' and the
+convention in `markdown-mode' / `org-mode'."
   :group 'adoc-faces)
 
 (defface adoc-markup-face
