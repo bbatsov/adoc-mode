@@ -79,6 +79,7 @@
 - [#94](https://github.com/bbatsov/adoc-mode/pull/94): The tempo templates are documented with the AsciiDoc help text again (see `C-h f tempo-template-adoc-emphasis`).
 - [#94](https://github.com/bbatsov/adoc-mode/pull/94): The trademark and dash templates insert `(TM)` and `--`, which Asciidoctor replaces with ™ and an em dash, as their menu entries say.
 - [#94](https://github.com/bbatsov/adoc-mode/pull/94): Tempo templates, and loading `adoc-mode` itself, no longer fail with `wrong-type-argument symbolp` when the current command is a lambda (a key bound to one, a hydra, or a transient).
+- [#88](https://github.com/bbatsov/adoc-mode/pull/88): Fix `M-,` (`xref-go-back`) after following an xref, `include::` or `link:` file with `M-.` / `C-c C-o`. The origin is now recorded on the xref marker stack.
 
 ## 0.9.0 (2026-06-02)
 

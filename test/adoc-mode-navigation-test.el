@@ -30,6 +30,10 @@
   (search-forward text)
   (beginning-of-line))
 
+(defun adoc-test--go-back ()
+  "Pop xref marker off stack using version-appropriate command."
+  (funcall (if (fboundp 'xref-go-back) 'xref-go-back 'xref-pop-marker-stack)))
+
 (describe "adoc-mode heading navigation"
 
   (describe "next/previous visible heading"
@@ -330,13 +334,36 @@
               "lorem ipsum\n"
               "[[bar]]\n"
               "dolor [[geil]]sit amen\n"
-              "anchor:cool[]\n")
+              "anchor:cool[]\n"
+              "include::test/resources/sample.adoc[]\n"
+              "link:test/resources/sample.adoc[]\n")
+      (goto-char (point-min))
       (adoc-goto-ref-label "cool")
       (expect (line-number-at-pos) :to-equal 5)
+      (adoc-test--go-back)
+      (expect (line-number-at-pos) :to-equal 1)
       (adoc-goto-ref-label "geil")
       (expect (line-number-at-pos) :to-equal 4)
+      (adoc-test--go-back)
+      (expect (line-number-at-pos) :to-equal 1)
       (adoc-goto-ref-label "bar")
-      (expect (line-number-at-pos) :to-equal 3)))
+      (expect (line-number-at-pos) :to-equal 3)
+      (adoc-test--go-back)
+      (expect (line-number-at-pos) :to-equal 1)
+      (search-forward "include::")
+      (expect (line-number-at-pos) :to-equal 6)
+      (adoc-follow-thing-at-point)
+      (expect (buffer-name) :to-equal "sample.adoc")
+      (adoc-test--go-back)
+      (expect (line-number-at-pos) :to-equal 6)
+      (expect (buffer-name) :to-equal " *temp*")
+      (search-forward "link:")
+      (expect (line-number-at-pos) :to-equal 7)
+      (adoc-follow-thing-at-point)
+      (expect (buffer-name) :to-equal "sample.adoc")
+      (adoc-test--go-back)
+      (expect (line-number-at-pos) :to-equal 7)
+      (expect (buffer-name) :to-equal " *temp*")))
 
   (it "offers the buffer's anchors when read interactively"
     (with-temp-buffer

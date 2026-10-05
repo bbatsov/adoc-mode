@@ -3366,6 +3366,7 @@ a list, it can be an item instead, see `adoc--list-scan'."
                   (when (adoc--goto-id id) (point)))))
     (if (null target) (user-error "Can't find an anchor defining '%s'" id))
     (push-mark)
+    (xref-push-marker-stack)
     (goto-char target)))
 
 (defun adoc--inline-link-at-point ()
@@ -3405,7 +3406,7 @@ When point is on an xref or cross-reference, jump to its anchor."
       (looking-at "include1?::\\([^ \t\n\\[]+\\)"))
     (let ((file (match-string-no-properties 1)))
       (if (file-exists-p file)
-          (find-file file)
+          (progn (xref-push-marker-stack) (find-file file))
         (user-error "File not found: %s" file))))
    ;; Antora page xref — resolve to a file in the component and open it
    ;; (only in an Antora component, so a plain `.adoc' xref elsewhere falls
@@ -3436,7 +3437,7 @@ When point is on an xref or cross-reference, jump to its anchor."
        ((string-match-p (concat "\\`" (regexp-opt (remove "link" adoc--link-macro-names)) ":")
                         target)
         (browse-url target))
-       ((file-exists-p target) (find-file target))
+       ((file-exists-p target) (xref-push-marker-stack) (find-file target))
        (t (user-error "File not found: %s" target)))))
    ;; bare URL at point — open in browser
    ((thing-at-point 'url)
