@@ -275,7 +275,8 @@ passed the on-region argument."
          ;; called that eventually brought us here. If we came here not by an
          ;; interactive call to tempo-template-xxx we can't have a clue - assume
          ;; nil.
-         (arg (if (string-match "^tempo-template-" (symbol-name this-command))
+         (arg (if (and (symbolp this-command)
+                       (string-prefix-p "tempo-template-" (symbol-name this-command)))
                   current-prefix-arg
                 nil))
          ;; copy from tempo-define-template

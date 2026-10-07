@@ -151,7 +151,14 @@
 
   (it "documents the templates with the AsciiDoc help text"
     (expect (documentation 'tempo-template-adoc-emphasis)
-            :to-match (regexp-quote adoc-help-emphasis))))
+            :to-match (regexp-quote adoc-help-emphasis)))
+
+  (it "works when the current command is a lambda"
+    ;; e.g. a template run from a key bound to a lambda, or from a hydra
+    (with-temp-buffer
+      (adoc-mode)
+      (let ((this-command (lambda () (interactive))))
+        (expect (tempo-template-adoc-title-2) :not :to-throw)))))
 
 (defun adoc-test--menu-items (keymap)
   "Return the (BINDING . HELP) of every item in the menu KEYMAP.
