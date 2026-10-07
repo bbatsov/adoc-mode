@@ -41,6 +41,7 @@
 
 (declare-function xwidget-webkit-browse-url "xwidget" (url &optional new-session))
 (declare-function eww-open-file "eww" (file &optional new-buffer))
+(declare-function adoc--antora-root "adoc-mode" ())
 (defvar xwidget-webkit-last-session-buffer)
 
 ;;; Customization
@@ -292,12 +293,19 @@ case-insensitive alternative.")
 (defvar-local adoc--flymake-proc nil
   "The most recent Asciidoctor Flymake process for this buffer.")
 
-(defun adoc--flymake-parse-output (output source &optional exit-status)
+(defconst adoc--flymake-antora-include-re
+  "\\`include file not found: .*\\(?:partial\\|example\\|attachment\\|image\\|page\\)\\$"
+  "Regexp matching Asciidoctor's complaint about an Antora resource include.
+Asciidoctor can't resolve an Antora resource id like `partial$x.adoc'
+on its own, so in an Antora component these aren't real errors.")
+
+(defun adoc--flymake-parse-output (output source &optional exit-status antora)
   "Parse Asciidoctor OUTPUT into Flymake diagnostics for buffer SOURCE.
 OUTPUT is the combined standard error/output of an Asciidoctor run over
 the buffer's contents.  When EXIT-STATUS is non-zero and no per-line
 diagnostics are found, the first Asciidoctor message is reported as a
-buffer-level error so a fatal failure is not swallowed."
+buffer-level error so a fatal failure is not swallowed.  When ANTORA
+is non-nil, missing includes of Antora resource ids are left out."
   (let ((diags '())
         (count 0))
     (with-temp-buffer
@@ -312,7 +320,10 @@ buffer-level error so a fatal failure is not swallowed."
                (msg (match-string 3))
                (region (flymake-diag-region source line)))
           (when region
-            (setq count (1+ count))
+            (setq count (1+ count)))
+          (when (and region
+                     (not (and antora
+                               (string-match-p adoc--flymake-antora-include-re msg))))
             (push (flymake-make-diagnostic source (car region) (cdr region)
                                            type msg)
                   diags))))
@@ -337,7 +348,8 @@ diagnostics into Flymake reports via REPORT-FN.  Suitable as a member of
   (when (process-live-p adoc--flymake-proc)
     (kill-process adoc--flymake-proc))
   (let ((source (current-buffer))
-        (base (expand-file-name default-directory)))
+        (base (expand-file-name default-directory))
+        (antora (and (adoc--antora-root) t)))
     (save-restriction
       (widen)
       (setq
@@ -359,7 +371,7 @@ diagnostics into Flymake reports via REPORT-FN.  Suitable as a member of
                              (adoc--flymake-parse-output
                               (with-current-buffer (process-buffer proc)
                                 (buffer-string))
-                              source (process-exit-status proc)))
+                              source (process-exit-status proc) antora))
                   (flymake-log :warning "Canceling obsolete check %s" proc))
               (kill-buffer (process-buffer proc)))))))
       (process-send-region adoc--flymake-proc (point-min) (point-max))

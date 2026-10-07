@@ -257,6 +257,31 @@
         (let ((kill-buffer-query-functions nil))
           (kill-buffer buf))))))
 
+(describe "adoc-flymake under Antora"
+  (it "leaves out missing includes of Antora resource ids"
+    (let* ((src (adoc-test--flymake-source))
+           (out (concat
+                 "asciidoctor: ERROR: <stdin>: line 3: include file not found: "
+                 "/c/modules/ROOT/pages/partial$snip.adoc\n"
+                 "asciidoctor: ERROR: <stdin>: line 4: include file not found: "
+                 "/c/modules/ROOT/pages/example$x.rb\n"
+                 "asciidoctor: ERROR: <stdin>: line 5: include file not found: "
+                 "/c/modules/ROOT/pages/real.adoc\n")))
+      (unwind-protect
+          (progn
+            (expect (length (adoc--flymake-parse-output out src 0 t)) :to-equal 1)
+            (expect (length (adoc--flymake-parse-output out src 0)) :to-equal 3))
+        (kill-buffer src))))
+
+  (it "doesn't bring a dropped error back as a fatal failure"
+    ;; e.g. with `--failure-level ERROR' Asciidoctor exits non-zero
+    (let ((src (adoc-test--flymake-source))
+          (out (concat "asciidoctor: ERROR: <stdin>: line 3: include file not found: "
+                       "/c/modules/ROOT/pages/partial$snip.adoc\n")))
+      (unwind-protect
+          (expect (adoc--flymake-parse-output out src 1 t) :to-be nil)
+        (kill-buffer src)))))
+
 (provide 'adoc-mode-asciidoctor-test)
 
 ;;; adoc-mode-asciidoctor-test.el ends here
