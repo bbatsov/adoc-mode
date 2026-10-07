@@ -583,6 +583,11 @@
        ("sect-id" adoc-meta-face)
        ("the caption" adoc-reference-face)))
 
+    (when-fontifying-it "fontifies an xref caption with an apostrophe"
+      ("<<id,Bob's page>>"
+       ("Bob" adoc-reference-face)
+       ("s page" adoc-reference-face)))
+
     (when-fontifying-it "fontifies the xref macro"
       ("xref:foo[]"
        ("xref" adoc-command-face)
@@ -614,7 +619,50 @@
 
     (when-fontifying-it "fontifies a bare URL"
       ("see http://www.lorem.com/x.html here"
-       ("http://www.lorem.com/x.html" adoc-url-face))))
+       ("http://www.lorem.com/x.html" adoc-url-face)))
+
+    (when-fontifying-it "fontifies links whose text has replacements in it"
+      ;; an apostrophe, an ellipsis or an arrow used to stop the link
+      ;; from being recognised at all
+      ("https://example.org/a[Bob's page]"
+       ("https://example.org/a" adoc-url-face)
+       ("Bob's page" adoc-reference-face))
+      ("https://example.org[A -> B...]"
+       ("A -> B..." adoc-reference-face))
+      ("see footnote:[it's here] and xref:a.adoc[Bob's]"
+       ("it's here" adoc-footnote-text-face)
+       ("Bob's" adoc-reference-face)))
+
+    (it "fontifies links whose text has other markup in it"
+      (dolist (text '("https://example.org[the *bold* text]"
+                      "https://example.org[the `code` text]"))
+        (with-temp-buffer
+          (insert text)
+          (adoc-mode)
+          (font-lock-ensure)
+          (goto-char (point-min))
+          (search-forward "the")
+          (expect (get-text-property (point) 'keymap) :to-be 'adoc-link-keymap)
+          (expect (get-text-property (match-beginning 0) 'face)
+                  :to-equal 'adoc-reference-face))))
+
+    (when-fontifying-it "fontifies a URL with a double dash in it"
+      ("https://example.org/a--b[link]"
+       ("https://example.org/a--b" adoc-url-face)))
+
+    (when-fontifying-it "ends a bare URL at a bracket"
+      ("see https://example.org[oops"
+       ("https://example.org" adoc-url-face)
+       ("oops" nil)))
+
+    (it "makes a link with an apostrophe in its text clickable"
+      (with-temp-buffer
+        (insert "https://example.org/a[Bob's page]")
+        (adoc-mode)
+        (font-lock-ensure)
+        (goto-char (point-min))
+        (search-forward "Bob")
+        (expect (get-text-property (point) 'keymap) :to-be 'adoc-link-keymap))))
 
   ;; ---- Role-based spans ----------------------------------------------
 
@@ -732,6 +780,20 @@
                                       (overlays-in (point-min) (point-max)))))
                     (expect ov :not :to-be nil)
                     (expect (overlay-get ov 'after-string) :to-equal (cdr case))))))
+          (adoc-calc))))
+
+    (it "doesn't put replacement overlays in link text or URLs"
+      (let ((adoc-insert-replacement t))
+        (unwind-protect
+            (progn
+              (adoc-calc)
+              (with-temp-buffer
+                (adoc-mode)
+                (insert "https://example.org/a--b[Bob's page]")
+                (font-lock-ensure)
+                (expect (seq-filter (lambda (o) (overlay-get o 'adoc-kw-replacement))
+                                    (overlays-in (point-min) (point-max)))
+                        :to-be nil)))
           (adoc-calc))))))
 
 ;;; adoc-mode-font-lock-test.el ends here

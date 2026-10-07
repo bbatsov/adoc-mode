@@ -41,6 +41,7 @@
   - A block now ends at the first line that repeats its opening delimiter exactly, as in Asciidoctor. It used to need a non-blank last line, and any longer run of the same character closed it.
   - A delimiter line inside a listing or literal block is just content.
 - [#90](https://github.com/bbatsov/adoc-mode/pull/90): Example, open, quote and sidebar blocks keep the highlighting of what's inside them (list markers, comments, `include::` lines, nested code), and section titles inside a delimited block are no longer highlighted as titles, since Asciidoctor reads them as plain text.
+- [#66](https://github.com/bbatsov/adoc-mode/issues/66): Links, `xref:` and footnote macros and the like are recognised (and clickable) again when their text holds an apostrophe, an ellipsis, an arrow or other inline markup, as in `https://example.org[Bob's page]`. Bare URLs no longer run into a following `[`.
 
 ## 0.9.0 (2026-06-02)
 

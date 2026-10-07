@@ -2112,7 +2112,7 @@ TEXTPROPS is an additional plist with textproperties."
                      ',(car target-faces)
                    ',(cadr target-faces)))
                (t (list 'quote target-faces)))
-             'adoc-flyspell-ignore t)
+             'adoc-flyspell-ignore t 'adoc-reserved t)
        ,(if target-meta-p t 'append))
    `(4 '(face adoc-meta-face adoc-reserved t . ,textprops) t) ; [
    `(5 '(face adoc-meta-face adoc-attribute-list ,(or attribute-list t) . ,textprops) t)
@@ -2123,7 +2123,9 @@ TEXTPROPS is an additional plist with textproperties."
 (defun adoc-kw-inline-macro-urls-attribute-list ()
   (let ((cmd-name (regexp-opt '("http" "https" "ftp" "file" "irc" "mailto" "callto" "link"))))
     (list
-     `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name) '(0) '(0)))
+     ;; The link text (group 5) may hold other, already highlighted, markup,
+     ;; e.g. `https://example.org[the *bold* text]'.
+     `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name) '(1 2 3 4 6) '(0)))
      '(0 '(face nil keymap adoc-link-keymap mouse-face adoc-link-mouse-face help-echo "mouse-1: visit this link")) ; clickable
      `(1 '(face adoc-url-face adoc-reserved t adoc-flyspell-ignore t) t) ; cmd-name
      `(2 '(face adoc-url-face adoc-reserved t) t) ; :
@@ -2174,7 +2176,7 @@ TEXTPROPS is an additional plist with textproperties."
 ;;   because part of the match (the __) contains text properties with
 ;;   adoc-reserved non-nil, also because quote highlighting already happened.
 (defun adoc-kw-standalone-urls ()
-  (let* ((url "\\b\\(?:https?\\|ftp\\|file\\|irc\\)://[^ \t\n<>]*[a-zA-Z0-9_/]")
+  (let* ((url "\\b\\(?:https?\\|ftp\\|file\\|irc\\)://[^][ \t\n<>]*[a-zA-Z0-9_/]")
          (url<> (concat "<\\(?:" url "\\)>"))
          (email "[a-zA-Z0-9_][-a-zA-Z0-9_._]*@[-a-zA-Z0-9_._]*[a-zA-Z0-9_]")
          (both (concat "\\(?:" url "\\)\\|\\(?:" url<> "\\)\\|\\(?:" email "\\)")))
@@ -2193,8 +2195,11 @@ TEXTPROPS is an additional plist with textproperties."
    ;; matcher function
    (lambda (end)
      (let (found)
+       ;; Skip reserved text, and attribute lists (link text and the like),
+       ;; whose face is applied to the list as a whole later on.
        (while (and (setq found (adoc-kwf-search regexp end t))
-                   (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-reserved nil))
+                   (or (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-reserved nil)
+                       (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-attribute-list nil)))
          (goto-char (+ (match-beginning 0) 1)))
        (when (and found adoc-insert-replacement replacement)
          (let* ((s (cond
@@ -2987,30 +2992,6 @@ between matching delimiters, never in the surrounding prose."
    ;; there are no default special words to highlight
 
 
-   ;; replacements
-   ;; --------------------------------
-   ;; Asciidoc.conf surrounds em dash with thin spaces. I think that does not
-   ;; make sense here, all that spaces you would see in the buffer would at best
-   ;; be confusing.
-   (adoc-kw-replacement "\\((C)\\)" "\u00A9")  ;; ©
-   (adoc-kw-replacement "\\((R)\\)" "\u00AE")  ;; ®
-   (adoc-kw-replacement "\\((TM)\\)" "\u2122") ;; ™
-   ;; (^-- )=&#8212;&#8201;
-   ;; (\n-- )|( -- )|( --\n)=&#8201;&#8212;&#8201;
-   ;; (\w)--(\w)=\1&#8212;\2
-   (adoc-kw-replacement "^\\(--\\)[ \t]" "\u2014") ; em dash. See also above
-   (adoc-kw-replacement "[ \t]\\(--\\)\\(?:[ \t]\\|$\\)" "\u2014") ; dito
-   (adoc-kw-replacement "[a-zA-Z0-9_]\\(--\\)[a-zA-Z0-9_]" "\u2014") ; dito
-   (adoc-kw-replacement "[a-zA-Z0-9_]\\('\\)[a-zA-Z0-9_]" "\u2019") ; punctuation apostrophe
-   (adoc-kw-replacement "\\(\\.\\.\\.\\)" "\u2026") ; ellipsis
-   (adoc-kw-replacement "\\(->\\)" "\u2192")
-   (adoc-kw-replacement "\\(=>\\)" "\u21D2")
-   (adoc-kw-replacement "\\(<-\\)" "\u2190")
-   (adoc-kw-replacement "\\(<=\\)" "\u21D0")
-   ;; general character entity reference
-   ;; (?<!\\)&amp;([:_#a-zA-Z][:_.\-\w]*?;)=&\1
-   (adoc-kw-replacement "\\(&[:_#a-zA-Z]\\(?:[-:_.]\\|[a-zA-Z0-9_]\\)*?;\\)" 'adoc-entity-to-string)
-
    ;; attributes
    ;; ---------------------------------
    ;; attribute reference, including the `:'-separated reference macros
@@ -3096,6 +3077,33 @@ between matching delimiters, never in the surrounding prose."
          '(1 'adoc-meta-hide-face)       ; <<
          '(2 'adoc-reference-face)       ; link text = anchor id
          '(3 'adoc-meta-hide-face))      ; >>
+
+   ;; replacements
+   ;; --------------------------------
+   ;; They come after the inline macros and cross references, which may
+   ;; contain them (`https://example.org[Bob's page]'): a replacement reserves
+   ;; its text, and a macro running later would refuse to match across it.
+   ;; Asciidoc.conf surrounds em dash with thin spaces. I think that does not
+   ;; make sense here, all that spaces you would see in the buffer would at best
+   ;; be confusing.
+   (adoc-kw-replacement "\\((C)\\)" "\u00A9")  ;; ©
+   (adoc-kw-replacement "\\((R)\\)" "\u00AE")  ;; ®
+   (adoc-kw-replacement "\\((TM)\\)" "\u2122") ;; ™
+   ;; (^-- )=&#8212;&#8201;
+   ;; (\n-- )|( -- )|( --\n)=&#8201;&#8212;&#8201;
+   ;; (\w)--(\w)=\1&#8212;\2
+   (adoc-kw-replacement "^\\(--\\)[ \t]" "\u2014") ; em dash. See also above
+   (adoc-kw-replacement "[ \t]\\(--\\)\\(?:[ \t]\\|$\\)" "\u2014") ; dito
+   (adoc-kw-replacement "[a-zA-Z0-9_]\\(--\\)[a-zA-Z0-9_]" "\u2014") ; dito
+   (adoc-kw-replacement "[a-zA-Z0-9_]\\('\\)[a-zA-Z0-9_]" "\u2019") ; punctuation apostrophe
+   (adoc-kw-replacement "\\(\\.\\.\\.\\)" "\u2026") ; ellipsis
+   (adoc-kw-replacement "\\(->\\)" "\u2192")
+   (adoc-kw-replacement "\\(=>\\)" "\u21D2")
+   (adoc-kw-replacement "\\(<-\\)" "\u2190")
+   (adoc-kw-replacement "\\(<=\\)" "\u21D0")
+   ;; general character entity reference
+   ;; (?<!\\)&amp;([:_#a-zA-Z][:_.\-\w]*?;)=&\1
+   (adoc-kw-replacement "\\(&[:_#a-zA-Z]\\(?:[-:_.]\\|[a-zA-Z0-9_]\\)*?;\\)" 'adoc-entity-to-string)
 
    ;; index terms
    ;; TODO:
