@@ -1,3 +1,4 @@
+= adoc-mode
 :experimental:
 :highlighter: coderay
 :melpa-badge: http://melpa.org/packages/adoc-mode-badge.svg
@@ -9,14 +10,11 @@
 :license-badge: https://img.shields.io/badge/license-GPL_3-green.svg
 :copying: http://www.gnu.org/copyleft/gpl.html
 
-
 image:https://github.com/bbatsov/adoc-mode/workflows/CI/badge.svg[link="https://github.com/bbatsov/adoc-mode/actions?query=workflow%3ACI"]
 image:{nongnu-elpa-badge}[link="{nongnu-elpa-package}"]
 image:{melpa-badge}[link="{melpa-package}"]
 image:{melpa-stable-badge}[link="{melpa-stable-package}"]
 image:{license-badge}[link="{copying}"]
-
-= adoc-mode
 
 == Introduction
 
@@ -39,19 +37,19 @@ progress toward that goal in link:doc/spec-compliance.adoc[the spec-compliance d
 
 Here are some of the main features of `adoc-mode`:
 
-- comprehensive syntax highlighting for all AsciiDoc elements, including backslash-escaped inline formatting (e.g. `\*not bold*`)
+- comprehensive syntax highlighting for all AsciiDoc elements, including backslash-escaped inline formatting (e.g. `+\*not bold*+`)
 - native fontification of source code blocks using language-appropriate major modes
-- font-lock support for Asciidoctor inline macros (`kbd:[]`, `btn:[]`, `menu:[]`, etc.)
+- font-lock support for Asciidoctor inline macros (`+kbd:[]+`, `+btn:[]+`, `+menu:[]+`, etc.)
 - table highlighting for the PSV (`|===`), CSV (`,===`), and DSV (`:===`) formats - PSV is the most common and flexible, so reach for it unless you're pasting comma- or colon-separated data
 - inline image preview with right-click context menus and remote image support
-- ~50 tempo templates for inserting AsciiDoc markup (formatting, titles, blocks, lists, macros, etc.)
+- about 80 tempo templates for inserting AsciiDoc markup (formatting, titles, blocks, lists, macros, etc.)
 - region-aware text-styling commands under `C-c C-s` (bold, italic, monospace, highlight, super/subscript, link) that wrap the active region or word at point and toggle the markup off when it's already there
 - heading navigation modelled on `markdown-mode` / `org-mode`: next / previous heading (`C-c C-n` / `C-c C-p`), forward / backward at the same level (`C-c C-f` / `C-c C-b`), and up to the parent heading (`C-c C-u`)
 - title management: promote / demote (`M-left` / `M-right`), toggle between one-line and two-line styles, adjust underline length
 - list editing: `M-left` / `M-right` nest the list item at point deeper or shallower, `M-RET` inserts a sibling item (incrementing the number for explicitly-numbered lists), `M-up` / `M-down` move an item (with its sub-items) past its siblings, and `M-x adoc-renumber-list` renumbers an explicitly-numbered list
 - navigate to anchors and sections with completion (`C-c C-a`), and follow URLs, `link:` and `include::` macros, and xrefs at point (`C-c C-o` / `M-.`), or by clicking them with the mouse
 - section titles act as cross-reference targets too: their Asciidoctor auto-ids are offered in completion and resolved by navigation, with the id style (Asciidoctor `_my_title` vs Antora `my-title`) detected automatically or set via `adoc-section-id-style`
-- Antora awareness: in a component (a directory with an `antora.yml`), following an `xref:` to another page (e.g. `xref:topic/page.adoc#section[]`) opens the resolved page under the right module's `pages/` directory and jumps to the section, and completion inside an `xref:` offers the component's pages and, after a `#`, the target page's sections
+- Antora awareness: in a component (a directory with an `antora.yml`), following an `xref:` to another page (e.g. `+xref:topic/page.adoc#section[]+`) opens the resolved page under the right module's `pages/` directory and jumps to the section, and completion inside an `xref:` offers the component's pages and, after a `#`, the target page's sections
 - an `xref` backend over anchors and sections: `M-?` lists every cross-reference to the id at point, with the usual xref marker stack and completion UI
 - context-aware completion via `completion-at-point`: cross-reference ids inside `<<` / `xref:`, attribute names inside `{`, file paths after `include::`, and source-block languages inside `[source,`
 - nested `imenu` index with hierarchical heading structure
@@ -59,7 +57,7 @@ Here are some of the main features of `adoc-mode`:
 - preview and export via Asciidoctor (`C-c C-c`): live HTML preview in an xwidget or `eww` side pane, plus export to HTML, DocBook, PDF, and EPUB with navigable warnings and errors
 - on-the-fly diagnostics through a built-in Flymake backend (and out-of-the-box support for Flycheck's `asciidoctor` checker)
 - integration with `flyspell-mode` (skips non-prose regions) and comment commands (`M-;`)
-- filling that respects AsciiDoc hard line breaks (a line ending in ` +`) and section titles
+- filling that respects AsciiDoc hard line breaks (a line ending in `` +``) and section titles
 
 === Demo
 
@@ -72,7 +70,7 @@ image::images/adoc-mode.png[alt=screenshot]
 
 == See Also
 
-If you're looking for a lighter-weight alternative, check out https://github.com/bbatsov/asciidoc-mode[asciidoc-mode] -- a tree-sitter-based AsciiDoc mode focused on the essentials (highlighting, navigation, folding). It requires Emacs 30.1+ and trades `adoc-mode`'s richer feature set for simplicity and the performance benefits of tree-sitter. Both modes are maintained by the same author.
+If you're looking for a lighter-weight alternative, check out https://github.com/bbatsov/asciidoc-mode[asciidoc-mode] -- a tree-sitter-based AsciiDoc mode focused on the essentials (highlighting, navigation, folding). It requires Emacs 30.1+ and trades ``adoc-mode``'s richer feature set for simplicity and the performance benefits of tree-sitter. Both modes are maintained by the same author.
 
 == Installation
 
@@ -123,8 +121,8 @@ completion UI like https://github.com/minad/corfu[Corfu] or
 https://github.com/company-mode/company-mode[Company]) offers candidates based
 on the construct at point:
 
-- inside `<<` or `xref:` - cross-reference ids: explicit anchors (`[[id]]`,
-  `[#id]`, `[[[biblio]]]`) and section auto-ids. In an Antora component an
+- inside `<<` or `xref:` - cross-reference ids: explicit anchors (`+[[id]]+`,
+  `+[#id]+`, `+[[[biblio]]]+`) and section auto-ids. In an Antora component an
   `xref:` also completes the component's pages as targets and, after a `#`,
   the sections of the target page
 - inside `{` - attribute names, both the ones defined with `:name:` in the
@@ -141,11 +139,11 @@ Put point on a reference and follow it with kbd:[C-c C-o] (or kbd:[M-.]), or
 just click it with the mouse - references highlight on hover. This follows
 URLs, `link:` and `include::` macros, and cross-references:
 
-- an `<<id>>` or `xref:id[]` jumps to the matching anchor or section in the
+- an `+<<id>>+` or `+xref:id[]+` jumps to the matching anchor or section in the
   buffer (section auto-ids work as targets, so you can point at a section even
   without an explicit anchor)
 - in an Antora component, an `xref:` to another page (e.g.
-  `xref:topic/page.adoc#section[]`) opens the resolved page under the right
+  `+xref:topic/page.adoc#section[]+`) opens the resolved page under the right
   module's `pages/` directory and jumps to the `#fragment`. Resolution stays
   within the current component
 
@@ -154,9 +152,9 @@ buffer's ids.
 
 `adoc-mode` also registers an `xref` backend, so the standard cross-reference
 keys work for AsciiDoc ids: kbd:[M-?] (`xref-find-references`) lists every
-`<<id>>` / `xref:id[]` that points at the id under point, and kbd:[M-,]
+`+<<id>>+` / `+xref:id[]+` that points at the id under point, and kbd:[M-,]
 (`xref-go-back`) returns after a jump. In an Antora component kbd:[M-?]
-searches the whole component, so cross-page references (`xref:this/page.adoc#id[]`
+searches the whole component, so cross-page references (`+xref:this/page.adoc#id[]+`
 from other pages) are included.
 
 === Preview and Export
@@ -221,7 +219,7 @@ enable `flycheck-mode` instead.
 === Image Preview
 
 If you click kbd:[mouse-3] on an image link like
-`image⁣:path/to/image[]` the _Image_ context menu pops up.
+`+image:path/to/image[]+` the _Image_ context menu pops up.
 
 This context menu allows you to generate or remove the preview for
 the linked image.
@@ -366,7 +364,7 @@ The easiest and "purest" way to run adoc-mode is to execute:
 This will start a separate Emacs process with adoc-mode and its
 dependencies available, but _without_ your normal packages installed.
 However, you can use `Eldev-local` to add some packages with
-`(eldev-add-extra-dependencies 'emacs ...)` forms.  See Eldev
+`+(eldev-add-extra-dependencies 'emacs ...)+` forms.  See Eldev
 documentation for details.
 
 Alternatively, if you want to load adoc-mode from source code in the Emacs

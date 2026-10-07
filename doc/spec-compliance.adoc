@@ -8,7 +8,7 @@ https://gitlab.eclipse.org/eclipse/asciidoc-lang/asciidoc-lang[Eclipse
 AsciiDoc Language project] (the AsciiDoc Working Group spec and the
 Asciidoctor documentation it is derived from).
 
-`adoc-mode`'s syntax rules originate from the old Python `asciidoc.conf`,
+``adoc-mode``'s syntax rules originate from the old Python `asciidoc.conf`,
 so some constructs reflect AsciiDoc.py / legacy "compat-mode" behaviour
 rather than the current language. This audit identifies that drift.
 
@@ -37,27 +37,27 @@ Findings are graded:
 | Area | Finding | Severity
 
 | text
-| [.line-through]#`+text+` / `++text++` are still highlighted as monospace
+| [.line-through]#`pass:[+text+]` / `pass:[++text++]` are still highlighted as monospace
   (legacy AsciiDoc.py "compat-mode").# *FIXED* - they are now treated as
   inline passthroughs (normal text, formatting suppressed); the backtick is
   the only monospace delimiter.
 | High
 
 | text
-| [.line-through]#Modern curved-quote syntax `+"`text`"+` / ``'`text`'`` is
+| [.line-through]#Modern curved-quote syntax `+"`text`"+` / `+'`text`'+` is
   not recognised.# *FIXED* - recognised; delimiters de-emphasised, enclosed
   text normal (and the inner backticks are no longer mis-read as monospace).
 | Medium
 
 | text
 | [.line-through]#The deprecated AsciiDoc.py curved-quote templates
-  `` `text' `` and ``\`\`text''`` are still offered in the menu / tempo
-  templates.# *FIXED* - replaced with the modern `+"`text`"+` / ``'`text`'``
-  templates; the `+...+` templates are relabelled as passthroughs.
+  `+`text'+` and `+``text''+` are still offered in the menu / tempo
+  templates.# *FIXED* - replaced with the modern `+"`text`"+` / `+'`text`'+`
+  templates; the `pass:[+...+]` templates are relabelled as passthroughs.
 | Low
 
 | lists
-| [.line-through]#Checklist items (`* [ ]`, `* [x]`, `* [*]`) are not
+| [.line-through]#Checklist items (`* [ ]`, `* [x]`, `+* [*]+`) are not
   recognised.# *FIXED* - the checkbox is highlighted with
   `adoc-checkbox-face` (`adoc-kw-checkbox`).
 | Medium
@@ -70,7 +70,7 @@ Findings are graded:
 | Medium
 
 | text
-| The literal-monospace enclosure `` `+text+` `` is not handled as a unit.
+| The literal-monospace enclosure `pass:[`+text+`]` is not handled as a unit.
 | Low
 
 | blocks
@@ -86,22 +86,22 @@ Findings are graded:
 |===
 | Construct | Spec | adoc-mode | Severity
 
-| Bold `*x*` / `**x**`
+| Bold `+*x*+` / `+**x**+`
 | Constrained + unconstrained
 | Supported
 | -
 
-| Italic `_x_` / `__x__`
+| Italic `+_x_+` / `+__x__+`
 | Constrained + unconstrained
 | Supported
 | -
 
-| Monospace `` `x` `` / ` ``x`` `
+| Monospace `+`x`+` / `+``x``+`
 | Backtick, constrained + unconstrained
 | Supported
 | -
 
-| Passthrough `+x+` / `++x++`
+| Passthrough `pass:[+x+]` / `pass:[++x++]`
 | Inline passthroughs (constrained/unconstrained), rendered as normal text
   with formatting suppressed; not monospace
 | *Fixed* - treated as passthroughs (`adoc-kw-inline-passthrough`):
@@ -109,33 +109,33 @@ Findings are graded:
   so inner formatting is not applied
 | -
 
-| Highlight `#x#` / `##x##`
+| Highlight `+#x#+` / `+##x##+`
 | Marked text
 | Supported
 | -
 
-| Superscript `^x^` / Subscript `~x~`
+| Superscript `+^x^+` / Subscript `+~x~+`
 | Unconstrained
 | Supported
 | -
 
-| Curved quotes `+"`x`"+` / ``'`x`'``
+| Curved quotes `+"`x`"+` / `+'`x`'+`
 | Modern smart-quote syntax (backticks inside straight quotes)
 | *Fixed* - delimiters de-emphasised, enclosed text normal
 | -
 
-| Legacy curved quotes `` `x' `` / ``\`\`x''``
+| Legacy curved quotes `+`x'+` / `+``x''+`
 | Deprecated in Asciidoctor
 | Not fontified (good); the menu/tempo templates have been replaced by the
   modern curved-quote forms
 | -
 
-| Literal monospace `` `+x+` ``
+| Literal monospace `pass:[`+x+`]`
 | Backtick + plus enclosure (a passthrough shorthand)
 | Outer/inner delimiters highlighted separately, not as one literal span
 | Low
 
-| Roles `[.role]#x#`, strike/underline/overline
+| Roles `+[.role]#x#+`, strike/underline/overline
 | Built-in + custom roles
 | Supported (`adoc-role-face-alist`)
 | -
@@ -147,8 +147,8 @@ Findings are graded:
 |===
 | Construct | adoc-mode | Severity
 
-| Delimited blocks: example `====`, sidebar `****`, listing `----`,
-  literal `....`, quote `____`, passthrough `++++`, open `--`, comment `////`
+| Delimited blocks: example `====`, sidebar `+****+`, listing `----`,
+  literal `+....+`, quote `+____+`, passthrough `pass:[++++]`, open `--`, comment `////`
 | Supported
 | -
 
@@ -160,7 +160,7 @@ Findings are graded:
 | Supported
 | -
 
-| Block anchor `[[id]]`
+| Block anchor `+[[id]]+`
 | Supported
 | -
 
@@ -168,7 +168,7 @@ Findings are graded:
 | *Fixed* - highlighted as an anchor and navigable (see `block-id-shorthand`)
 | -
 
-| Hard line breaks (line ending in ` +`)
+| Hard line breaks (line ending in `` +``)
 | Preserved when filling; `[%hardbreaks]` option not specially handled
 | Low
 
@@ -234,8 +234,10 @@ Findings are graded:
   still understand them so old documents can be converted
 | -
 
-| Auto-generated IDs, section refs `<<id>>`
-| Refs supported; IDs are a processing concern
+| Auto-generated IDs, section refs `+<<id>>+`
+| Refs supported; section auto-ids are computed the way Asciidoctor does
+  (style per `adoc-section-id-style`) and offered in completion, navigation
+  and the `xref` backend
 | -
 
 | Custom section ID via `[#id]` shorthand
@@ -253,7 +255,7 @@ Findings are graded:
 |===
 | Construct | adoc-mode | Severity
 
-| Cross references `<<id>>` / `xref:id[]`
+| Cross references `+<<id>>+` / `+xref:id[]+`
 | Supported
 | -
 
@@ -273,15 +275,15 @@ Findings are graded:
 | Supported
 | -
 
-| STEM `stem:[]`, `latexmath:[]`, `asciimath:[]`
+| STEM `+stem:[]+`, `+latexmath:[]+`, `asciimath:[]`
 | Supported
 | -
 
-| Passthrough macro `pass:[]`
+| Passthrough macro `\pass:[]`
 | Supported
 | -
 
-| Icon macro `icon:name[]`
+| Icon macro `+icon:name[]+`
 | *Fixed* - registered as an inline macro
 | -
 |===
@@ -292,7 +294,7 @@ Findings are graded:
 |===
 | Construct | adoc-mode | Severity
 
-| Table delimiter `|===`, cells `|`
+| Table delimiter `\|===`, cells `\|`
 | Supported
 | -
 
@@ -333,10 +335,10 @@ Findings are graded:
   list are still not individually faced
 | Medium
 
-| Counters `{counter:name}`, character-replacement refs
-| Supported - `{counter:name}`, `{counter2:name}`, and `{set:name:value}`
+| Counters `+{counter:name}+`, character-replacement refs
+| Supported - `+{counter:name}+`, `+{counter2:name}+`, and `+{set:name:value}+`
   highlight as attribute references (`adoc-replacement-face`), and
-  character-replacement refs (`{amp}`, `{nbsp}`, ...) already matched as plain
+  character-replacement refs (`+{amp}+`, `+{nbsp}+`, ...) already matched as plain
   `{name}` references
 | -
 |===
@@ -347,11 +349,11 @@ Findings are graded:
 |===
 | Construct | adoc-mode | Severity
 
-| Passthrough delimited block `++++`, macro `pass:[]`, triple-plus `+++`, `$$`
+| Passthrough delimited block `pass:[++++]`, macro `\pass:[]`, triple-plus `pass:[+++]`, `$$`
 | Supported
 | -
 
-| Listing `----`, literal `....` blocks
+| Listing `----`, literal `+....+` blocks
 | Supported
 | -
 
@@ -360,16 +362,20 @@ Findings are graded:
 | -
 
 | Callouts in verbatim blocks `<1>`
-| Supported
-| -
+| Not highlighted - the markers get the block's own face (the callout
+  keyword is commented out); only the callout list after the block is
+  recognised
+| Low
 |===
 
 === Lower-priority / processing-only modules
 
 These are largely conversion concerns with little or no editor surface:
 
-* *directives* - `include::`, `ifdef::`/`ifndef::`/`endif::`, `ifeval::`
-  are highlighted as preprocessor lines (supported).
+* *directives* - `include::` and the one-line `ifdef::x[text]` /
+  `ifndef::x[text]` form are highlighted as preprocessor lines. Partial -
+  the block forms `ifdef::x[]` / `ifndef::x[]` / `endif::[]` and
+  `+ifeval::[...]+` only get the generic block-macro face.
 * *toc* - generated output; no source syntax to highlight.
 * *docinfo* - external files; out of scope.
 * *stem* - the `[stem]` block and `stem:[]` macro surfaces are covered
@@ -387,10 +393,10 @@ defcustom, since it is no longer part of the language Asciidoctor
 implements.
 ====
 
-. [x] *Stop highlighting `+text+` / `++text++` as monospace.* Done -
+. [x] *Stop highlighting `pass:[+text+]` / `pass:[++text++]` as monospace.* Done -
   reclassified as inline passthroughs (`adoc-kw-inline-passthrough`).
-  Note: the menu / tempo templates still offer `+...+` / `++...++` under a
-  "Monospaced" label; fold that into the template cleanup (item 5).
+  Note: the menu entries for the `pass:[+...+]` / `pass:[++...++]` templates
+  are now labelled as passthroughs (item 5).
 . [x] *Recognise checklist items* (`* [ ]`, `* [x]`, `* [*]`) with a
   dedicated face for the checkbox. Done - `adoc-kw-checkbox` /
   `adoc-checkbox-face`.
@@ -399,16 +405,16 @@ implements.
   (`block-id-shorthand`) and `adoc-goto-ref-label` follows `[#id]` (and
   `[style#id]`) targets. Faceting `.role` / `%opt` inside arbitrary
   attribute lists is left as a smaller follow-up.
-. [x] *Add modern curved-quote highlighting* `+"`text`"+` and ``'`text`'``.
+. [x] *Add modern curved-quote highlighting* `+"`text`"+` and `+'`text`'+`.
   Done.
-. [x] *Drop the deprecated `` `text' `` / ``\`\`text''`` templates* and
-  relabel the `+...+` / `++...++` ones. Done - the curved-quote templates
+. [x] *Drop the deprecated `+`text'+` / `+``text''+` templates* and
+  relabel the `pass:[+...+]` / `pass:[++...++]` ones. Done - the curved-quote templates
   are replaced with the modern forms and the plus templates are relabelled
   as passthroughs.
-. [x] *Add the `icon:name[]` inline macro* to the recognised macro set.
+. [x] *Add the `+icon:name[]+` inline macro* to the recognised macro set.
   Done.
-. [ ] *Verify* the literal-monospace `` `+text+` `` enclosure and add handling
-  where it is missing. Counters and CSV/DSV tables are done - `{counter:name}`,
-  `{counter2:name}`, and `{set:name:value}` highlight as attribute references
+. [ ] *Verify* the literal-monospace `pass:[`+text+`]` enclosure and add handling
+  where it is missing. Counters and CSV/DSV tables are done - `+{counter:name}+`,
+  `+{counter2:name}+`, and `+{set:name:value}+` highlight as attribute references
   (and character-replacement refs already did), and the `,===` / `:===` table
   shorthands are recognised with their cell separators.
