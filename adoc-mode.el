@@ -1385,7 +1385,10 @@ this id. If ID is nil, the regexp matches any anchor."
    ((eq type 'inline-special)
     ;; [\\]?\[\[(?P<attrlist>[\w"_:].*?)\]\]
     (concat "\\(\\[\\[\\)"
-            "\\(" (if id (concat (regexp-quote id) "[ \t]*?") "[a-zA-Z0-9\"_:].*?") "\\)"
+            "\\(" (if id
+                       (concat (regexp-quote id) "[ \t]*\\(?:,.*?\\)?")
+                     "[a-zA-Z0-9\"_:].*?")
+            "\\)"
             "\\(\\]\\]\\)"))
 
    ((eq type 'biblio)

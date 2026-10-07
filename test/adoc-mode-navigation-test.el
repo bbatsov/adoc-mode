@@ -477,6 +477,22 @@
       (expect (xref-backend-identifier-at-point 'adoc) :to-equal "foo")
       (expect (length (xref-backend-references 'adoc "foo")) :to-equal 2)
       (adoc-follow-thing-at-point)
-      (expect (line-number-at-pos) :to-equal 1))))
+      (expect (line-number-at-pos) :to-equal 1)))
+
+  (it "finds an inline anchor that has reftext"
+    (with-temp-buffer
+      (insert "Some text [[inl,Inline Ref]] here.\n\n<<inl>>\n")
+      (adoc-mode)
+      (expect (length (xref-backend-definitions 'adoc "inl")) :to-equal 1)
+      (goto-char (point-max))
+      (search-backward "<<inl")
+      (adoc-follow-thing-at-point)
+      (expect (line-number-at-pos) :to-equal 1)))
+
+  (it "finds an inline anchor whose reftext has brackets"
+    (with-temp-buffer
+      (insert "x [[foo,Some [x] text]] y\n\n<<foo>>\n")
+      (adoc-mode)
+      (expect (length (xref-backend-definitions 'adoc "foo")) :to-equal 1))))
 
 ;;; adoc-mode-navigation-test.el ends here
