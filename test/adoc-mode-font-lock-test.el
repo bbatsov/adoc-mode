@@ -103,7 +103,23 @@
        ("2" adoc-subscript-face))
       ("Press C-^ to join and M-^ to split, E=mc^2^."
        ("to join and M-" nil)
-       ("2" adoc-superscript-face))))
+       ("2" adoc-superscript-face)))
+
+    (it "raises superscript by its own `adoc-script-raise' value"
+      (let ((adoc-script-raise '(0 0.3)))
+        (unwind-protect
+            (progn
+              (adoc-calc)
+              (with-temp-buffer
+                (adoc-mode)
+                (insert "E=mc^2^ and H~2~O")
+                (font-lock-ensure)
+                (goto-char (point-min))
+                (search-forward "^2")
+                (expect (get-text-property (1- (point)) 'display) :to-equal '(raise 0.3))
+                (search-forward "~2")
+                (expect (get-text-property (1- (point)) 'display) :to-be nil)))
+          (adoc-calc)))))
 
   ;; ---- Passthroughs --------------------------------------------------
 

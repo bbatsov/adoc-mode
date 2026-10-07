@@ -1795,17 +1795,19 @@ nil, so the search goes on to the next match instead."
         (goto-char attribute-list-end))))
   nil)
 
-(defun adoc-facespec-subscript ()
+(defun adoc-facespec-script (face raise)
+  "Return a quoted face spec for a super- or subscript in FACE.
+The text is displayed RAISE lines higher, unless RAISE is 0."
   (list 'quote
-        (append '(face adoc-subscript-face)
-                (when (not (= 0 (car adoc-script-raise)))
-                  `(display (raise ,(car adoc-script-raise)))))))
+        (append `(face ,face)
+                (unless (zerop raise)
+                  `(display (raise ,raise))))))
+
+(defun adoc-facespec-subscript ()
+  (adoc-facespec-script 'adoc-subscript-face (car adoc-script-raise)))
 
 (defun adoc-facespec-superscript ()
-  (list 'quote
-        (append '(face adoc-superscript-face)
-                (when (not (= 0 (car adoc-script-raise)))
-                  `(display (raise ,(cadr adoc-script-raise)))))))
+  (adoc-facespec-script 'adoc-superscript-face (cadr adoc-script-raise)))
 
 ;; TODO: use & learn some more macro magic so adoc-kw-unconstrained-quote and
 ;; adoc-kw-constrained-quote are less redundant and have common parts in one
