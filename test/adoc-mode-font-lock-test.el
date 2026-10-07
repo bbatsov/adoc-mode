@@ -583,6 +583,24 @@
        ("sect-id" adoc-meta-face)
        ("the caption" adoc-reference-face)))
 
+    (when-fontifying-it "keeps xrefs on the same line apart"
+      ("See <<foo>>, <<bar>> and <<a>> and <<b,text>>."
+       ("foo" adoc-reference-face)
+       (", " nil)
+       ("bar" adoc-reference-face)
+       ("a" adoc-reference-face)
+       ("b" adoc-meta-face)
+       ("text" adoc-reference-face)))
+
+    (when-fontifying-it "fontifies a captioned xref whose id wraps"
+      ("See <<Installing the\nSoftware,the install guide>> now."
+       ("Installing" adoc-meta-face)
+       ("the install guide" adoc-reference-face)))
+
+    (when-fontifying-it "fontifies an xref to a section's auto-id"
+      ("see <<_installation>> end"
+       ("installation" adoc-reference-face)))
+
     (when-fontifying-it "fontifies an xref caption with an apostrophe"
       ("<<id,Bob's page>>"
        ("Bob" adoc-reference-face)
