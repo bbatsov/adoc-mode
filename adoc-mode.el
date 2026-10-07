@@ -158,7 +158,11 @@ distinguish between a) a two line tile b) start of a delimited
 block and c) end of a delimited block. If you start a listing
 delimited block with '>----' and end it with '<----', then all
 three cases can easily be distinguished. The regexp in your
-AsciiDoc config file would the probably be '^[<>]-{4,}$'"
+AsciiDoc config file would the probably be '^[<>]-{4,}$'
+
+Only the highlighting follows this option.  Finding where a block
+begins and ends, so that a block is always fontified as a whole (see
+`adoc--ensure-block-extents'), uses the standard Asciidoctor delimiters."
   :type '(list
           (choice :tag "comment"
                   (regexp :tag "start/end regexp")
@@ -1282,32 +1286,18 @@ Subgroups:
     adoc-delimited-block-del "\\|")
    "\\)"))
 
-;; KLUDGE: Contrary to what the AsciiDoc manual specifies, adoc-mode does not
-;; allow that either the first or the last line within a delimited block is
-;; blank. That shall help to prevent the case that adoc-mode wrongly
-;; interprets the end of a delimited block as the beginning, and the beginning
-;; of a following delimited block as the ending, thus wrongly interpreting the
-;; text between two adjacent delimited blocks as delimited block.  It is
-;; expected that it is unlikely that one wants to begin or end a delimited
-;; block with a blank line, and it is expected that it is likely that
-;; delimited blocks are surrounded by blank lines.
 (defun adoc-re-delimited-block (del)
+  "Return a regexp matching a whole delimited block of type DEL.
+DEL indexes `adoc-delimited-block-del'.  Like Asciidoctor, the block
+ends at the first line that repeats the opening delimiter exactly.
+Group 1 is the opening delimiter, 2 the content, 3 the closing
+delimiter."
   (let* ((tmp (nth del adoc-delimited-block-del))
          (start (if (consp tmp) (car tmp) tmp))
-         (end (if (consp tmp) (cdr tmp) tmp)))
+         (end (if (consp tmp) (cdr tmp) "\\1")))
     (concat
      "\\(" start "\\)[ \t]*\n"
-     "\\("
-     ;; a single leading non-blank line
-     "[ \t]*[^ \t\n].*\n"
-     ;; optionally followed by
-     "\\(?:"
-     ;; any number of arbitrary lines followed by
-     "\\(?:.*\n\\)*?"
-     ;; a trailing non blank line
-     "[ \t]*[^ \t\n].*\n"
-     "\\)??"
-     "\\)??"
+     "\\(\\(?:.*\n\\)*?\\)"
      "\\(" end "\\)[ \t]*$")))
 
 ;; TODO: since its multiline, it doesn't yet work properly.
@@ -1818,12 +1808,28 @@ nil, so the search goes on to the next match instead."
 ;; ...
 ;; could surely be replaced by a single (adoc-not-reserved-bla-bla 1 3)
 
+(defun adoc--delimited-block-match-p ()
+  "Return non-nil unless the delimited block matched opens inside a verbatim one.
+In a listing, literal or other verbatim block a delimiter line is just
+content.  See `adoc--ensure-block-extents' for how blocks are found."
+  (let ((block (get-text-property (match-beginning 0) 'adoc-delimited-block)))
+    (or (null block)
+        (not (nth 2 block))
+        (= (nth 1 block) (match-beginning 0)))))
+
+(defun adoc--outside-delimited-block-p ()
+  "Return non-nil when the current match doesn't start inside a delimited block.
+Asciidoctor reads a section title inside a delimited block as plain
+text.  See `adoc--ensure-block-extents' for how blocks are found."
+  (not (get-text-property (match-beginning 0) 'adoc-delimited-block)))
+
 (defun adoc-kw-one-line-title (level text-face)
   "Creates a keyword for font-lock which highlights one line titles.
 TEXT-FACE is a face name symbol."
   (let ((face-form (list 'quote text-face)))
     (list
-     `(lambda (end) (adoc-kwf-std end ,(adoc-re-one-line-title level) '(0)))
+     `(lambda (end) (adoc-kwf-std end ,(adoc-re-one-line-title level) '(0) nil
+                                  #'adoc--outside-delimited-block-p))
      '(1 '(face adoc-meta-hide-face adoc-reserved block-del) t)
      `(2 ,face-form t)
      '(3  '(face nil adoc-reserved block-del) t)
@@ -1838,6 +1844,17 @@ a numeric `adoc-enable-two-line-title'."
   (and adoc-enable-two-line-title
        (not (eql adoc-enable-two-line-title length))))
 
+(defun adoc--two-line-title-match-p ()
+  "Return non-nil when the last `adoc-re-two-line-title' match is a title.
+The underline has to be about as long as the text, may not be excluded
+by `adoc-enable-two-line-title', and the text line may not be a block
+attribute list or block title (Asciidoctor reads those as the
+metadata of the block below)."
+  (let ((underline (- (match-end 3) (match-beginning 3))))
+    (and (< (abs (- (- (match-end 2) (match-beginning 2)) underline)) 3)
+         (adoc--two-line-title-underline-p underline)
+         (not (memq (char-after (match-beginning 2)) '(?\[ ?.))))))
+
 (defun adoc-kw-two-line-title (del text-face)
   "Creates a keyword for font-lock which highlights two line titles.
 TEXT-FACE is a face name symbol."
@@ -1849,11 +1866,8 @@ TEXT-FACE is a face name symbol."
              (adoc-kwf-std
               end ,(adoc-re-two-line-title del) '(0) nil
               (lambda ()
-                (and (< (abs (- (- (match-end 2) (match-beginning 2))
-                                (- (match-end 3) (match-beginning 3))))
-                        3)
-                     (adoc--two-line-title-underline-p
-                      (- (match-end 3) (match-beginning 3))))))))
+                (and (adoc--two-line-title-match-p)
+                     (adoc--outside-delimited-block-p))))))
      ;; highlighers
      `(2 ,face-form t)
      `(3 '(face adoc-meta-hide-face adoc-reserved block-del) t))))
@@ -1914,12 +1928,16 @@ A checklist item is an unordered list item whose text begins with
   "Creates a keyword for font-lock which highlights a delimited block.
 TEXT-FACE is a face name symbol or nil."
   (list
-   `(lambda (end) (adoc-kwf-std end ,(adoc-re-delimited-block del) '(1 3)))
-   '(0 '(face nil font-lock-multiline t) t)
+   `(lambda (end) (adoc-kwf-std end ,(adoc-re-delimited-block del) '(1 3) nil
+                                #'adoc--delimited-block-match-p))
+   ;; Leave the faces in the block alone: a compound block (example,
+   ;; sidebar, quote, open) holds lists, comments and other blocks whose
+   ;; highlighting has to survive.
+   '(0 '(face nil font-lock-multiline t))
    '(1 '(face adoc-meta-hide-face adoc-reserved block-del) t)
    (if (not inhibit-text-reserved)
        `(2 '(face ,text-face adoc-reserved t) t t)
-     `(2 ',text-face t t))
+     `(2 ',text-face append t))
    '(3 '(face adoc-meta-hide-face adoc-reserved block-del) t)))
 
 ;; if adoc-kw-delimited-block, adoc-kw-two-line-title don't find the whole
@@ -2436,14 +2454,174 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
             (put-text-property beg next 'display nil))
         (setq beg next)))))
 
+;;;; Delimited block extents
+
+;; The font-lock keywords match a delimited block with one regexp, from its
+;; opening to its closing delimiter, so they only see a block when the region
+;; being fontified covers all of it.  jit-lock fontifies the buffer in chunks,
+;; and a chunk can begin or end anywhere - including inside a block, where an
+;; opening delimiter can't be told from a closing one.  So the extent of every
+;; top-level block is recorded by a scan that always pairs the delimiters up
+;; from the start of the buffer, and `adoc-font-lock-extend-region' widens the
+;; region so it never splits a block.
+
+(defconst adoc--re-block-delimiter
+  (concat "^\\("
+          (mapconcat #'identity
+                     '("/\\{4,\\}" "\\+\\{4,\\}" "-\\{4,\\}" "\\.\\{4,\\}"
+                       "_\\{4,\\}" "=\\{4,\\}" "\\*\\{4,\\}" "--"
+                       "[,:]=\\{3,\\}")
+                     "\\|")
+          "\\)[ \t]*$")
+  "Regexp matching a delimited block or CSV/DSV table delimiter line.
+Group 1 is the delimiter.  These are Asciidoctor's delimiters, not
+the ones `adoc-delimited-block-del' customizes for highlighting.  A
+`|===' table is highlighted line by line, so it needs no extent.")
+
+(defun adoc--verbatim-delimiter-p (delimiter)
+  "Return non-nil when DELIMITER opens a block whose content isn't AsciiDoc.
+That's every block but the example, sidebar, quote and open ones."
+  (not (or (equal delimiter "--")
+           (memq (aref delimiter 0) '(?= ?* ?_)))))
+
+(defconst adoc--re-block-metadata-line
+  "^\\(?:\\[.*\\]\\|\\.[^ \t.].*\\)[ \t]*$"
+  "Regexp matching a block attribute list, anchor or title line.")
+
+(defun adoc--title-underline-p (open delimiter)
+  "Return non-nil when DELIMITER, on the line at OPEN, underlines a title.
+That's only possible when two-line titles are enabled, and then a
+title line right above makes it the underline of a two-line title
+rather than a block delimiter, the same as for fontification."
+  (let ((del (and adoc-enable-two-line-title
+                  (cl-find (aref delimiter 0) adoc-two-line-title-del
+                           :key #'string-to-char))))
+    (and del
+         (save-excursion
+           (goto-char open)
+           (and (zerop (forward-line -1))
+                (looking-at (adoc-re-two-line-title del))
+                (= (match-beginning 3) open)
+                (adoc--two-line-title-match-p))))))
+
+(defvar-local adoc--block-extents-done 1
+  "Position up to which the delimited block extents are known.
+The `adoc-delimited-block' properties from here on are out of date.
+See `adoc--ensure-block-extents'.")
+
+(defvar-local adoc--block-extents-unterminated nil
+  "Where the first block known to be unterminated would begin, or nil.
+Text added anywhere after it might close it.")
+
+(defun adoc--invalidate-block-extents (beg &rest _)
+  "Forget the delimited block extents from where a change at BEG matters.
+That's the beginning of the block BEG is in, read while the text before
+the change is still there.  Otherwise it's the beginning of BEG's line,
+which may become a delimiter line, together with any attribute and
+title lines above it, which would then belong to its block.  A change
+after an unterminated block's opening delimiter can close it, so then
+the extents are forgotten from that block on.  Meant for
+`before-change-functions'."
+  (when (<= beg adoc--block-extents-done)
+    (save-excursion
+      ;; The block just before BEG counts too when the change continues its
+      ;; last line, as text added after a closing delimiter at the very end
+      ;; of the buffer does.
+      (let ((block (or (and (< beg adoc--block-extents-done)
+                            (get-text-property beg 'adoc-delimited-block))
+                       (and (> beg (point-min))
+                            (not (eq (char-before beg) ?\n))
+                            (get-text-property (1- beg) 'adoc-delimited-block)))))
+        (goto-char (if block (car block) beg))
+        (let ((pos (line-beginning-position)))
+          (while (and (zerop (forward-line -1))
+                      (looking-at-p adoc--re-block-metadata-line))
+            (setq pos (point)))
+          (setq adoc--block-extents-done (min adoc--block-extents-done pos))))))
+  (when (and adoc--block-extents-unterminated
+             (< adoc--block-extents-unterminated adoc--block-extents-done))
+    (setq adoc--block-extents-done adoc--block-extents-unterminated)))
+
+(defun adoc--ensure-block-extents (pos)
+  "Make sure the extents of the delimited blocks before POS are recorded.
+Each block, together with the attribute, anchor and title lines right
+above it, gets an `adoc-delimited-block' text property whose value is
+the list (START OPEN VERBATIM): where the block begins, where its
+opening delimiter line is, and whether its content isn't AsciiDoc (see
+`adoc--verbatim-delimiter-p').  Like Asciidoctor, the first line that
+repeats the opening delimiter exactly closes a block, whatever it
+contains.  An unterminated block gets no extent.
+
+The scan picks up where the last one left off, and a block it starts
+is recorded whole."
+  (when (< adoc--block-extents-done pos)
+    (save-excursion
+      (save-restriction
+        (widen)
+        (with-silent-modifications
+          (let ((start (progn (goto-char (max adoc--block-extents-done (point-min)))
+                              (line-beginning-position)))
+                (end (progn (goto-char (min pos (point-max)))
+                            ;; Scan whole lines, so no delimiter line is cut in two.
+                            (unless (bolp) (forward-line 1))
+                            ;; Attribute, anchor and title lines belong to the
+                            ;; block that opens below them, so take in the line
+                            ;; after them too.
+                            (when (save-excursion
+                                    (and (zerop (forward-line -1))
+                                         (looking-at-p adoc--re-block-metadata-line)))
+                              (while (and (not (eobp))
+                                          (looking-at-p adoc--re-block-metadata-line))
+                                (forward-line 1))
+                              (forward-line 1))
+                            (point))))
+            (setq adoc--block-extents-done
+                  (adoc--record-block-extents start end))))))))
+
+(defun adoc--record-block-extents (start end)
+  "Record the extents of the delimited blocks opened between START and END.
+START has to be outside any block.  Return the position the extents are
+known up to: END, or the end of a block that runs past it.  See
+`adoc--ensure-block-extents'."
+  (goto-char start)
+  (remove-text-properties start end '(adoc-delimited-block nil))
+  (when (and adoc--block-extents-unterminated
+             (>= adoc--block-extents-unterminated start))
+    (setq adoc--block-extents-unterminated nil))
+  (while (and (< (point) end)
+              (re-search-forward adoc--re-block-delimiter end t))
+    (let* ((open (match-beginning 0))
+           (delimiter (match-string-no-properties 1))
+           (closing (concat "^" (regexp-quote delimiter) "[ \t]*$")))
+      (forward-line 1)
+      (unless (adoc--title-underline-p open delimiter)
+        (let ((block-start open))
+          (save-excursion
+            (goto-char open)
+            (while (and (zerop (forward-line -1))
+                        (looking-at-p adoc--re-block-metadata-line))
+              (setq block-start (point))))
+          (if (not (re-search-forward closing nil t))
+              (unless adoc--block-extents-unterminated
+                (setq adoc--block-extents-unterminated block-start))
+            (let ((block-end (min (1+ (point)) (point-max))))
+              (put-text-property block-start block-end 'adoc-delimited-block
+                                 (list block-start open
+                                       (adoc--verbatim-delimiter-p delimiter)))
+              (setq end (max end block-end))
+              (goto-char block-end)))))))
+  end)
+
 (defvar font-lock-beg)
 (defvar font-lock-end)
 
 (defun adoc-font-lock-extend-region ()
-  "Extend the font-lock region to paragraph boundaries.
+  "Extend the font-lock region to paragraph and delimited block boundaries.
 Inline formatting in AsciiDoc can span multiple lines within a
 paragraph, so the fontification region must cover complete paragraphs
-for multiline constructs to be matched."
+for multiline constructs to be matched.  Likewise a delimited block is
+only recognised as a whole, so the region never ends or begins inside
+one (see `adoc--ensure-block-extents')."
   (let ((changed nil))
     (save-excursion
       (goto-char font-lock-beg)
@@ -2456,6 +2634,18 @@ for multiline constructs to be matched."
       (let ((new-end (progn (forward-paragraph) (point))))
         (when (> new-end font-lock-end)
           (setq font-lock-end new-end
+                changed t))))
+    (adoc--ensure-block-extents font-lock-end)
+    (let ((block (get-text-property font-lock-beg 'adoc-delimited-block)))
+      (when (and block (< (car block) font-lock-beg))
+        (setq font-lock-beg (car block)
+              changed t)))
+    (when (and (> font-lock-end (point-min))
+               (get-text-property (1- font-lock-end) 'adoc-delimited-block))
+      (let ((block-end (next-single-property-change
+                        (1- font-lock-end) 'adoc-delimited-block nil (point-max))))
+        (when (> block-end font-lock-end)
+          (setq font-lock-end block-end
                 changed t))))
     changed))
 
@@ -3463,6 +3653,10 @@ new customization demands."
     (adoc-make-unichar-alist))
 
   (setq adoc-font-lock-keywords (adoc-get-font-lock-keywords))
+  (when (eq major-mode 'adoc-mode)
+    ;; the extents depend on `adoc-enable-two-line-title'
+    (setq adoc--block-extents-done 1
+          adoc--block-extents-unterminated nil))
   (when (and font-lock-mode (eq major-mode 'adoc-mode))
     (font-lock-flush)
     (font-lock-ensure)))
@@ -4337,14 +4531,11 @@ and `adoc-imenu-create-index' call `font-lock-ensure' first.
 
 For a one-line title the leading delimiter at START carries
 `adoc-meta-hide-face'.  Inline markup in the title text does not
-touch that delimiter (so a title made entirely of a macro is still
-recognised), whereas a surrounding delimited block repaints the
-whole line and thus the delimiter too - which is precisely why a
-`==' line inside a block is rejected.  The check therefore relies on
-the block keywords winning the face-override war on the delimiter;
-the navigation tests guard that assumption.  A two-line title has no
-such delimiter, so fall back to looking for a title face on its
-text."
+touch that delimiter, so a title made entirely of a macro is still
+recognised.  The title keywords skip the inside of delimited blocks
+\(see `adoc--outside-delimited-block-p'), so a `==' line there never
+gets that face.  A two-line title has no such delimiter, so fall back
+to looking for a title face on its text."
   (or (adoc--face-memq '(adoc-meta-hide-face) (get-text-property start 'face))
       (let ((pos start) found)
         (while (and (not found) (< pos end))
@@ -5089,6 +5280,7 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   (setq-local font-lock-unfontify-region-function 'adoc-unfontify-region-function)
   (setq-local font-lock-extend-after-change-region-function #'adoc-font-lock-extend-after-change-region)
   (add-hook 'font-lock-extend-region-functions #'adoc-font-lock-extend-region nil t)
+  (add-hook 'before-change-functions #'adoc--invalidate-block-extents nil t)
 
   ;; outline mode
   (setq-local outline-regexp "=\\{1,6\\}[ \t]+[^ \t\n]")

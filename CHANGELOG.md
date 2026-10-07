@@ -36,6 +36,11 @@
   - `C-c C-t` won't convert to a two-line title while they're disabled, or past level 4 (where it used to crash).
   - A numeric value now skips underlines of that length, as documented. It used to compare the length of the title text instead.
 - [#90](https://github.com/bbatsov/adoc-mode/pull/90): A construct that is rejected once no longer stops the same construct from being highlighted further down. A `NOTE:` inside a listing block, for instance, used to leave every later admonition paragraph unhighlighted; literal paragraphs, the alignment of indented lines and two-line titles had the same problem.
+- [#90](https://github.com/bbatsov/adoc-mode/pull/90): Delimited blocks are highlighted correctly when Emacs fontifies the buffer a piece at a time, as it does while you scroll.
+  - A long listing, literal, example or other block crossing the edge of a piece used to lose track of where it began, so code could come out bold or as table cells.
+  - A block now ends at the first line that repeats its opening delimiter exactly, as in Asciidoctor. It used to need a non-blank last line, and any longer run of the same character closed it.
+  - A delimiter line inside a listing or literal block is just content.
+- [#90](https://github.com/bbatsov/adoc-mode/pull/90): Example, open, quote and sidebar blocks keep the highlighting of what's inside them (list markers, comments, `include::` lines, nested code), and section titles inside a delimited block are no longer highlighted as titles, since Asciidoctor reads them as plain text.
 
 ## 0.9.0 (2026-06-02)
 

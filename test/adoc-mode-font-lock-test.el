@@ -41,6 +41,14 @@
          "Document Title\n=============="
          '(("Document Title" adoc-title-0-face)))))
 
+    (it "doesn't take a block title or attribute line for a two-line title"
+      (let ((adoc-enable-two-line-title t))
+        (adoc-test--check-face-specs ".Example\n--------\ncode\n--------\n"
+                                     '(("Example" adoc-gen-face)
+                                       ("code" adoc-code-face)))
+        (adoc-test--check-face-specs "[abcd]\n----\ncode\n----\n"
+                                     '(("code" adoc-code-face)))))
+
     (it "fontifies a two-line title after a rejected one"
       (let ((adoc-enable-two-line-title t))
         (adoc-test--check-face-specs "Hi\n------------\n\nTitle\n-----\n"
@@ -182,10 +190,214 @@
     (when-fontifying-it "fontifies a sidebar block body"
       ("****\nsidebar\n****" ("sidebar" adoc-secondary-text-face)))
 
+    (when-fontifying-it "keeps the highlighting inside example and open blocks"
+      ("[NOTE]\n====\n* item\n// a comment\n===="
+       ("*" adoc-list-face)
+       ("// a comment" adoc-comment-face))
+      ("--\n* item\n// a comment\n--"
+       ("*" adoc-list-face)
+       ("// a comment" adoc-comment-face)))
+
+    (when-fontifying-it "keeps list markers in a quote block"
+      ("____\n* quoted item\n____" ("*" adoc-list-face)))
+
+    (when-fontifying-it "doesn't highlight section titles inside a block"
+      ;; Asciidoctor reads them as plain paragraphs
+      ("====\n== Not a title\n====\n\n--\n=== Nor this\n--\n\n== Real"
+       ("Not a title" nil)
+       ("Nor this" nil)
+       ("Real" adoc-title-1-face)))
+
+    (it "keeps the indentation of nested code as code"
+      (with-temp-buffer
+        (insert "****\n----\nif x\n  indented code\n----\n****\n")
+        (adoc-mode)
+        (font-lock-ensure)
+        (goto-char (point-min))
+        (search-forward "  indented")
+        (expect (get-text-property (match-beginning 0) 'face)
+                :not :to-contain 'adoc-align-face)))
+
     (when-fontifying-it "keeps going after a literal paragraph inside a listing block"
       ("----\ncode\n\n  indented in listing\n----\n\nText\n\n  literal paragraph\n"
        ("indented in listing" adoc-code-face)
        ("literal paragraph" adoc-typewriter-face))))
+
+  ;; ---- Chunked fontification ------------------------------------------
+
+  (describe "chunked fontification"
+    ;; jit-lock fontifies a chunk at a time during redisplay, and a chunk
+    ;; can begin or end inside a delimited block.
+
+    (it "keeps a long listing block's body as code"
+      (with-temp-buffer
+        (insert "= Doc\n\nintro\n\n----\n"
+                (apply #'concat (make-list 30 "a line of code to fill the chunk\n"))
+                "*star* inside the listing\n"
+                (apply #'concat (make-list 10 "more code\n"))
+                "----\n\nAfter the block, *bold* text.\n")
+        (adoc-mode)
+        (adoc-test-fontify-in-chunks 200)
+        (goto-char (point-min))
+        (search-forward "*star*")
+        (expect (adoc-test-face-at-range (match-beginning 0) (1- (match-end 0)))
+                :to-equal 'adoc-code-face)
+        (search-forward "bold")
+        (expect (adoc-test-face-at-range (match-beginning 0) (1- (match-end 0)))
+                :to-equal 'adoc-bold-face)))
+
+    (it "fontifies blocks the same chunk by chunk as in one go"
+      (let ((text (concat
+                   "= Doc\n\n== Section\n\n"
+                   "[source,adoctest-lang]\n----\nif x\n"
+                   (apply #'concat (make-list 12 "  do something\n"))
+                   "----\n\n"
+                   "[NOTE]\n====\n* item one\n* item two\n\n"
+                   "----\nnested listing\n\n== not a title\n----\n\n"
+                   (apply #'concat (make-list 8 "Example text with *bold* words.\n"))
+                   "====\n\n"
+                   "....\nliteral\n\n*not bold*\n....\n\n"
+                   "****\nsidebar _text_\n\n// a comment\n****\n\n"
+                   "____\nquoted\n\nNOTE: inside\n____\n\n"
+                   "NOTE: an admonition\n\n"
+                   "|===\n|a |b\n\n|c |d\n|===\n\n"
+                   "== Another *section*\n\nThe end.\n")))
+        (dolist (chunk-size '(37 64 101 250))
+          (expect (adoc-test-chunked-fontification-difference text chunk-size)
+                  :to-be nil))))
+
+    (when-fontifying-it "ends a block at the first exact repeat of its delimiter"
+      ("----\ncode\n\n----\n\nprose with *bold*\n\n----\nmore\n----\n"
+       ("code" adoc-code-face)
+       ("prose" nil)
+       ("bold" adoc-bold-face)
+       ("more" adoc-code-face)))
+
+    (it "pairs block delimiters from the start of the buffer when narrowed"
+      (with-temp-buffer
+        (insert "= Doc\n\n----\ncode\n----\n\n== Real Title\n\n----\nmore\n----\n")
+        (adoc-mode)
+        (goto-char (point-min))
+        (search-forward "code")
+        (narrow-to-region (line-beginning-position) (point-max))
+        (adoc--ensure-block-extents (point-max))
+        (widen)
+        (font-lock-ensure)
+        (goto-char (point-min))
+        (search-forward "Real Title")
+        (expect (get-text-property (match-beginning 0) 'face) :to-be 'adoc-title-1-face)))
+
+    (it "updates the block extents after an edit"
+      (with-temp-buffer
+        (insert "----\ncode\n\n== Title\n")
+        (adoc-mode)
+        (adoc--ensure-block-extents (point-max))
+        (goto-char (point-min))
+        (search-forward "Title")
+        (expect (get-text-property (point) 'adoc-delimited-block) :to-be nil)
+        ;; closing the block puts the title inside it
+        (goto-char (point-max))
+        (insert "----\n")
+        (adoc--ensure-block-extents (point-max))
+        (goto-char (point-min))
+        (search-forward "Title")
+        (expect (car (get-text-property (point) 'adoc-delimited-block)) :to-equal 1)))
+
+    (it "closes a block when its closing delimiter is typed after more text"
+      (with-temp-buffer
+        (insert "----\ncode\n\n== Title\n\n----\nother\n----\n")
+        (adoc-mode)
+        (adoc--ensure-block-extents (point-max))
+        ;; the first `----' pairs with the second, so the title is inside
+        (goto-char (point-min))
+        (search-forward "Title")
+        (expect (car (get-text-property (point) 'adoc-delimited-block)) :to-equal 1)
+        ;; and the last one opens a block that never closes
+        (goto-char (point-max))
+        (insert "\nmore\n----\n")
+        (adoc--ensure-block-extents (point-max))
+        (goto-char (point-min))
+        (search-forward "more")
+        (expect (get-text-property (point) 'adoc-delimited-block) :not :to-be nil)))
+
+    (when-fontifying-it "takes a delimiter line in a literal block as content"
+      ;; the listing keyword runs first, and used to pair the `----' in the
+      ;; literal block with the next listing's opening delimiter
+      ("Type:\n\n....\n----\n....\n\n== Next\n\nProse.\n\n----\ncode\n----\n"
+       ("Next" adoc-title-1-face)
+       ("Prose" nil)
+       ("code" adoc-code-face)))
+
+    (it "keeps the block extents right through edits"
+      ;; each edit is checked against a fresh scan of the result
+      (cl-flet ((extents ()
+                  (adoc--ensure-block-extents (point-max))
+                  (let (res)
+                    (dotimes (i (1- (point-max)))
+                      (push (get-text-property (1+ i) 'adoc-delimited-block) res))
+                    res))
+                (fresh-extents (text)
+                  (with-temp-buffer
+                    (insert text)
+                    (adoc-mode)
+                    (adoc--ensure-block-extents (point-max))
+                    (let (res)
+                      (dotimes (i (1- (point-max)))
+                        (push (get-text-property (1+ i) 'adoc-delimited-block) res))
+                      res))))
+        (dolist (case
+                 '(;; yanked text carries the properties of where it came from
+                   ("= Doc\n\n----\ncode\n----\n\n== Title\n\n----\nmore\n----\n"
+                    (search "code") (yank "pasted "))
+                   ;; typing a whole block above others
+                   ("Intro.\n\n----\na\n----\n\nText.\n\n----\nb\n----\n\n== Title\n"
+                    (search "Intro.\n\n") (type "----\nnew\n----\n\n"))
+                   ;; joining a closing delimiter with the next line
+                   ("====\na\n====\nmore\n\n== Title\n\n====\nb\n====\n"
+                    (line 3) (delete-newline))
+                   ;; extending a closing delimiter at the end of the buffer
+                   ("++++\ncode\n++++" (end) (type "."))
+                   ;; a line turning into a delimiter takes the title above
+                   ("text\n.Title\n---\ncode\n----\n" (line 3) (type "-"))))
+          (with-temp-buffer
+            (insert (car case))
+            (adoc-mode)
+            (adoc--ensure-block-extents (point-max))
+            (goto-char (point-min))
+            (dolist (op (cdr case))
+              (pcase op
+                (`(search ,s) (search-forward s))
+                (`(line ,n) (goto-char (point-min)) (forward-line (1- n)) (end-of-line))
+                ('(end) (goto-char (point-max)))
+                (`(yank ,s) (insert-for-yank
+                             (propertize s 'adoc-delimited-block (list 1 1 t))))
+                (`(type ,s) (dolist (c (string-to-list s))
+                              (insert-and-inherit c)
+                              (adoc--ensure-block-extents (line-end-position))))
+                ('(delete-newline) (delete-char 1))))
+            (expect (extents) :to-equal (fresh-extents (buffer-string)))))))
+
+    (it "starts the block extents over when the settings change"
+      (with-temp-buffer
+        (insert "Hello\n=====\n\n== Section\n\n=====\ntext\n=====\n")
+        (adoc-mode)
+        (setq-local adoc-enable-two-line-title t)
+        (font-lock-ensure)
+        (setq-local adoc-enable-two-line-title nil)
+        (adoc-calc)
+        (font-lock-flush)
+        (font-lock-ensure)
+        (goto-char (point-min))
+        (search-forward "Section")
+        (expect (get-text-property (match-beginning 0) 'face) :to-be nil)))
+
+    (it "fontifies the sample document the same chunk by chunk as in one go"
+      (let ((text (with-temp-buffer
+                    (insert-file-contents (adoc-test-resource "sample.adoc"))
+                    (buffer-string))))
+        (dolist (chunk-size '(300 1500))
+          (expect (adoc-test-chunked-fontification-difference text chunk-size)
+                  :to-be nil)))))
 
   ;; ---- Tables --------------------------------------------------------
 

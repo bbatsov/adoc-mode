@@ -216,6 +216,49 @@ ORIGINAL-TEXT may contain the markers `!' (point) and `<'/`>'
   "Mode for testing code blocks in `adoc-mode'.
 Don't use it for anything real.")
 
+;;;; Chunked fontification
+
+(require 'jit-lock)
+
+(defun adoc-test-fontify-in-chunks (chunk-size)
+  "Fontify the current buffer CHUNK-SIZE characters at a time.
+That's how jit-lock fontifies during redisplay, whereas
+`font-lock-ensure' does the whole buffer in one go - which hides the
+constructs that break when a chunk starts or ends inside them."
+  (font-lock-set-defaults)
+  (jit-lock-register #'font-lock-fontify-region)
+  (let ((pos (point-min)))
+    (while pos
+      (jit-lock-fontify-now pos (min (point-max) (+ pos chunk-size)))
+      (setq pos (text-property-any pos (point-max) 'fontified nil)))))
+
+(defun adoc-test--face-runs ()
+  "Return the current buffer's faces as a list of (START END FACE) runs."
+  (let ((pos (point-min)) runs)
+    (while (< pos (point-max))
+      (let ((next (next-single-property-change pos 'face nil (point-max))))
+        (push (list pos next (get-text-property pos 'face)) runs)
+        (setq pos next)))
+    (nreverse runs)))
+
+(defun adoc-test-chunked-fontification-difference (text chunk-size)
+  "Return how fontifying TEXT in CHUNK-SIZE chunks differs from doing it whole.
+The result is nil when both give the same faces, otherwise the first
+differing pair of (START END FACE) runs."
+  (let* ((whole (with-temp-buffer
+                  (insert text)
+                  (adoc-mode)
+                  (font-lock-ensure)
+                  (adoc-test--face-runs)))
+         (chunked (with-temp-buffer
+                    (insert text)
+                    (adoc-mode)
+                    (adoc-test-fontify-in-chunks chunk-size)
+                    (adoc-test--face-runs)))
+         (i (cl-mismatch whole chunked :test #'equal)))
+    (when i
+      (list (nth i whole) (nth i chunked)))))
+
 (provide 'adoc-mode-test-helpers)
 
 ;;; adoc-mode-test-helpers.el ends here
