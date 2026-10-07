@@ -43,6 +43,7 @@
 - [#90](https://github.com/bbatsov/adoc-mode/pull/90): Example, open, quote and sidebar blocks keep the highlighting of what's inside them (list markers, comments, `include::` lines, nested code), and section titles inside a delimited block are no longer highlighted as titles, since Asciidoctor reads them as plain text.
 - [#66](https://github.com/bbatsov/adoc-mode/issues/66): Links, `xref:` and footnote macros and the like are recognised (and clickable) again when their text holds an apostrophe, an ellipsis, an arrow or other inline markup, as in `https://example.org[Bob's page]`. Bare URLs no longer run into a following `[`.
 - [#91](https://github.com/bbatsov/adoc-mode/pull/91): Two cross-references on one line, as in `<<foo>>, <<bar>>`, are highlighted as two instead of one with the id `foo>>`, and an xref to a section's auto-id like `<<_installation>>` is highlighted at all.
+- [#91](https://github.com/bbatsov/adoc-mode/pull/91): Superscripts and subscripts can't span whitespace anymore, as in Asciidoctor, so `~/.emacs.d/init.el to ~/backup` and `C-^ to join and M-^` stay plain text.
 
 ## 0.9.0 (2026-06-02)
 

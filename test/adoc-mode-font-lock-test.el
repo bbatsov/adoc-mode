@@ -95,7 +95,15 @@
       ("a ^super^ word"
        ("super" adoc-superscript-face))
       ("a ~sub~ word"
-       ("sub" adoc-subscript-face))))
+       ("sub" adoc-subscript-face)))
+
+    (when-fontifying-it "doesn't let superscript and subscript span whitespace"
+      ("Copy ~/.emacs.d/init.el to ~/backup, then H~2~O."
+       ("to" nil)
+       ("2" adoc-subscript-face))
+      ("Press C-^ to join and M-^ to split, E=mc^2^."
+       ("to join and M-" nil)
+       ("2" adoc-superscript-face))))
 
   ;; ---- Passthroughs --------------------------------------------------
 

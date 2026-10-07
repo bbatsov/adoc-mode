@@ -1501,7 +1501,10 @@ NOT-ALLOWED-CHARS are chars not allowed before the quote."
 ;; backslash as the first char. If the first char is ineed a backslash, it is
 ;; 'removed' (-> adoc-meta-hide-face face), and the rest of the match is left
 ;; unaffected.
-(defun adoc-re-unconstrained-quote (ldel &optional rdel)
+(defun adoc-re-unconstrained-quote (ldel &optional rdel content)
+  "Return a regexp matching an unconstrained quote between LDEL and RDEL.
+RDEL defaults to LDEL.  CONTENT is the regexp for the quoted text,
+by default any text spanning up to a paragraph."
   (unless rdel (setq rdel ldel))
   (let* ((qldel (regexp-quote ldel))
          (qrdel (regexp-quote rdel)))
@@ -1509,7 +1512,7 @@ NOT-ALLOWED-CHARS are chars not allowed before the quote."
      (adoc-re-quote-precondition "")
      "\\(\\[[^][]+?\\]\\)?"
      "\\(" qldel "\\)"
-     "\\(" (adoc-re-content "+") "\\)"
+     "\\(" (or content (adoc-re-content "+")) "\\)"
      "\\(" qrdel "\\)")))
 
 ;; AsciiDoc src for constrained quotes
@@ -1549,6 +1552,10 @@ subgroups:
     (adoc-re-constrained-quote ldel rdel))
    ((eq type 'adoc-unconstrained)
     (adoc-re-unconstrained-quote ldel rdel))
+   ((eq type 'adoc-script)
+    ;; Super- and subscripts can't contain whitespace (`\S+?' in
+    ;; Asciidoctor), so `~/.emacs.d/init.el to ~/backup' isn't one.
+    (adoc-re-unconstrained-quote ldel rdel "[^ \t\n]+?"))
    (t
     (error "Invalid type"))))
 
@@ -2983,8 +2990,8 @@ between matching delimiters, never in the surrounding prose."
    (adoc-kw-quote 'adoc-constrained "_" 'adoc-emphasis-face)
    (adoc-kw-quote 'adoc-unconstrained "##" 'adoc-highlight-face) ; highlighted text
    (adoc-kw-quote 'adoc-constrained "#" 'adoc-highlight-face)    ; highlighted text
-   (adoc-kw-quote 'adoc-unconstrained "~" (adoc-facespec-subscript)) ; subscript
-   (adoc-kw-quote 'adoc-unconstrained "^" (adoc-facespec-superscript)) ; superscript
+   (adoc-kw-quote 'adoc-script "~" (adoc-facespec-subscript)) ; subscript
+   (adoc-kw-quote 'adoc-script "^" (adoc-facespec-superscript)) ; superscript
 
 
    ;; special words
