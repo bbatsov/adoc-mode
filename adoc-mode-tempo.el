@@ -31,41 +31,6 @@
 ;; Defined in adoc-mode.el; declarations without initial values
 ;; silence the byte-compiler without interfering with defcustom/defconst.
 (defvar adoc-title-style)
-(defvar adoc-help-emphasis)
-(defvar adoc-help-bold)
-(defvar adoc-help-monospace)
-(defvar adoc-help-single-quote)
-(defvar adoc-help-double-quote)
-(defvar adoc-help-attributed)
-(defvar adoc-help-underline)
-(defvar adoc-help-overline)
-(defvar adoc-help-line-through)
-(defvar adoc-help-nobreak)
-(defvar adoc-help-nowrap)
-(defvar adoc-help-pre-wrap)
-(defvar adoc-help-line-break)
-(defvar adoc-help-page-break)
-(defvar adoc-help-ruler-line)
-(defvar adoc-help-entity-reference)
-(defvar adoc-help-literal-paragraph)
-(defvar adoc-help-delimited-block-comment)
-(defvar adoc-help-delimited-block-passthrouh)
-(defvar adoc-help-delimited-block-listing)
-(defvar adoc-help-delimited-block-literal)
-(defvar adoc-help-delimited-block-quote)
-(defvar adoc-help-delimited-block-example)
-(defvar adoc-help-delimited-block-sidebar)
-(defvar adoc-help-delimited-block-open-block)
-(defvar adoc-help-list-item-continuation)
-(defvar adoc-help-url)
-(defvar adoc-help-anchor)
-(defvar adoc-help-xref)
-(defvar adoc-help-pass)
-(defvar adoc-help-asciimath)
-(defvar adoc-help-latexmath)
-(defvar adoc-help-pass-+++)
-(defvar adoc-help-pass-$$)
-(defvar adoc-help-comment)
 
 (declare-function adoc-make-two-line-title-underline "adoc-mode")
 (declare-function adoc-insert-indented "adoc-mode")
@@ -98,10 +63,19 @@ which can be truthy even without an active region."
 
 (advice-add 'tempo-insert-template :around #'adoc-tempo-insert-template-fix)
 
-(defun adoc-tempo-define (&rest args)
-  (if (eq adoc-tempo-frwk 'tempo-snippets)
-      (apply 'tempo-define-snippet args) ;; optional package, not always available
-    (apply #'tempo-define-template args)))
+(defun adoc-tempo-define (name elements &optional tag doc)
+  "Define the tempo template NAME from ELEMENTS and TAG.
+See `tempo-define-template'.  DOC is the template's docstring, or a
+variable holding it.  The variable is only read when the docstring
+is asked for: the help text is defined in adoc-mode.el, which can
+load (or be byte-compiled) after this file."
+  (let ((args (list name elements tag (and (stringp doc) doc))))
+    (if (eq adoc-tempo-frwk 'tempo-snippets)
+        (apply 'tempo-define-snippet args) ;; optional package, not always available
+      (apply #'tempo-define-template args)))
+  (when (and doc (symbolp doc))
+    (put (intern (concat "tempo-template-" name)) 'function-documentation
+         `(bound-and-true-p ,doc))))
 
 (defun adoc-template-str-title (&optional level title-text)
   "Returns the string tempo-template-adoc-title-x would insert"
@@ -113,34 +87,34 @@ which can be truthy even without an active region."
                               (buffer-substring-no-properties (point-min) (point-max)))))
 
 ;; Text formatting - constrained quotes
-(adoc-tempo-define "adoc-emphasis" '("_" (r "text" text) "_") nil (bound-and-true-p adoc-help-emphasis))
-(adoc-tempo-define "adoc-bold" '("*" (r "text" text) "*") nil (bound-and-true-p adoc-help-bold))
-(adoc-tempo-define "adoc-typewriter-face" '("+" (r "text" text) "+") nil (bound-and-true-p adoc-help-monospace))
+(adoc-tempo-define "adoc-emphasis" '("_" (r "text" text) "_") nil 'adoc-help-emphasis)
+(adoc-tempo-define "adoc-bold" '("*" (r "text" text) "*") nil 'adoc-help-bold)
+(adoc-tempo-define "adoc-typewriter-face" '("+" (r "text" text) "+") nil 'adoc-help-monospace)
 (adoc-tempo-define "adoc-monospace-literal" '("`" (r "text" text) "`"))
 ;; Modern curved (smart) quotes: "`text`" and '`text`'.  These replace the
 ;; deprecated AsciiDoc.py `text' / ``text'' templates.
-(adoc-tempo-define "adoc-double-curved-quote" '("\"`" (r "text" text) "`\"") nil (bound-and-true-p adoc-help-double-quote))
-(adoc-tempo-define "adoc-single-curved-quote" '("'`" (r "text" text) "`'") nil (bound-and-true-p adoc-help-single-quote))
-(adoc-tempo-define "adoc-attributed" '("[" p "]#" (r "text" text) "#") nil (bound-and-true-p adoc-help-attributed))
-(adoc-tempo-define "adoc-underline" '("[.underline]#" (r "text" text) "#") nil (bound-and-true-p adoc-help-underline))
-(adoc-tempo-define "adoc-overline" '("[.overline]#" (r "text" text) "#") nil (bound-and-true-p adoc-help-overline))
-(adoc-tempo-define "adoc-line-through" '("[.line-through]#" (r "text" text) "#") nil (bound-and-true-p adoc-help-line-through))
-(adoc-tempo-define "adoc-nobreak" '("[.nobreak]#" (r "text" text) "#") nil (bound-and-true-p adoc-help-nobreak))
-(adoc-tempo-define "adoc-nowrap" '("[.nowrap]#" (r "text" text) "#") nil (bound-and-true-p adoc-help-nowrap))
-(adoc-tempo-define "adoc-pre-wrap" '("[.pre-wrap]#" (r "text" text) "#") nil (bound-and-true-p adoc-help-pre-wrap))
+(adoc-tempo-define "adoc-double-curved-quote" '("\"`" (r "text" text) "`\"") nil 'adoc-help-double-quote)
+(adoc-tempo-define "adoc-single-curved-quote" '("'`" (r "text" text) "`'") nil 'adoc-help-single-quote)
+(adoc-tempo-define "adoc-attributed" '("[" p "]#" (r "text" text) "#") nil 'adoc-help-attributed)
+(adoc-tempo-define "adoc-underline" '("[.underline]#" (r "text" text) "#") nil 'adoc-help-underline)
+(adoc-tempo-define "adoc-overline" '("[.overline]#" (r "text" text) "#") nil 'adoc-help-overline)
+(adoc-tempo-define "adoc-line-through" '("[.line-through]#" (r "text" text) "#") nil 'adoc-help-line-through)
+(adoc-tempo-define "adoc-nobreak" '("[.nobreak]#" (r "text" text) "#") nil 'adoc-help-nobreak)
+(adoc-tempo-define "adoc-nowrap" '("[.nowrap]#" (r "text" text) "#") nil 'adoc-help-nowrap)
+(adoc-tempo-define "adoc-pre-wrap" '("[.pre-wrap]#" (r "text" text) "#") nil 'adoc-help-pre-wrap)
 
 ;; Text formatting - unconstrained quotes
-(adoc-tempo-define "adoc-emphasis-uc" '("__" (r "text" text) "__") nil (bound-and-true-p adoc-help-emphasis))
-(adoc-tempo-define "adoc-bold-uc" '("**" (r "text" text) "**") nil (bound-and-true-p adoc-help-bold))
-(adoc-tempo-define "adoc-monospace-uc" '("++" (r "text" text) "++") nil (bound-and-true-p adoc-help-monospace))
-(adoc-tempo-define "adoc-attributed-uc" '("[" p "]##" (r "text" text) "##") nil (bound-and-true-p adoc-help-attributed))
+(adoc-tempo-define "adoc-emphasis-uc" '("__" (r "text" text) "__") nil 'adoc-help-emphasis)
+(adoc-tempo-define "adoc-bold-uc" '("**" (r "text" text) "**") nil 'adoc-help-bold)
+(adoc-tempo-define "adoc-monospace-uc" '("++" (r "text" text) "++") nil 'adoc-help-monospace)
+(adoc-tempo-define "adoc-attributed-uc" '("[" p "]##" (r "text" text) "##") nil 'adoc-help-attributed)
 (adoc-tempo-define "adoc-superscript" '("^" (r "text" text) "^"))
 (adoc-tempo-define "adoc-subscript" '("~" (r "text" text) "~"))
 
 ;; Text formatting - misc
-(adoc-tempo-define "adoc-line-break" '((if (eq (char-before) ?\s) "" " ") "+" %) nil (bound-and-true-p adoc-help-line-break))
-(adoc-tempo-define "adoc-page-break" '(bol "<<<" %) nil (bound-and-true-p adoc-help-page-break))
-(adoc-tempo-define "adoc-ruler-line" '(bol "---" %) nil (bound-and-true-p adoc-help-ruler-line))
+(adoc-tempo-define "adoc-line-break" '((if (eq (char-before) ?\s) "" " ") "+" %) nil 'adoc-help-line-break)
+(adoc-tempo-define "adoc-page-break" '(bol "<<<" %) nil 'adoc-help-page-break)
+(adoc-tempo-define "adoc-ruler-line" '(bol "---" %) nil 'adoc-help-ruler-line)
 
 ;; Text formatting - replacements
 (adoc-tempo-define "adoc-copyright" '("(C)"))
@@ -152,7 +126,7 @@ which can be truthy even without an active region."
 (adoc-tempo-define "adoc-left-arrow" '("<-"))
 (adoc-tempo-define "adoc-right-double-arrow" '("=>"))
 (adoc-tempo-define "adoc-left-double-arrow" '("<="))
-(adoc-tempo-define "adoc-entity-reference" '("&" r ";") nil (bound-and-true-p adoc-help-entity-reference))
+(adoc-tempo-define "adoc-entity-reference" '("&" r ";") nil 'adoc-help-entity-reference)
 
 ;; Titles
 ;; todo
@@ -188,7 +162,7 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 (adoc-tempo-define "adoc-block-title" '(bol "." (r "text" text) %))
 
 ;; Paragraphs
-(adoc-tempo-define "adoc-literal-paragraph" '(bol "  " (r "text" text) %) nil (bound-and-true-p adoc-help-literal-paragraph))
+(adoc-tempo-define "adoc-literal-paragraph" '(bol "  " (r "text" text) %) nil 'adoc-help-literal-paragraph)
 (adoc-tempo-define "adoc-paragraph-tip" '(bol "TIP: " (r "text" text) %))
 (adoc-tempo-define "adoc-paragraph-note" '(bol "NOTE: " (r "text" text) %))
 (adoc-tempo-define "adoc-paragraph-important" '(bol "IMPORTANT: " (r "text" text) %))
@@ -198,28 +172,28 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 ;; delimited blocks
 (adoc-tempo-define "adoc-delimited-block-comment"
                    '(bol (make-string 50 ?/) n (r-or-n "text" text) bol (make-string 50 ?/) %)
-                   nil (bound-and-true-p adoc-help-delimited-block-comment))
+                   nil 'adoc-help-delimited-block-comment)
 (adoc-tempo-define "adoc-delimited-block-passthrough"
                    '(bol (make-string 50 ?+) n (r-or-n "text" text) bol (make-string 50 ?+) %)
-                   nil (bound-and-true-p adoc-help-delimited-block-passthrouh))
+                   nil 'adoc-help-delimited-block-passthrouh)
 (adoc-tempo-define "adoc-delimited-block-listing"
                    '(bol (make-string 50 ?-) n (r-or-n "text" text) bol (make-string 50 ?-) %)
-                   nil (bound-and-true-p adoc-help-delimited-block-listing))
+                   nil 'adoc-help-delimited-block-listing)
 (adoc-tempo-define "adoc-delimited-block-literal"
                    '(bol (make-string 50 ?.) n (r-or-n "text" text) bol (make-string 50 ?.) %)
-                   nil (bound-and-true-p adoc-help-delimited-block-literal))
+                   nil 'adoc-help-delimited-block-literal)
 (adoc-tempo-define "adoc-delimited-block-quote"
                    '(bol (make-string 50 ?_) n (r-or-n "text" text) bol (make-string 50 ?_) %)
-                   nil (bound-and-true-p adoc-help-delimited-block-quote))
+                   nil 'adoc-help-delimited-block-quote)
 (adoc-tempo-define "adoc-delimited-block-example"
                    '(bol (make-string 50 ?=) n (r-or-n "text" text) bol (make-string 50 ?=) %)
-                   nil (bound-and-true-p adoc-help-delimited-block-example))
+                   nil 'adoc-help-delimited-block-example)
 (adoc-tempo-define "adoc-delimited-block-sidebar"
                    '(bol (make-string 50 ?*) n (r-or-n "text" text) bol (make-string 50 ?*) %)
-                   nil (bound-and-true-p adoc-help-delimited-block-sidebar))
+                   nil 'adoc-help-delimited-block-sidebar)
 (adoc-tempo-define "adoc-delimited-block-open-block"
                    '(bol "--" n (r-or-n "text" text) bol "--" %)
-                   nil (bound-and-true-p adoc-help-delimited-block-open-block))
+                   nil 'adoc-help-delimited-block-open-block)
 
 ;; Lists
 ;; TODO: customize indentation
@@ -236,7 +210,7 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 (adoc-tempo-define "adoc-implicit-numbered-list-item-4" '(bol (adoc-insert-indented ".... " 4) (r "text" text)))
 (adoc-tempo-define "adoc-implicit-numbered-list-item-5" '(bol (adoc-insert-indented "..... " 5) (r "text" text)))
 (adoc-tempo-define "adoc-labeled-list-item" '(bol (p "label" label) ":: " (r "text" text)))
-(adoc-tempo-define "adoc-list-item-continuation" '(bol "+" %) nil (bound-and-true-p adoc-help-list-item-continuation))
+(adoc-tempo-define "adoc-list-item-continuation" '(bol "+" %) nil 'adoc-help-list-item-continuation)
 
 ;; tables
 (adoc-tempo-define "adoc-example-table"
@@ -246,23 +220,23 @@ Is influenced by customization variables such as `adoc-title-style'."))))
                          "|===\n" % ))
 
 ;; Macros (inline & block)
-(adoc-tempo-define "adoc-url" '("http://foo.com") nil (bound-and-true-p adoc-help-url))
-(adoc-tempo-define "adoc-url-caption" '("http://foo.com[" (r "caption" caption) "]") nil (bound-and-true-p adoc-help-url))
-(adoc-tempo-define "adoc-email" '("bob@foo.com") nil (bound-and-true-p adoc-help-url))
-(adoc-tempo-define "adoc-email-caption" '("mailto:" (p "address" address) "[" (r "caption" caption) "]") nil (bound-and-true-p adoc-help-url))
-(adoc-tempo-define "adoc-anchor" '("[[" (r "id" id) "]]") nil (bound-and-true-p adoc-help-anchor))
-(adoc-tempo-define "adoc-anchor-default-syntax" '("anchor:" (r "id" id) "[" (p "xreflabel" xreflabel) "]") nil (bound-and-true-p adoc-help-anchor))
-(adoc-tempo-define "adoc-xref" '("<<" (p "id" id) "," (r "caption" caption) ">>") nil (bound-and-true-p adoc-help-xref))
-(adoc-tempo-define "adoc-xref-default-syntax" '("xref:" (p "id" id) "[" (r "caption" caption) "]") nil (bound-and-true-p adoc-help-xref))
+(adoc-tempo-define "adoc-url" '("http://foo.com") nil 'adoc-help-url)
+(adoc-tempo-define "adoc-url-caption" '("http://foo.com[" (r "caption" caption) "]") nil 'adoc-help-url)
+(adoc-tempo-define "adoc-email" '("bob@foo.com") nil 'adoc-help-url)
+(adoc-tempo-define "adoc-email-caption" '("mailto:" (p "address" address) "[" (r "caption" caption) "]") nil 'adoc-help-url)
+(adoc-tempo-define "adoc-anchor" '("[[" (r "id" id) "]]") nil 'adoc-help-anchor)
+(adoc-tempo-define "adoc-anchor-default-syntax" '("anchor:" (r "id" id) "[" (p "xreflabel" xreflabel) "]") nil 'adoc-help-anchor)
+(adoc-tempo-define "adoc-xref" '("<<" (p "id" id) "," (r "caption" caption) ">>") nil 'adoc-help-xref)
+(adoc-tempo-define "adoc-xref-default-syntax" '("xref:" (p "id" id) "[" (r "caption" caption) "]") nil 'adoc-help-xref)
 (adoc-tempo-define "adoc-image" '("image:" (r "target-path" target-path) "[" (p "caption" caption) "]"))
-(adoc-tempo-define "adoc-comment" '(bol "// " %) nil (bound-and-true-p adoc-help-comment))
+(adoc-tempo-define "adoc-comment" '(bol "// " %) nil 'adoc-help-comment)
 
 ;; Passthrough
-(adoc-tempo-define "adoc-pass" '("pass:[" (r "text" text) "]") nil (bound-and-true-p adoc-help-pass))
-(adoc-tempo-define "adoc-asciimath" '("asciimath:[" (r "text" text) "]") nil (bound-and-true-p adoc-help-asciimath))
-(adoc-tempo-define "adoc-latexmath" '("latexmath:[" (r "text" text) "]") nil (bound-and-true-p adoc-help-latexmath))
-(adoc-tempo-define "adoc-pass-+++" '("+++" (r "text" text) "+++") nil (bound-and-true-p adoc-help-pass-+++))
-(adoc-tempo-define "adoc-pass-$$" '("$$" (r "text" text) "$$") nil (bound-and-true-p adoc-help-pass-$$))
+(adoc-tempo-define "adoc-pass" '("pass:[" (r "text" text) "]") nil 'adoc-help-pass)
+(adoc-tempo-define "adoc-asciimath" '("asciimath:[" (r "text" text) "]") nil 'adoc-help-asciimath)
+(adoc-tempo-define "adoc-latexmath" '("latexmath:[" (r "text" text) "]") nil 'adoc-help-latexmath)
+(adoc-tempo-define "adoc-pass-+++" '("+++" (r "text" text) "+++") nil 'adoc-help-pass-+++)
+(adoc-tempo-define "adoc-pass-$$" '("$$" (r "text" text) "$$") nil 'adoc-help-pass-$$)
                                         ; backticks handled in tempo-template-adoc-monospace-literal
 
 ;;;; tempo handlers

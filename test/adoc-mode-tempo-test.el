@@ -143,7 +143,11 @@
         (adoc-mode)
         (insert (nth 0 case))
         (adoc-insert-comment (nth 1 case) (nth 2 case))
-        (expect (buffer-string) :to-equal (nth 3 case))))))
+        (expect (buffer-string) :to-equal (nth 3 case)))))
+
+  (it "documents the templates with the AsciiDoc help text"
+    (expect (documentation 'tempo-template-adoc-emphasis)
+            :to-match (regexp-quote adoc-help-emphasis))))
 
 (defun adoc-test--menu-items (keymap)
   "Return the (BINDING . HELP) of every item in the menu KEYMAP.

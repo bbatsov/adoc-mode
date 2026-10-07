@@ -54,6 +54,7 @@
 - [#93](https://github.com/bbatsov/adoc-mode/pull/93): The `auto` preview backend only picks the xwidget pane when Emacs has xwidget support, and falls back to `eww` otherwise. It used to pick it on any graphical Emacs and then fail.
 - [#93](https://github.com/bbatsov/adoc-mode/pull/93): In an Antora component, Flymake no longer reports `include::partial$x.adoc[]` and other Antora resource includes as missing files. Asciidoctor can't resolve those on its own.
 - [#94](https://github.com/bbatsov/adoc-mode/pull/94): Fix the AsciiDoc menu entries that pointed at commands that don't exist (the xref, image and comment ones). The comment entry is backed by the new `adoc-insert-comment`, which comments out every line of the region at column 0, and the "Passthrough macros" submenu shows its help text.
+- [#94](https://github.com/bbatsov/adoc-mode/pull/94): The tempo templates are documented with the AsciiDoc help text again (see `C-h f tempo-template-adoc-emphasis`), instead of a bare "Insert a adoc-emphasis."
 
 ## 0.9.0 (2026-06-02)
 
