@@ -3120,12 +3120,12 @@ When ARG is nil (i.e. when no prefix arg is given), it defaults
 to 1. When ARG is negative, level is demoted that many levels. If
 ARG is 0, see `adoc-adjust-title-del'."
   (interactive "p")
-  (adoc-modify-title arg))
+  (adoc-modify-title (or arg 1)))
 
 (defun adoc-demote-title (&optional arg)
   "Completely analogous to `adoc-promote-title'."
   (interactive "p")
-  (adoc-promote-title (- arg)))
+  (adoc-promote-title (- (or arg 1))))
 
 (defun adoc-adjust-title-del ()
   "Adjusts underline length to match the length of the title's text.
@@ -3608,7 +3608,7 @@ BUG: In one line title case: number of spaces between delimiters
 and title's text are not preserved, afterwards its always one space."
   (let ((descriptor (adoc-title-descriptor)))
     (if (or create (not descriptor))
-        (error "Point is not on a title"))
+        (user-error "Point is not on a title"))
 
     (let* ((type (nth 0 descriptor))
            (new-type-val (cond

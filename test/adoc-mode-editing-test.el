@@ -47,6 +47,12 @@
     (adoc-test-trans "= foo =" "====== foo ======" '(adoc-demote-title 1))
     (adoc-test-trans "foo!\n===!" "foo\n+++" '(adoc-demote-title 1)))
 
+  (it "defaults to one level when called from Lisp without an argument"
+    (adoc-test-trans "== f!oo\n" "=== foo\n" '(adoc-promote-title))
+    (adoc-test-trans "== f!oo\n" "= foo\n" '(adoc-demote-title))
+    (adoc-test-trans "== f!oo\n" "=== foo\n" '(adoc-promote))
+    (adoc-test-trans "== f!oo\n" "= foo\n" '(adoc-demote)))
+
   (it "toggles the title type"
     (adoc-test-trans "= one" "one\n===" '(adoc-toggle-title-type))
     (adoc-test-trans "two!\n===!" "= two" '(adoc-toggle-title-type))
@@ -54,6 +60,10 @@
     (adoc-test-trans "four!\n====!\nbar" "= four\nbar" '(adoc-toggle-title-type))
     (adoc-test-trans "= five" "= five =" '(adoc-toggle-title-type t))
     (adoc-test-trans "= six =" "= six" '(adoc-toggle-title-type t)))
+
+  (it "signals a user-error when point is not on a title"
+    (adoc-test-trans "just some pr!ose\n" "just some prose\n"
+                     '(expect (adoc-promote-title 1) :to-throw 'user-error)))
 
   (it "adjusts the two-line title underline length"
     (adoc-test-trans "lorem!\n===!" "lorem\n=====" '(adoc-adjust-title-del))

@@ -30,6 +30,7 @@
 - Heading navigation (`C-c C-n` and friends) and the imenu index no longer get confused by code and other delimited blocks. A `==`-style line inside a listing, source, literal, example, sidebar, quote, or open block, or a code line followed by `----` (which looks just like a two-line title underline), is no longer mistaken for a section title. Navigation and imenu now stay in step with what is actually highlighted as a title.
 - Heading navigation and imenu now honour `adoc-enable-two-line-title`. It is nil by default, so two-line (setext) titles are no longer picked up unless you opt in, matching their fontification. Previously they were always recognised, which was the main source of the code-block confusion above.
 - [#89](https://github.com/bbatsov/adoc-mode/pull/89): Promoting, demoting or toggling a one-line title (`M-left` / `M-right`, `C-c C-t`) no longer turns it into the enclosed form when it's followed by a newline. `== Section` used to become `=== Section ===`.
+- [#89](https://github.com/bbatsov/adoc-mode/pull/89): `adoc-promote-title` and `adoc-demote-title` default to one level when called from Lisp without an argument (`adoc-demote-title` used to signal an error), and the title commands signal a `user-error` instead of an `error` when point isn't on a title.
 
 ## 0.9.0 (2026-06-02)
 
