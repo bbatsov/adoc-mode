@@ -26,6 +26,11 @@ jobs:
     - name: Install Eldev
       run: curl -fsSL https://raw.github.com/doublep/eldev/master/webinstall/github-eldev | sh
 
+    # The Flymake and section-id specs check against the real Asciidoctor,
+    # and are skipped without it.
+    - name: Install Asciidoctor
+      run: sudo apt-get update -q && sudo apt-get install -y -q asciidoctor
+
     - name: Check out the source code
       uses: actions/checkout@v5
 
