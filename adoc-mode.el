@@ -1831,6 +1831,13 @@ TEXT-FACE is a face name symbol."
 
 ;; TODO: highlight bogous 'two line titles' with warning face
 ;; TODO: completely remove keyword when adoc-enable-two-line-title is nil
+(defun adoc--two-line-title-underline-p (length)
+  "Return non-nil when a line LENGTH chars long may underline a two-line title.
+That takes two-line titles to be enabled, and LENGTH to differ from
+a numeric `adoc-enable-two-line-title'."
+  (and adoc-enable-two-line-title
+       (not (eql adoc-enable-two-line-title length))))
+
 (defun adoc-kw-two-line-title (del text-face)
   "Creates a keyword for font-lock which highlights two line titles.
 TEXT-FACE is a face name symbol."
@@ -1841,8 +1848,7 @@ TEXT-FACE is a face name symbol."
         (and adoc-enable-two-line-title
              (adoc-kwf-search ,(adoc-re-two-line-title del) end t)
              (< (abs (- (- (match-end 2) (match-beginning 2)) (- (match-end 3) (match-beginning 3)))) 3)
-             (or (not (numberp adoc-enable-two-line-title))
-                 (not (equal adoc-enable-two-line-title (- (match-end 2) (match-beginning 2)))))
+             (adoc--two-line-title-underline-p (- (match-end 3) (match-beginning 3)))
              (not (text-property-not-all (match-beginning 0) (match-end 0) 'adoc-reserved nil))))
      ;; highlighers
      `(2 ,face-form t)
@@ -3521,6 +3527,9 @@ Returns nil if there was no xref found."
 When STRICT-MATCH is t, and 2 line title is used, the lengths of the underline
 text and title must not differ by more than 2 characters.
 
+Two line titles are only recognised when `adoc-enable-two-line-title'
+is non-nil.
+
 Title descriptor looks like this: (TYPE SUB-TYPE LEVEL TEXT START END)
 
 0 TYPE: 1 fore one line title, 2 for two line title.
@@ -3553,7 +3562,11 @@ trailing delimiter ('== my title ==').
          ;; the wrong underline length.
          ;; Two-line titles only cover the first N levels (one per entry in
          ;; adoc-two-line-title-del); skip the check for higher levels.
-         ((and (< level (length adoc-two-line-title-del))
+         ;; They're also only recognised when enabled, like fontification,
+         ;; navigation and imenu do - otherwise a line of text above a
+         ;; block delimiter (`----', `====') would pass for one.
+         ((and adoc-enable-two-line-title
+               (< level (length adoc-two-line-title-del))
                (or (looking-at (adoc-re-two-line-title (nth level adoc-two-line-title-del)))
                    (save-excursion
                      (forward-line -1)
@@ -3564,7 +3577,8 @@ trailing delimiter ('== my title ==').
                    (<= (abs (- (length (match-string 3))
                                (length (match-string 2))))
                        2))
-               (not (string-prefix-p "[" (match-string 2))))
+               (not (string-prefix-p "[" (match-string 2)))
+               (adoc--two-line-title-underline-p (- (match-end 3) (match-beginning 3))))
           (setq type 2)
           (setq text (match-string 2))
           (setq found t))
@@ -3651,6 +3665,12 @@ and title's text are not preserved, afterwards its always one space."
            (start (nth 4 descriptor))
            (end (nth 5 descriptor))
            (saved-col (current-column)))
+
+      (when (eq new-type-val 2)
+        (unless adoc-enable-two-line-title
+          (user-error "Two-line titles are disabled, see `adoc-enable-two-line-title'"))
+        (when (>= new-level level-count)
+          (user-error "Two-line titles only support levels 0-%d" (1- level-count))))
 
       ;; set new title descriptor
       (setcar (nthcdr 0 descriptor) new-type-val)

@@ -24,9 +24,10 @@
     (adoc-test-trans "====== foo ======" "= foo =" '(adoc-promote-title 1))
     (adoc-test-trans "== foo ==" "==== foo ====" '(adoc-promote-title 2))
     ;; two-line titles span five levels (0-4), so promoting level 4 wraps to 0
-    (adoc-test-trans "foo!\n===!" "foo\n---" '(adoc-promote-title 1))
-    (adoc-test-trans "foo!\n+++!" "foo\n===" '(adoc-promote-title 1))
-    (adoc-test-trans "foo!\n---!" "foo\n^^^" '(adoc-promote-title 2)))
+    (let ((adoc-enable-two-line-title t))
+      (adoc-test-trans "foo!\n===!" "foo\n---" '(adoc-promote-title 1))
+      (adoc-test-trans "foo!\n+++!" "foo\n===" '(adoc-promote-title 1))
+      (adoc-test-trans "foo!\n---!" "foo\n^^^" '(adoc-promote-title 2))))
 
   (it "keeps a title's delimiter style when it is followed by text"
     (adoc-test-trans "== Sec!tion\n\nbody\n" "=== Section\n\nbody\n"
@@ -45,7 +46,8 @@
   (it "demotes titles"
     (adoc-test-trans "= foo" "====== foo" '(adoc-demote-title 1))
     (adoc-test-trans "= foo =" "====== foo ======" '(adoc-demote-title 1))
-    (adoc-test-trans "foo!\n===!" "foo\n+++" '(adoc-demote-title 1)))
+    (let ((adoc-enable-two-line-title t))
+      (adoc-test-trans "foo!\n===!" "foo\n+++" '(adoc-demote-title 1))))
 
   (it "defaults to one level when called from Lisp without an argument"
     (adoc-test-trans "== f!oo\n" "=== foo\n" '(adoc-promote-title))
@@ -54,21 +56,43 @@
     (adoc-test-trans "== f!oo\n" "= foo\n" '(adoc-demote)))
 
   (it "toggles the title type"
-    (adoc-test-trans "= one" "one\n===" '(adoc-toggle-title-type))
-    (adoc-test-trans "two!\n===!" "= two" '(adoc-toggle-title-type))
-    (adoc-test-trans "= three!\nbar" "three\n=====\nbar" '(adoc-toggle-title-type))
-    (adoc-test-trans "four!\n====!\nbar" "= four\nbar" '(adoc-toggle-title-type))
+    (let ((adoc-enable-two-line-title t))
+      (adoc-test-trans "= one" "one\n===" '(adoc-toggle-title-type))
+      (adoc-test-trans "two!\n===!" "= two" '(adoc-toggle-title-type))
+      (adoc-test-trans "= three!\nbar" "three\n=====\nbar" '(adoc-toggle-title-type))
+      (adoc-test-trans "four!\n====!\nbar" "= four\nbar" '(adoc-toggle-title-type)))
     (adoc-test-trans "= five" "= five =" '(adoc-toggle-title-type t))
     (adoc-test-trans "= six =" "= six" '(adoc-toggle-title-type t)))
+
+  (it "refuses to make a two-line title when they are disabled or too deep"
+    (adoc-test-trans "== f!oo\n" "== foo\n"
+                     '(expect (adoc-toggle-title-type) :to-throw 'user-error))
+    (let ((adoc-enable-two-line-title t))
+      (adoc-test-trans "====== f!oo\n" "====== foo\n"
+                       '(expect (adoc-toggle-title-type) :to-throw 'user-error))))
+
+  (it "leaves block delimiters alone when two-line titles are disabled"
+    (dolist (command '(adoc-promote adoc-toggle-title-type))
+      (adoc-test-trans ".Ex!ample\n-!---\ncode\n----\n" ".Example\n----\ncode\n----\n"
+                       `(expect (,command) :to-throw 'user-error))
+      (adoc-test-trans "Some t!ext\n====\nexample\n====\n" "Some text\n====\nexample\n====\n"
+                       `(expect (,command) :to-throw 'user-error))))
+
+  (it "honours a numeric `adoc-enable-two-line-title' when editing"
+    (let ((adoc-enable-two-line-title 4))
+      (adoc-test-trans ".Ex!ample\n----\ncode\n----\n" ".Example\n----\ncode\n----\n"
+                       '(expect (adoc-promote) :to-throw 'user-error))
+      (adoc-test-trans "foo!\n---" "== foo" '(adoc-toggle-title-type))))
 
   (it "signals a user-error when point is not on a title"
     (adoc-test-trans "just some pr!ose\n" "just some prose\n"
                      '(expect (adoc-promote-title 1) :to-throw 'user-error)))
 
   (it "adjusts the two-line title underline length"
-    (adoc-test-trans "lorem!\n===!" "lorem\n=====" '(adoc-adjust-title-del))
-    (adoc-test-trans "lorem!\n========!" "lorem\n=====" '(adoc-adjust-title-del))
-    (adoc-test-trans "lorem!\n=====!" "lorem\n=====" '(adoc-adjust-title-del)))
+    (let ((adoc-enable-two-line-title t))
+      (adoc-test-trans "lorem!\n===!" "lorem\n=====" '(adoc-adjust-title-del))
+      (adoc-test-trans "lorem!\n========!" "lorem\n=====" '(adoc-adjust-title-del))
+      (adoc-test-trans "lorem!\n=====!" "lorem\n=====" '(adoc-adjust-title-del))))
 
   (it "builds a two-line title underline"
     (expect (adoc-make-two-line-title-underline 0 6) :to-equal "======")

@@ -41,6 +41,11 @@
          "Document Title\n=============="
          '(("Document Title" adoc-title-0-face)))))
 
+    (it "skips two-line titles whose underline has the excluded length"
+      (let ((adoc-enable-two-line-title 5))
+        (adoc-test--check-face-specs "Titles\n-----\n" '(("Titles" nil)))
+        (adoc-test--check-face-specs "Title\n------\n" '(("Title" adoc-title-1-face)))))
+
     (when-fontifying-it "fontifies a block title"
       (".Block Title\nsome text"
        ("Block Title" adoc-gen-face))))

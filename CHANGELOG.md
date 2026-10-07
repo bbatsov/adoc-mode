@@ -31,6 +31,10 @@
 - Heading navigation and imenu now honour `adoc-enable-two-line-title`. It is nil by default, so two-line (setext) titles are no longer picked up unless you opt in, matching their fontification. Previously they were always recognised, which was the main source of the code-block confusion above.
 - [#89](https://github.com/bbatsov/adoc-mode/pull/89): Promoting, demoting or toggling a one-line title (`M-left` / `M-right`, `C-c C-t`) no longer turns it into the enclosed form when it's followed by a newline. `== Section` used to become `=== Section ===`.
 - [#89](https://github.com/bbatsov/adoc-mode/pull/89): `adoc-promote-title` and `adoc-demote-title` default to one level when called from Lisp without an argument (`adoc-demote-title` used to signal an error), and the title commands signal a `user-error` instead of an `error` when point isn't on a title.
+- [#89](https://github.com/bbatsov/adoc-mode/pull/89): Title editing commands now honour `adoc-enable-two-line-title`, like highlighting, navigation and imenu already did.
+  - With two-line titles disabled (the default), `M-left` / `M-right` and `C-c C-t` no longer mistake a line above a `----` or `====` delimiter for a title and overwrite the delimiter.
+  - `C-c C-t` won't convert to a two-line title while they're disabled, or past level 4 (where it used to crash).
+  - A numeric value now skips underlines of that length, as documented. It used to compare the length of the title text instead.
 
 ## 0.9.0 (2026-06-02)
 
