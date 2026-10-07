@@ -29,6 +29,7 @@
 - Following a cross-reference at point (`C-c C-o` / `M-.`, and the new `xref` commands) now works for a plain `<<id>>` even when a captioned `<<id,caption>>` appears later on the same or an adjacent line, and ignores the whitespace in forms like `<<id >>`. Previously `adoc-xref-id-at-point` could return nil or an id with a trailing space in those cases.
 - Heading navigation (`C-c C-n` and friends) and the imenu index no longer get confused by code and other delimited blocks. A `==`-style line inside a listing, source, literal, example, sidebar, quote, or open block, or a code line followed by `----` (which looks just like a two-line title underline), is no longer mistaken for a section title. Navigation and imenu now stay in step with what is actually highlighted as a title.
 - Heading navigation and imenu now honour `adoc-enable-two-line-title`. It is nil by default, so two-line (setext) titles are no longer picked up unless you opt in, matching their fontification. Previously they were always recognised, which was the main source of the code-block confusion above.
+- [#89](https://github.com/bbatsov/adoc-mode/pull/89): Promoting, demoting or toggling a one-line title (`M-left` / `M-right`, `C-c C-t`) no longer turns it into the enclosed form when it's followed by a newline. `== Section` used to become `=== Section ===`.
 
 ## 0.9.0 (2026-06-02)
 

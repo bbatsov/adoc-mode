@@ -28,6 +28,20 @@
     (adoc-test-trans "foo!\n+++!" "foo\n===" '(adoc-promote-title 1))
     (adoc-test-trans "foo!\n---!" "foo\n^^^" '(adoc-promote-title 2)))
 
+  (it "keeps a title's delimiter style when it is followed by text"
+    (adoc-test-trans "== Sec!tion\n\nbody\n" "=== Section\n\nbody\n"
+                     '(adoc-promote-title 1))
+    (adoc-test-trans "=== Sec!tion\n\nbody\n" "== Section\n\nbody\n"
+                     '(adoc-demote-title 1))
+    (adoc-test-trans "== Sec!tion ==\n\nbody\n" "=== Section ===\n\nbody\n"
+                     '(adoc-promote-title 1))
+    (adoc-test-trans "== Sec!tion\n\nbody\n" "== Section\n\nbody\n"
+                     '(adoc-adjust-title-del))
+    (adoc-test-trans "== Sec!tion\n\nbody\n" "== Section ==\n\nbody\n"
+                     '(adoc-toggle-title-type t))
+    (adoc-test-trans "== Sec!tion ==\n\nbody\n" "== Section\n\nbody\n"
+                     '(adoc-toggle-title-type t)))
+
   (it "demotes titles"
     (adoc-test-trans "= foo" "====== foo" '(adoc-demote-title 1))
     (adoc-test-trans "= foo =" "====== foo ======" '(adoc-demote-title 1))
