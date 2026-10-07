@@ -41,6 +41,7 @@
 
 (declare-function xwidget-webkit-browse-url "xwidget" (url &optional new-session))
 (declare-function eww-open-file "eww" (file &optional new-buffer))
+(defvar xwidget-webkit-last-session-buffer)
 
 ;;; Customization
 
@@ -202,11 +203,17 @@ Requires the `asciidoctor-epub3' converter to be installed."
 
 ;;; Preview
 
+(defun adoc--xwidgets-available-p ()
+  "Return non-nil when this Emacs was built with xwidget support.
+`xwidget-webkit-browse-url' is autoloaded on every build, so it being
+defined says nothing about that."
+  (featurep 'xwidget-internal))
+
 (defun adoc--preview-resolve-backend ()
   "Resolve `adoc-preview-backend' to a concrete backend symbol."
   (if (eq adoc-preview-backend 'auto)
       (if (and (display-graphic-p)
-               (fboundp 'xwidget-webkit-browse-url))
+               (adoc--xwidgets-available-p))
           'xwidget
         'eww)
     adoc-preview-backend))
@@ -219,9 +226,10 @@ Focus stays in the source buffer so the viewer acts as a side pane."
     (pcase backend
       ('browser (browse-url url))
       ('xwidget
-       (save-selected-window
+       (save-window-excursion
          (xwidget-webkit-browse-url url))
-       (when-let* ((buf (get-buffer "*xwidget-webkit*")))
+       (when-let* ((buf xwidget-webkit-last-session-buffer)
+                   ((buffer-live-p buf)))
          (display-buffer-in-side-window
           buf '((side . right) (window-width . 0.5)))))
       ('eww

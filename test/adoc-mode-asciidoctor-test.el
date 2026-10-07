@@ -82,8 +82,15 @@
   (it "auto resolves to xwidget when graphical with xwidget support"
     (let ((adoc-preview-backend 'auto))
       (spy-on 'display-graphic-p :and-return-value t)
-      (cl-letf (((symbol-function 'xwidget-webkit-browse-url) #'ignore))
-        (expect (adoc--preview-resolve-backend) :to-be 'xwidget)))))
+      (spy-on 'adoc--xwidgets-available-p :and-return-value t)
+      (expect (adoc--preview-resolve-backend) :to-be 'xwidget)))
+
+  (it "auto resolves to eww when graphical without xwidget support"
+    ;; `xwidget-webkit-browse-url' is autoloaded even then
+    (let ((adoc-preview-backend 'auto))
+      (spy-on 'display-graphic-p :and-return-value t)
+      (spy-on 'adoc--xwidgets-available-p :and-return-value nil)
+      (expect (adoc--preview-resolve-backend) :to-be 'eww))))
 
 (describe "adoc-preview's temporary file"
   (it "is deleted with the buffer, without live preview"
