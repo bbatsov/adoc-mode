@@ -466,6 +466,17 @@
       (expect (length (xref-backend-definitions 'adoc "foo")) :to-equal 1)
       (expect (length (xref-backend-references 'adoc "foo")) :to-equal 1)
       (adoc-goto-ref-label "foo")
-      (expect (line-number-at-pos) :to-equal 4))))
+      (expect (line-number-at-pos) :to-equal 4)))
+
+  (it "handles a same-page xref:#id[]"
+    (with-temp-buffer
+      (insert "[[foo]]\nanchor\n\nsee xref:#foo[the foo] and <<foo>>\n")
+      (adoc-mode)
+      (goto-char (point-min))
+      (search-forward "xref:#f")
+      (expect (xref-backend-identifier-at-point 'adoc) :to-equal "foo")
+      (expect (length (xref-backend-references 'adoc "foo")) :to-equal 2)
+      (adoc-follow-thing-at-point)
+      (expect (line-number-at-pos) :to-equal 1))))
 
 ;;; adoc-mode-navigation-test.el ends here

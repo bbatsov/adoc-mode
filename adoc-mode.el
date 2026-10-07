@@ -3731,8 +3731,9 @@ Returns nil if there was no xref found."
                   (or (< saved-point (match-beginning 0))
                       (> saved-point (match-end 0)))))
       ;; `adoc-re-xref' captures trailing whitespace inside the id group
-      ;; (e.g. `<<foo >>'); the actual anchor id has none.
-      (and id (string-trim id)))))
+      ;; (e.g. `<<foo >>'); the actual anchor id has none.  And the `#' in
+      ;; a same-page `xref:#id[]' isn't part of the id.
+      (and id (string-remove-prefix "#" (string-trim id))))))
 
 (defun adoc-title-descriptor (&optional strict-match )
   "Returns title descriptor of title point is in.
@@ -4460,7 +4461,7 @@ inside `[source,'."
 Trailing whitespace is tolerated after the id (as in `<<foo >>'), the
 same way `adoc-re-xref' permits it."
   (let ((q (regexp-quote id)))
-    (concat "<<" q "[ \t\n]*\\(?:,\\|>>\\)\\|xref:" q "\\[")))
+    (concat "<<" q "[ \t\n]*\\(?:,\\|>>\\)\\|xref:#?" q "\\[")))
 
 (defun adoc--xref-collect (regexp)
   "Return a list of xref items, one per match of REGEXP in the buffer.

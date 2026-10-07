@@ -46,6 +46,7 @@
 - [#91](https://github.com/bbatsov/adoc-mode/pull/91): Superscripts and subscripts can't span whitespace anymore, as in Asciidoctor, so `~/.emacs.d/init.el to ~/backup` and `C-^ to join and M-^` stay plain text.
 - [#91](https://github.com/bbatsov/adoc-mode/pull/91): Superscripts are raised by their own `adoc-script-raise` value. They checked the subscript's, so setting that to 0 stopped superscripts from being raised.
 - [#92](https://github.com/bbatsov/adoc-mode/pull/92): Looking up an anchor or section id is case-sensitive, as ids are in Asciidoctor. Following `<<foo>>` used to land on `[[FOO]]`, and `M-?` in an Antora component counted `#Deep-Section` as a reference to `deep-section`.
+- [#92](https://github.com/bbatsov/adoc-mode/pull/92): A same-page `xref:#id[]` can be followed and is found by `M-?`, like `<<id>>`.
 
 ## 0.9.0 (2026-06-02)
 
