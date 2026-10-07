@@ -65,6 +65,7 @@
 (defvar adoc-help-latexmath)
 (defvar adoc-help-pass-+++)
 (defvar adoc-help-pass-$$)
+(defvar adoc-help-comment)
 
 (declare-function adoc-make-two-line-title-underline "adoc-mode")
 (declare-function adoc-insert-indented "adoc-mode")
@@ -254,6 +255,7 @@ Is influenced by customization variables such as `adoc-title-style'."))))
 (adoc-tempo-define "adoc-xref" '("<<" (p "id" id) "," (r "caption" caption) ">>") nil (bound-and-true-p adoc-help-xref))
 (adoc-tempo-define "adoc-xref-default-syntax" '("xref:" (p "id" id) "[" (r "caption" caption) "]") nil (bound-and-true-p adoc-help-xref))
 (adoc-tempo-define "adoc-image" '("image:" (r "target-path" target-path) "[" (p "caption" caption) "]"))
+(adoc-tempo-define "adoc-comment" '(bol "// " %) nil (bound-and-true-p adoc-help-comment))
 
 ;; Passthrough
 (adoc-tempo-define "adoc-pass" '("pass:[" (r "text" text) "]") nil (bound-and-true-p adoc-help-pass))

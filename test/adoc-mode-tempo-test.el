@@ -129,6 +129,48 @@
     (adoc-test-trans "" "++++++" '(tempo-template-adoc-pass-+++))
     (adoc-test-trans "lorem <ipsum> dolor" "lorem +++ipsum+++ dolor" '(tempo-template-adoc-pass-+++))
     (adoc-test-trans "" "$$$$" '(tempo-template-adoc-pass-$$))
-    (adoc-test-trans "lorem <ipsum> dolor" "lorem $$ipsum$$ dolor" '(tempo-template-adoc-pass-$$))))
+    (adoc-test-trans "lorem <ipsum> dolor" "lorem $$ipsum$$ dolor" '(tempo-template-adoc-pass-$$)))
+
+  (it "inserts a comment line"
+    (adoc-test-trans "" "// " '(adoc-insert-comment))
+    (adoc-test-trans "lorem!" "lorem\n// " '(adoc-insert-comment)))
+
+  (it "comments out every line of the region"
+    (dolist (case '(("a\nb\nc" 1 6 "// a\n// b\n// c")
+                    ;; partly selected lines are commented whole
+                    ("xx a\n  b\nc" 4 9 "// xx a\n//   b\nc")))
+      (with-temp-buffer
+        (adoc-mode)
+        (insert (nth 0 case))
+        (adoc-insert-comment (nth 1 case) (nth 2 case))
+        (expect (buffer-string) :to-equal (nth 3 case))))))
+
+(defun adoc-test--menu-items (keymap)
+  "Return the (BINDING . HELP) of every item in the menu KEYMAP.
+Submenus are included."
+  (let (items)
+    (map-keymap
+     (lambda (_event item)
+       (when (eq (car-safe item) 'menu-item)
+         (let ((binding (nth 2 item))
+               (help (plist-get (nthcdr 3 item) :help)))
+           (if (keymapp binding)
+               (setq items (append (adoc-test--menu-items binding) items))
+             (push (cons binding help) items)))))
+     keymap)
+    items))
+
+(describe "the AsciiDoc menu"
+  (let ((items (adoc-test--menu-items (lookup-key adoc-mode-map [menu-bar]))))
+    (it "only offers commands that exist"
+      (expect items :not :to-be nil)
+      (expect (cl-remove-if (lambda (item) (or (null (car item)) (commandp (car item))))
+                            items)
+              :to-be nil))
+
+    (it "has help text, not symbols, as help"
+      (expect (cl-remove-if (lambda (item) (or (null (cdr item)) (stringp (cdr item))))
+                            items)
+              :to-be nil))))
 
 ;;; adoc-mode-tempo-test.el ends here

@@ -3681,6 +3681,24 @@ new customization demands."
     (font-lock-ensure)))
 
 ;;;; misc
+(defun adoc-insert-comment (&optional beg end)
+  "Comment out the lines between BEG and END, or start a comment line.
+Interactively BEG and END delimit the active region.  An AsciiDoc
+comment line starts with `//' in the first column, so every line gets
+one there."
+  (interactive (when (use-region-p)
+                 (list (region-beginning) (region-end))))
+  (if (not beg)
+      (tempo-template-adoc-comment)
+    (save-excursion
+      (let ((end (copy-marker end)))
+        (goto-char beg)
+        (beginning-of-line)
+        (while (< (point) end)
+          (insert "// ")
+          (forward-line 1))
+        (set-marker end nil)))))
+
 (defun adoc-insert-indented (str indent-level)
   "Indents and inserts STR such that point is at INDENT-LEVEL."
   (indent-to (- (* tab-width indent-level) (length str)))
@@ -5286,15 +5304,15 @@ ITEMS is a list of (name pos . level)."
            :help ,adoc-help-anchor]
           ["Anchor (syntax 2): anchor:id[xreflabel]" tempo-template-adoc-anchor-default-syntax
            :help ,adoc-help-anchor]
-          ["Xref (syntax 1): <<id,caption>>" adoc-xref
+          ["Xref (syntax 1): <<id,caption>>" tempo-template-adoc-xref
            :help ,adoc-help-xref]
-          ["Xref (syntax 2): xref:id[caption]" adoc-xref-default-syntax
+          ["Xref (syntax 2): xref:id[caption]" tempo-template-adoc-xref-default-syntax
            :help ,adoc-help-xref]
-          ["Image: image:target-path[caption]" adoc-image]
-          ["Comment: //" tempo-template-adoc-comment
+          ["Image: image:target-path[caption]" tempo-template-adoc-image]
+          ["Comment: //" adoc-insert-comment
            :help ,adoc-help-comment]
           ("Passthrough macros"
-           :help adoc-help-passthrough-macros
+           :help ,adoc-help-passthrough-macros
            ["pass:[text]" tempo-template-adoc-pass
             :help ,adoc-help-pass]
            ["ASCIIMath: asciimath:[text]" tempo-template-adoc-asciimath
