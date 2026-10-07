@@ -18,15 +18,15 @@ a problem will expedite its solution.*
 ### Adoc-Mode version information
 
 *Include here the version string displayed by `M-x
-adoc-show-version`. Here's an example:*
+adoc-mode-version`. Here's an example:*
 
 ```
-Adoc-Mode version: 0.7
+adoc-mode, version 0.9.0
 ```
 
 ### Emacs version
 
-*E.g. 27.1* (use <kbd>C-h C-a</kbd> to see it)
+*E.g. 30.1* (use <kbd>C-h C-a</kbd> to see it)
 
 ### Operating system
 

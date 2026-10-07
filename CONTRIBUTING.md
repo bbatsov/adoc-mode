@@ -28,7 +28,7 @@ request. Please, try to follow these guidelines when you do so.
   and description in grammatically correct, complete sentences.
 
 [1]: https://github.com/bbatsov/adoc-mode/issues
-[2]: http://gun.io/blog/how-to-github-fork-branch-and-pull-request
+[2]: https://docs.github.com/en/get-started/exploring-projects-on-github/contributing-to-a-project
 [3]: http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html
 [4]: https://help.github.com/articles/using-pull-requests
 [5]: https://github.com/bbatsov/adoc-mode/blob/master/CHANGELOG.md
