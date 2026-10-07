@@ -118,9 +118,9 @@ load (or be byte-compiled) after this file."
 
 ;; Text formatting - replacements
 (adoc-tempo-define "adoc-copyright" '("(C)"))
-(adoc-tempo-define "adoc-trademark" '("(T)"))
+(adoc-tempo-define "adoc-trademark" '("(TM)"))
 (adoc-tempo-define "adoc-registered-trademark" '("(R)"))
-(adoc-tempo-define "adoc-dash" '("---"))
+(adoc-tempo-define "adoc-dash" '("--"))
 (adoc-tempo-define "adoc-ellipsis" '("..."))
 (adoc-tempo-define "adoc-right-arrow" '("->"))
 (adoc-tempo-define "adoc-left-arrow" '("<-"))

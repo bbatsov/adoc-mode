@@ -131,6 +131,10 @@
     (adoc-test-trans "" "$$$$" '(tempo-template-adoc-pass-$$))
     (adoc-test-trans "lorem <ipsum> dolor" "lorem $$ipsum$$ dolor" '(tempo-template-adoc-pass-$$)))
 
+  (it "inserts the replacements the menu advertises"
+    (adoc-test-trans "" "(TM)" '(tempo-template-adoc-trademark))
+    (adoc-test-trans "" "--" '(tempo-template-adoc-dash)))
+
   (it "inserts a comment line"
     (adoc-test-trans "" "// " '(adoc-insert-comment))
     (adoc-test-trans "lorem!" "lorem\n// " '(adoc-insert-comment)))
