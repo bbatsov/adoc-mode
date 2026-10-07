@@ -457,6 +457,15 @@
       (insert "[[foo]]\n[[foobar]]\n<<foo>> <<foobar>> xref:foobar[x]\n")
       (adoc-mode)
       (expect (length (xref-backend-definitions 'adoc "foo")) :to-equal 1)
-      (expect (length (xref-backend-references 'adoc "foo")) :to-equal 1))))
+      (expect (length (xref-backend-references 'adoc "foo")) :to-equal 1)))
+
+  (it "treats ids as case-sensitive"
+    (with-temp-buffer
+      (insert "[[FOO]]\nupper\n\n[[foo]]\nlower\n\n<<foo>> <<FOO>>\n")
+      (adoc-mode)
+      (expect (length (xref-backend-definitions 'adoc "foo")) :to-equal 1)
+      (expect (length (xref-backend-references 'adoc "foo")) :to-equal 1)
+      (adoc-goto-ref-label "foo")
+      (expect (line-number-at-pos) :to-equal 4))))
 
 ;;; adoc-mode-navigation-test.el ends here

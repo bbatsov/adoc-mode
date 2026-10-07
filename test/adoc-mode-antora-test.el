@@ -238,10 +238,11 @@ LINE is inserted at end of the page (under ROOT's ROOT module) first."
         (insert "= Intro\n\nxref:guide.adoc#deep-section[x].\n"))
       (with-temp-file (expand-file-name "o.adoc" extrapages)
         (insert "= O\n\nxref:ROOT:guide.adoc#deep-section[y].\n"))
-      ;; a different fragment and a same-id-but-different-page reference: neither
-      ;; should match
+      ;; a different fragment, a same-id-but-different-page reference and
+      ;; an id that only differs in case: none should match
       (with-temp-file (expand-file-name "noise.adoc" rootpages)
-        (insert "xref:guide.adoc#other[a] xref:elsewhere.adoc#deep-section[b]\n"))
+        (insert "xref:guide.adoc#other[a] xref:elsewhere.adoc#deep-section[b]\n"
+                "xref:guide.adoc#Deep-Section[c]\n"))
       (unwind-protect
           (with-current-buffer
               (find-file-noselect (expand-file-name "guide.adoc" rootpages))

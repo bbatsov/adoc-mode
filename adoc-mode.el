@@ -4035,10 +4035,12 @@ cross-reference, when its title does."
   "Move point to the anchor or section identified by ID in this buffer.
 Search explicit anchors first (`[[id]]', `[#id]', ...), then fall back
 to a section whose auto-id or title matches.  Return non-nil on success,
-leaving point on the target; return nil and do not move otherwise."
+leaving point on the target; return nil and do not move otherwise.
+Ids are case-sensitive, as in Asciidoctor."
   (let ((pos (or (save-excursion
                    (goto-char (point-min))
-                   (re-search-forward (adoc-re-anchor nil id) nil t))
+                   (let ((case-fold-search nil))
+                     (re-search-forward (adoc-re-anchor nil id) nil t)))
                  (adoc--section-position id))))
     (when pos
       (goto-char pos)
@@ -4183,7 +4185,9 @@ page's id (`xref:this/page.adoc#id[]')."
                   (mapconcat (lambda (target)
                                (concat "xref:" (regexp-quote target) "#" qid "\\["))
                              targets "\\|")))
-         (regexp (if cross (concat same "\\|" cross) same)))
+         (regexp (if cross (concat same "\\|" cross) same))
+         ;; ids are case-sensitive (this also keeps grep from using -i)
+         (case-fold-search nil))
     (xref-matches-in-directory regexp "*.adoc" root nil)))
 
 (defun adoc--completion-xref-target-bounds ()
@@ -4461,8 +4465,9 @@ same way `adoc-re-xref' permits it."
 (defun adoc--xref-collect (regexp)
   "Return a list of xref items, one per match of REGEXP in the buffer.
 Each item's summary is the matched line; its location is the start of
-the match."
+the match.  The search is case-sensitive, like ids."
   (let ((buffer (current-buffer))
+        (case-fold-search nil)
         (items '()))
     (save-excursion
       (save-match-data
