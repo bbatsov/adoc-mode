@@ -48,6 +48,7 @@
 - [#92](https://github.com/bbatsov/adoc-mode/pull/92): Looking up an anchor or section id is case-sensitive, as ids are in Asciidoctor. Following `<<foo>>` used to land on `[[FOO]]`, and `M-?` in an Antora component counted `#Deep-Section` as a reference to `deep-section`.
 - [#92](https://github.com/bbatsov/adoc-mode/pull/92): A same-page `xref:#id[]` can be followed and is found by `M-?`, like `<<id>>`.
 - [#92](https://github.com/bbatsov/adoc-mode/pull/92): An inline anchor with reftext, `[[id,Reftext]]`, can be found and followed by its id. It was offered in completion but nothing could resolve it.
+- [#92](https://github.com/bbatsov/adoc-mode/pull/92): `M-?` on a section title lists the references to that section instead of prompting for an id. A section with an explicit id (`[[id]]` or `[#id]` above it, or an anchor at the end of the title) uses that id, and no longer offers an auto-id in completion, since Asciidoctor doesn't generate one for it.
 
 ## 0.9.0 (2026-06-02)
 

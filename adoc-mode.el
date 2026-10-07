@@ -3982,10 +3982,31 @@ prefix."
                   (concat "\\`\\(?:" q "\\)+\\|\\(?:" q "\\)+\\'") "" id))))
     (concat prefix id)))
 
+(defun adoc--section-explicit-id (descriptor)
+  "Return the explicit id of the section title DESCRIPTOR describes, or nil.
+That's a block anchor or id on the lines right above the title
+\(`[[id]]', `[#id]'), or an anchor at the end of the title text.  A
+section that has one gets no auto-id."
+  (or (let ((text (nth 3 descriptor)))
+        (when (string-match "\\[\\[\\([^],[:space:]]+\\)[^]]*\\]\\][ \t]*\\'" text)
+          (substring-no-properties (match-string 1 text))))
+      (save-excursion
+        (goto-char (nth 4 descriptor))
+        (let (id)
+          (while (and (not id)
+                      (zerop (forward-line -1))
+                      (looking-at-p "\\[.*\\][ \t]*$"))
+            (when (or (looking-at (adoc-re-anchor 'block-id))
+                      (looking-at (adoc-re-anchor 'block-id-shorthand)))
+              (setq id (match-string-no-properties 1))))
+          id))))
+
 (defun adoc--collect-sections ()
   "Return a list of (ID TITLE POSITION) for the buffer's section titles.
 Only headings that font-lock actually fontifies as titles are included,
-so `==' lines inside code or other delimited blocks are skipped."
+so `==' lines inside code or other delimited blocks are skipped.  So are
+sections with an explicit id, which have no auto-id: their anchors
+already define them."
   (save-excursion
     (save-match-data
       (font-lock-ensure)
@@ -4000,6 +4021,8 @@ so `==' lines inside code or other delimited blocks are skipped."
              ;; A level-0 title is the document title, not a referenceable
              ;; section, so skip it (but advance past it).
              ((and descriptor (= (nth 2 descriptor) 0))
+              (goto-char (nth 5 descriptor)))
+             ((and descriptor (adoc--section-explicit-id descriptor))
               (goto-char (nth 5 descriptor)))
              (descriptor
               (let ((title (string-trim (nth 3 descriptor))))
@@ -4485,9 +4508,21 @@ the match.  The search is case-sensitive, like ids."
                   items)))))
     (nreverse items)))
 
+(defun adoc--section-id-at-point ()
+  "Return the id of the section title point is on, or nil.
+That's its explicit id, or else its auto-id.  The document title isn't
+a section, so it has none."
+  (when (adoc-title-descriptor)         ; cheap, before fontifying
+    (font-lock-ensure)
+    (let ((descriptor (adoc--heading-descriptor-at-point)))
+      (when (and descriptor (> (nth 2 descriptor) 0))
+        (or (adoc--section-explicit-id descriptor)
+            (adoc--section-id (string-trim (nth 3 descriptor))))))))
+
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql adoc)))
   (or (adoc-xref-id-at-point)
-      (adoc--anchor-id-at-point)))
+      (adoc--anchor-id-at-point)
+      (adoc--section-id-at-point)))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql adoc)))
   (delete-dups (append (adoc--collect-anchor-ids) (adoc--collect-section-ids))))

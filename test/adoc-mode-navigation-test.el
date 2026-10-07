@@ -489,6 +489,32 @@
       (adoc-follow-thing-at-point)
       (expect (line-number-at-pos) :to-equal 1)))
 
+  (it "uses a section's auto-id as the identifier on its title"
+    (with-temp-buffer
+      (insert "= Doc\n\n== Some Section\n\ntext <<_some_section>>\n")
+      (adoc-mode)
+      (goto-char (point-min))
+      (search-forward "Some S")
+      (expect (xref-backend-identifier-at-point 'adoc) :to-equal "_some_section")
+      ;; the document title isn't a section
+      (goto-char (point-min))
+      (expect (xref-backend-identifier-at-point 'adoc) :to-be nil)))
+
+  (it "uses a section's explicit id instead of an auto-id"
+    (with-temp-buffer
+      (insert "= Doc\n\n[[custom]]\n== Some Section\n\n"
+              "== Other Section [[trail]]\n\n[#short]\n== Third\n\n== Plain One\n")
+      (adoc-mode)
+      (goto-char (point-min))
+      (search-forward "Some S")
+      (expect (xref-backend-identifier-at-point 'adoc) :to-equal "custom")
+      (search-forward "Other S")
+      (expect (xref-backend-identifier-at-point 'adoc) :to-equal "trail")
+      (search-forward "Third")
+      (expect (xref-backend-identifier-at-point 'adoc) :to-equal "short")
+      ;; such sections have no auto-id to offer
+      (expect (adoc--collect-section-ids) :to-equal '("_plain_one"))))
+
   (it "finds an inline anchor whose reftext has brackets"
     (with-temp-buffer
       (insert "x [[foo,Some [x] text]] y\n\n<<foo>>\n")
