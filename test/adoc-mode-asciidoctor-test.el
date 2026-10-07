@@ -85,6 +85,27 @@
       (cl-letf (((symbol-function 'xwidget-webkit-browse-url) #'ignore))
         (expect (adoc--preview-resolve-backend) :to-be 'xwidget)))))
 
+(describe "adoc-preview's temporary file"
+  (it "is deleted with the buffer, without live preview"
+    (spy-on 'executable-find :and-return-value "/usr/bin/asciidoctor")
+    (spy-on 'call-process-region :and-return-value 0)
+    (let ((dir (make-temp-file "adoc-preview-test-" t))
+          ;; not `with-temp-buffer', whose buffer doesn't run `kill-buffer-hook'
+          (buffer (generate-new-buffer "adoc-preview-test"))
+          file)
+      (unwind-protect
+          (progn
+            (with-current-buffer buffer
+              (setq default-directory (file-name-as-directory dir))
+              (insert "= Doc\n")
+              (setq file (adoc--asciidoctor-render-preview)))
+            (expect (file-exists-p file) :to-be-truthy)
+            (kill-buffer buffer)
+            (expect (file-exists-p file) :not :to-be-truthy))
+        (when (buffer-live-p buffer)
+          (kill-buffer buffer))
+        (delete-directory dir t)))))
+
 (describe "adoc--preview-update"
   (it "displays the rendered file on success"
     (spy-on 'adoc--asciidoctor-render-preview :and-return-value "/tmp/x.html")

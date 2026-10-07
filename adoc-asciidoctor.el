@@ -104,6 +104,9 @@ customize `adoc-asciidoctor-command'" adoc-asciidoctor-command)))
 
 (defvar-local adoc--preview-file nil
   "Absolute path to the current buffer's temporary preview HTML file.")
+;; Keep track of the file across `revert-buffer' and the like, so it still
+;; gets deleted.
+(put 'adoc--preview-file 'permanent-local t)
 
 (defun adoc--asciidoctor-render-preview ()
   "Render the current buffer to its preview HTML file.
@@ -122,7 +125,10 @@ regardless of the exit status."
         (errfile (make-temp-file "adoc-asciidoctor-err")))
     (unless (and adoc--preview-file (file-exists-p adoc--preview-file))
       (setq adoc--preview-file
-            (make-temp-file (expand-file-name "adoc-preview-" base) nil ".html")))
+            (make-temp-file (expand-file-name "adoc-preview-" base) nil ".html"))
+      ;; It sits next to the document, so don't leave it behind.
+      (add-hook 'kill-buffer-hook #'adoc--preview-cleanup nil t)
+      (add-hook 'kill-emacs-hook #'adoc--preview-cleanup-all))
     (unwind-protect
         (let ((status (apply #'call-process-region
                              (point-min) (point-max)
@@ -236,9 +242,18 @@ preview in place rather than showing a blank page."
 
 (defun adoc--preview-cleanup ()
   "Delete the current buffer's temporary preview file, if any."
-  (when (and adoc--preview-file (file-exists-p adoc--preview-file))
+  (when adoc--preview-file
     (ignore-errors (delete-file adoc--preview-file)))
   (setq adoc--preview-file nil))
+
+(defun adoc--preview-cleanup-all ()
+  "Delete the temporary preview files of all buffers.
+Emacs doesn't kill buffers when it exits, so `kill-buffer-hook' can't
+be relied on for that."
+  (dolist (buffer (buffer-list))
+    (when (buffer-local-value 'adoc--preview-file buffer)
+      (with-current-buffer buffer
+        (adoc--preview-cleanup)))))
 
 ;;;###autoload
 (defun adoc-preview ()
@@ -253,10 +268,8 @@ preview in place rather than showing a blank page."
   (if adoc-live-preview-mode
       (progn
         (add-hook 'after-save-hook #'adoc--preview-update nil t)
-        (add-hook 'kill-buffer-hook #'adoc--preview-cleanup nil t)
         (adoc--preview-update))
     (remove-hook 'after-save-hook #'adoc--preview-update t)
-    (remove-hook 'kill-buffer-hook #'adoc--preview-cleanup t)
     (adoc--preview-cleanup)))
 
 ;;; Flymake

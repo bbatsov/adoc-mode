@@ -50,6 +50,7 @@
 - [#92](https://github.com/bbatsov/adoc-mode/pull/92): An inline anchor with reftext, `[[id,Reftext]]`, can be found and followed by its id. It was offered in completion but nothing could resolve it.
 - [#92](https://github.com/bbatsov/adoc-mode/pull/92): `M-?` on a section title lists the references to that section instead of prompting for an id. A section with an explicit id (`[[id]]` or `[#id]` above it, or an anchor at the end of the title) uses that id, and no longer offers an auto-id in completion, since Asciidoctor doesn't generate one for it.
 - [#93](https://github.com/bbatsov/adoc-mode/pull/93): Warnings and errors in the output of the Asciidoctor export commands are navigable (`next-error` and friends). The matcher was only set up in the AsciiDoc buffer, never in the export's compilation buffer, and it now also takes the capitalised `Line` some Asciidoctor versions print.
+- [#93](https://github.com/bbatsov/adoc-mode/pull/93): `adoc-preview` deletes the HTML file it writes next to the document when the buffer is killed or Emacs exits, live preview or not. It used to be left behind unless `adoc-live-preview-mode` was on.
 
 ## 0.9.0 (2026-06-02)
 
