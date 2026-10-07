@@ -35,6 +35,7 @@
   - With two-line titles disabled (the default), `M-left` / `M-right` and `C-c C-t` no longer mistake a line above a `----` or `====` delimiter for a title and overwrite the delimiter.
   - `C-c C-t` won't convert to a two-line title while they're disabled, or past level 4 (where it used to crash).
   - A numeric value now skips underlines of that length, as documented. It used to compare the length of the title text instead.
+- [#90](https://github.com/bbatsov/adoc-mode/pull/90): A construct that is rejected once no longer stops the same construct from being highlighted further down. A `NOTE:` inside a listing block, for instance, used to leave every later admonition paragraph unhighlighted; literal paragraphs, the alignment of indented lines and two-line titles had the same problem.
 
 ## 0.9.0 (2026-06-02)
 

@@ -41,6 +41,11 @@
          "Document Title\n=============="
          '(("Document Title" adoc-title-0-face)))))
 
+    (it "fontifies a two-line title after a rejected one"
+      (let ((adoc-enable-two-line-title t))
+        (adoc-test--check-face-specs "Hi\n------------\n\nTitle\n-----\n"
+                                     '(("Title" adoc-title-1-face)))))
+
     (it "skips two-line titles whose underline has the excluded length"
       (let ((adoc-enable-two-line-title 5))
         (adoc-test--check-face-specs "Titles\n-----\n" '(("Titles" nil)))
@@ -175,7 +180,12 @@
       ("____\nquoted\n____" ("quoted" adoc-blockquote-face)))
 
     (when-fontifying-it "fontifies a sidebar block body"
-      ("****\nsidebar\n****" ("sidebar" adoc-secondary-text-face))))
+      ("****\nsidebar\n****" ("sidebar" adoc-secondary-text-face)))
+
+    (when-fontifying-it "keeps going after a literal paragraph inside a listing block"
+      ("----\ncode\n\n  indented in listing\n----\n\nText\n\n  literal paragraph\n"
+       ("indented in listing" adoc-code-face)
+       ("literal paragraph" adoc-typewriter-face))))
 
   ;; ---- Tables --------------------------------------------------------
 
@@ -223,6 +233,11 @@
   (describe "admonitions"
     (when-fontifying-it "fontifies the admonition paragraph label"
       ("NOTE: pay attention"
+       ("NOTE:" adoc-complex-replacement-face)))
+
+    (when-fontifying-it "fontifies an admonition after one inside a listing block"
+      ("----\nNOTE: x\n----\n\nNOTE: real"
+       ("NOTE:" adoc-code-face)
        ("NOTE:" adoc-complex-replacement-face)))
 
     (when-fontifying-it "fontifies the admonition block label"

@@ -1708,20 +1708,27 @@ adoc-syntax to code blocks."
             (null (eobp))))
     ret))
 
-(defun adoc-kwf-std (end regexp &optional must-free-groups no-block-del-groups)
+(defun adoc-kwf-std (end regexp &optional must-free-groups no-block-del-groups predicate)
   "Standard function for keywords
 Intendent to be called from font lock keyword functions. END is
 the limit of the search. REXEXP the regexp to be searched.
 MUST-FREE-GROUPS a list of regexp group numbers which may not
 match text that has an adoc-reserved text-property with a non-nil
 value. Likewise, groups in NO-BLOCK-DEL-GROUPS may not contain
-text having adoc-reserved set to symbol `block-del'."
+text having adoc-reserved set to symbol `block-del'.  PREDICATE,
+when non-nil, is called with the match data set and rejects the
+match by returning nil.
+
+A rejected match doesn't end the search: font-lock abandons a
+keyword for the rest of the region as soon as its matcher returns
+nil, so the search goes on to the next match instead."
   (let ((found t) (prevented t))
     (while (and found prevented (<= (point) end) (not (eobp)))
       (setq found (adoc-kwf-search regexp end t))
       (setq prevented
             (and found
                  (or
+                  (and predicate (not (funcall predicate)))
                   (cl-some (lambda(x)
                              (and (match-beginning x)
                                   (text-property-not-all (match-beginning x)
@@ -1811,13 +1818,6 @@ text having adoc-reserved set to symbol `block-del'."
 ;; ...
 ;; could surely be replaced by a single (adoc-not-reserved-bla-bla 1 3)
 
-;; BUG: Remember that if a matcher function returns nil, font-lock does not
-;; further call it and abandons that keyword. Thus in adoc-mode in general,
-;; there should be a loop around (and (re-search-forward ...) (not
-;; (text-property-not-all...)) ...). Currently if say a constrained quote can't
-;; match because of adoc-reserved, following quotes of the same type which
-;; should be highlighed are not, because font-lock abandons that keyword.
-
 (defun adoc-kw-one-line-title (level text-face)
   "Creates a keyword for font-lock which highlights one line titles.
 TEXT-FACE is a face name symbol."
@@ -1846,10 +1846,14 @@ TEXT-FACE is a face name symbol."
      ;; matcher function
      `(lambda (end)
         (and adoc-enable-two-line-title
-             (adoc-kwf-search ,(adoc-re-two-line-title del) end t)
-             (< (abs (- (- (match-end 2) (match-beginning 2)) (- (match-end 3) (match-beginning 3)))) 3)
-             (adoc--two-line-title-underline-p (- (match-end 3) (match-beginning 3)))
-             (not (text-property-not-all (match-beginning 0) (match-end 0) 'adoc-reserved nil))))
+             (adoc-kwf-std
+              end ,(adoc-re-two-line-title del) '(0) nil
+              (lambda ()
+                (and (< (abs (- (- (match-end 2) (match-beginning 2))
+                                (- (match-end 3) (match-beginning 3))))
+                        3)
+                     (adoc--two-line-title-underline-p
+                      (- (match-end 3) (match-beginning 3))))))))
      ;; highlighers
      `(2 ,face-form t)
      `(3 '(face adoc-meta-hide-face adoc-reserved block-del) t))))
@@ -1933,8 +1937,7 @@ TEXT-FACE is a face name symbol or nil."
   (list
    ;; matcher function
    (lambda (end)
-     (and (adoc-kwf-search "^[ \t]*\\(\\(?:CAUTION\\|WARNING\\|IMPORTANT\\|TIP\\|NOTE\\):\\)\\([ \t]+\\)" end t)
-          (not (text-property-not-all (match-beginning 0) (match-end 0) 'adoc-reserved nil))))
+     (adoc-kwf-std end "^[ \t]*\\(\\(?:CAUTION\\|WARNING\\|IMPORTANT\\|TIP\\|NOTE\\):\\)\\([ \t]+\\)" '(0)))
    ;; highlighters
    '(1 '(face adoc-complex-replacement-face adoc-reserved t))
    '(2 '(face adoc-align-face adoc-reserved t))))
@@ -1943,9 +1946,7 @@ TEXT-FACE is a face name symbol or nil."
   "Creates a keyword which highlights a sequence of verbatim paragraphs."
   (list
    ;; matcher function
-   `(lambda (end)
-      (and (adoc-kwf-search ,(adoc-re-verbatim-paragraph-sequence) end t)
-           (not (text-property-not-all (match-beginning 0) (match-end 0) 'adoc-reserved nil))))
+   `(lambda (end) (adoc-kwf-std end ,(adoc-re-verbatim-paragraph-sequence) '(0)))
    ;; highlighers
    '(1 '(face adoc-typewriter-face adoc-reserved t font-lock-multiline t))))
 
@@ -2205,14 +2206,15 @@ TEXTPROPS is an additional plist with textproperties."
 ;;   line beginning would also be underlined, which looks akward.
 (defun adoc-flf-first-whites-fixed-width(end)
   ;; it makes no sense to do something with a blank line, so require at least one non blank char.
-  (and (adoc-kwf-search "\\(^[ \t]+\\)[^ \t\n]" end t)
-       ;; don't replace a face with with adoc-align-face which already is a fixed with
-       ;; font (most probably), because then it also won't look aligned
-       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-typewriter-face)
-       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-code-face)
-       (text-property-not-all (match-beginning 1) (match-end 1) 'adoc-code-block t)
-       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-passthrough-face)
-       (text-property-not-all (match-beginning 1) (match-end 1) 'face 'adoc-comment-face)))
+  (adoc-kwf-std
+   end "\\(^[ \t]+\\)[^ \t\n]" nil nil
+   (lambda ()
+     ;; don't replace a face with with adoc-align-face which already is a fixed with
+     ;; font (most probably), because then it also won't look aligned
+     (not (or (adoc--face-memq '(adoc-typewriter-face adoc-code-face
+                                 adoc-passthrough-face adoc-comment-face)
+                               (get-text-property (match-beginning 1) 'face))
+              (get-text-property (match-beginning 1) 'adoc-code-block))))))
 
 ;; See adoc-flf-first-whites-fixed-width
 (defun adoc-kw-first-whites-fixed-width ()
