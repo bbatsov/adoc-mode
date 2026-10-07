@@ -48,7 +48,6 @@
 ;;; Code:
 
 (require 'cl-lib)
-(require 'compile)
 (require 'outline)
 (require 'subr-x)
 (require 'xref)
@@ -5373,15 +5372,6 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   ;; nil, or even something else. See also similar comment in sgml-mode.
   (setq-local imenu-create-index-function adoc-imenu-create-index-function)
 
-  ;; compilation
-  ;; Matches both the modern Asciidoctor (`asciidoctor: ...') and the legacy
-  ;; Python AsciiDoc (`asciidoc: ...') diagnostic formats.
-  (add-to-list 'compilation-error-regexp-alist-alist
-               '(asciidoc
-                 "^asciidoc\\(?:tor\\)?: +\\(?:ERROR\\|\\(WARNING\\|DEPRECATED\\)\\): +\\([^:\n]*\\): line +\\([0-9]+\\)"
-                 2 3 nil (1 . nil)))
-  (setq-local compilation-error-regexp-alist
-              (cons 'asciidoc compilation-error-regexp-alist))
   (when (and (display-graphic-p) adoc-display-images)
     (adoc-display-images)))
 

@@ -75,6 +75,20 @@ The value is one of the following symbols:
                  (const :tag "External browser" browser))
   :group 'adoc-asciidoctor)
 
+;;; Compilation
+
+(add-to-list 'compilation-error-regexp-alist-alist
+             '(asciidoc
+               "^asciidoc\\(?:tor\\)?: +\\(?:ERROR\\|\\(WARNING\\|DEPRECATED\\)\\): +\\([^:\n]*\\): [Ll]ine +\\([0-9]+\\)"
+               2 3 nil (1 . nil)))
+
+(define-compilation-mode adoc-asciidoctor-compilation-mode "Asciidoctor"
+  "Mode for the output of the Asciidoctor export commands.
+Asciidoctor's warnings and errors in it are navigable.  It recognises
+both the modern Asciidoctor (`asciidoctor: ...') and the legacy Python
+AsciiDoc (`asciidoc: ...') diagnostic formats."
+  (setq-local compilation-error-regexp-alist '(asciidoc)))
+
 ;;; Running Asciidoctor
 
 (defun adoc--asciidoctor-ensure ()
@@ -148,7 +162,7 @@ compilation buffer."
                              (list (file-name-nondirectory file)))
                      " ")))
       (compilation-start
-       command nil
+       command #'adoc-asciidoctor-compilation-mode
        (lambda (_mode)
          (format "*asciidoctor: %s*" (file-name-nondirectory file)))))))
 

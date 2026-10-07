@@ -51,7 +51,8 @@
     (it "builds an HTML5 command"
       (let ((args (spy-context-args (command-for #'adoc-export-html))))
         (expect (car args) :to-match "asciidoctor")
-        (expect (car args) :to-match "-b html5")))
+        (expect (car args) :to-match "-b html5")
+        (expect (cadr args) :to-be #'adoc-asciidoctor-compilation-mode)))
 
     (it "builds a DocBook command"
       (let ((args (spy-context-args (command-for #'adoc-export-docbook))))
@@ -98,12 +99,14 @@
     (expect 'adoc--preview-display :not :to-have-been-called)))
 
 (describe "the asciidoc compilation regexp"
-  ;; The entry is registered in `compilation-error-regexp-alist-alist' by
-  ;; `adoc-mode', so spin up an adoc buffer to populate it.
   (let (re)
     (before-all
-      (with-adoc-buffer "= Title\n"
-        (setq re (car (alist-get 'asciidoc compilation-error-regexp-alist-alist)))))
+      (setq re (car (alist-get 'asciidoc compilation-error-regexp-alist-alist))))
+
+    (it "matches the capitalised `Line' some versions emit"
+      (let ((line "asciidoctor: WARNING: doc.adoc: Line 2: missing"))
+        (expect (string-match re line) :to-be 0)
+        (expect (match-string 3 line) :to-equal "2")))
 
     (it "matches modern Asciidoctor errors"
       (let ((line "asciidoctor: ERROR: doc.adoc: line 5: include file not found"))
@@ -208,6 +211,23 @@
             (setq tries (1+ tries))))
         (expect (process-live-p proc) :to-be nil)
         (expect called :to-be nil)))))
+
+;; The export buffer, with a real (if trivial) compilation.
+(describe "the Asciidoctor export buffer"
+  (it "makes Asciidoctor's diagnostics navigable"
+    (let ((buf (compilation-start
+                "printf 'asciidoctor: ERROR: doc.adoc: line 3: boom\\n'"
+                #'adoc-asciidoctor-compilation-mode
+                (lambda (_) "*adoc-compilation-test*"))))
+      (unwind-protect
+          (with-current-buffer buf
+            (while (get-buffer-process buf)
+              (accept-process-output (get-buffer-process buf) 0.1))
+            (goto-char (point-min))
+            (compilation-next-error 1)
+            (expect (looking-at-p "asciidoctor: ERROR") :to-be-truthy))
+        (let ((kill-buffer-query-functions nil))
+          (kill-buffer buf))))))
 
 (provide 'adoc-mode-asciidoctor-test)
 
