@@ -141,7 +141,9 @@
           (progn
             (expect (length diags) :to-equal 2)
             (expect (flymake-diagnostic-type (nth 0 diags)) :to-be :error)
-            (expect (flymake-diagnostic-text (nth 0 diags))
+            ;; newer Emacsen prefix the text with the (here empty) origin and
+            ;; code, separated by spaces
+            (expect (string-trim (flymake-diagnostic-text (nth 0 diags)))
                     :to-equal "include file not found: x")
             (expect (flymake-diagnostic-type (nth 1 diags)) :to-be :warning))
         (kill-buffer src))))
