@@ -983,6 +983,27 @@
        ("if *x*" (adoc-verbatim-face adoc-code-face))
        ("== y" (adoc-verbatim-face adoc-code-face))))
 
+    (it "doesn't take a code block left open in another block for one"
+      ;; the search used to go back to the opening line for the closing one,
+      ;; and so loop forever over a fence with a language, or take a bare
+      ;; opening delimiter for its own closing one
+      (dolist (text '("====\n```ruby\n====\n" "--\n```ruby\n--\n" "****\n```ruby\n****\n"
+                      "____\n```ruby\n____\n" "====\nText.\n\n```js\n====\n"
+                      "====\n```\n====\n" "====\n[source,ruby]\n----\n====\n"))
+        (with-temp-buffer
+          (insert text)
+          (adoc-mode)
+          (font-lock-ensure)
+          (expect (text-property-any (point-min) (point-max) 'adoc-code-block t)
+                  :to-be nil))))
+
+    (when-fontifying-it "takes any language after a fence and space, as Asciidoctor does"
+      ("``` `x\n*bold*\n```\n"
+       ("*bold*" adoc-native-code-face))
+      ;; but four backticks aren't a fence
+      ("````x\n*bold*\n````\n"
+       ("bold" (adoc-typewriter-face adoc-verbatim-face))))
+
     (when-fontifying-it "ends a fenced code block at the first bare fence"
       ("```\n```adoctest-lang\n```  \n\n*bold*"
        ("```adoctest-lang" (adoc-verbatim-face adoc-code-face))

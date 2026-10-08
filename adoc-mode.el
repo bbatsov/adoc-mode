@@ -2388,11 +2388,13 @@ START-SRC and END-SRC delimit the actual source code."
         (lang)
         (optional-other-args))))
      ;; A Markdown-style fenced code block names its language after the
-     ;; fence, as in ```ruby.  Four backticks don't make a fence.
-     "\\|^\\(?2:```\\)[ \t]*\\(?1:[^`, \t\n][^,\n]*?\\)?[ \t]*\\(?:,.*\\)?\n"))
+     ;; fence, as in ```ruby.
+     "\\|^\\(?2:```\\)[ \t]*\\(?1:[^, \t\n][^,\n]*?\\)?[ \t]*\\(?:,.*\\)?\n"))
   "Regexp matching the beginning of source blocks, fenced ones included.
 Group 1 contains the language attribute.
-Group 2 contains the block delimiter.")
+Group 2 contains the block delimiter.  Whether it opens a block at all
+is up to the block extents, see `adoc--ensure-block-extents': four
+backticks don't make a fence, for one.")
 
 (defun adoc-search-forward-code-block (last &optional noerror)
   "Search for next adoc-code block up to LAST.
@@ -2414,16 +2416,16 @@ actual source code."
                   (setq start-src (re-search-forward adoc-code-block-begin-regexp
                                                      last noerror)))
         (let ((block (adoc--delimited-block-at (match-beginning 2))))
-          ;; Pass over a delimiter line in the content of a verbatim block and
-          ;; an unterminated block, see `adoc--ensure-block-extents'.
-          (when (and block (= (nth 1 block) (match-beginning 2)))
+          ;; Pass over a delimiter line in the content of a verbatim block, an
+          ;; unterminated block and one left open in another block, which has
+          ;; no closing delimiter, see `adoc--ensure-block-extents'.
+          (when (and block (= (nth 1 block) (match-beginning 2)) (nth 5 block))
             (setq lang (or (match-string 1) t)
-                  start-header (match-beginning 0))
-            (when (re-search-forward
-                   (concat "^" (regexp-quote (match-string 2)) "[ \t]*$")
-                   (nth 3 block) t)
-              (setq end-block (match-end 0)
-                    end-src (max start-src (1- (match-beginning 0)))))))))
+                  start-header (match-beginning 0)
+                  end-src (max start-src (1- (nth 5 block))))
+            (goto-char (nth 5 block))
+            (setq end-block (line-end-position))
+            (goto-char end-block)))))
     (when end-block
       (set-match-data (list start-header end-block start-src end-src (current-buffer)))
       lang)))
