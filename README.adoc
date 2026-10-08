@@ -122,7 +122,8 @@ https://github.com/company-mode/company-mode[Company]) offers candidates based
 on the construct at point:
 
 - inside `<<` or `xref:` - cross-reference ids: explicit anchors (`+[[id]]+`,
-  `+[#id]+`, `+[[[biblio]]]+`) and section auto-ids. In an Antora component an
+  `+[#id]+`, `+[id=id]+`, `+anchor:id[]+`, `+[[[biblio]]]+`, but not the ones in
+  comments or code) and section auto-ids. In an Antora component an
   `xref:` also completes the component's pages as targets and, after a `#`,
   the sections of the target page
 - inside `{` - attribute names, both the ones defined with `:name:` in the

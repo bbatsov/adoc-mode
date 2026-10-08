@@ -4414,55 +4414,6 @@ leading one when there's no prefix."
           (substring id 1)
         id))))
 
-(defun adoc--section-explicit-id (descriptor)
-  "Return the explicit id of the section title DESCRIPTOR describes, or nil.
-That's a block anchor or id on the lines right above the title
-\(`[[id]]', `[#id]'), or an anchor at the end of the title text.  A
-section that has one gets no auto-id."
-  (or (let ((text (nth 3 descriptor)))
-        (when (string-match "\\[\\[\\([^],[:space:]]+\\)[^]]*\\]\\][ \t]*\\'" text)
-          (substring-no-properties (match-string 1 text))))
-      (save-excursion
-        (goto-char (nth 4 descriptor))
-        (let (id)
-          (while (and (not id)
-                      (zerop (forward-line -1))
-                      (looking-at-p "\\[.*\\][ \t]*$"))
-            (when (or (looking-at (adoc-re-anchor 'block-id))
-                      (looking-at (adoc-re-anchor 'block-id-shorthand)))
-              (setq id (match-string-no-properties 1))))
-          id))))
-
-(defun adoc--explicit-id-positions ()
-  "Return (POSITION . ID) for the buffer's explicit ids, in document order.
-That's block ids (`[[id]]', `[#id]') and inline anchors (`[[id]]',
-`anchor:id[]') outside comments and verbatim blocks: the ids Asciidoctor
-has registered by the time it reaches the section titles after them.
-It's an approximation, as Asciidoctor registers an inline anchor in a
-block title or a description list term, say, only later on."
-  (let (ids)
-    (save-excursion
-      (save-match-data
-        (pcase-dolist (`(,type . ,group) '((block-id . 1) (block-id-shorthand . 1)
-                                           (inline-special . 2) (inline-general . 3)))
-          (goto-char (point-min))
-          (let ((re (adoc-re-anchor type)))
-            (while (re-search-forward re nil t)
-              (let ((pos (match-beginning 0))
-                    ;; `inline-special' has `id,reftext' in its group
-                    (id (car (split-string (match-string-no-properties group)
-                                           "[ \t,]" t))))
-                (unless (or (null id)
-                            (adoc--in-verbatim-block-p pos)
-                            ;; escaped, or the inside of a `[[[biblio]]]'
-                            (memq (char-before pos) '(?\\ ?\[))
-                            (save-excursion
-                              (goto-char pos)
-                              (beginning-of-line)
-                              (looking-at-p "//\\(?:[^/]\\|$\\)")))
-                  (push (cons pos id) ids))))))))
-    (sort ids (lambda (a b) (< (car a) (car b))))))
-
 (defun adoc--section-title-with-attributes (title attributes)
   "Return section TITLE with the document ATTRIBUTES in effect applied.
 That's its attribute references substituted, and with `experimental'
@@ -4525,7 +4476,8 @@ so on, as in Asciidoctor."
       (let ((re (adoc--re-all-titles))
             (antora (adoc--antora-p))
             (entries (adoc--attribute-entries))
-            (anchors (adoc--explicit-id-positions))
+            (anchors (cl-loop for (pos _end id registered) in (adoc--anchors)
+                              when registered collect (cons pos id)))
             (taken (make-hash-table :test #'equal))
             (next (make-hash-table :test #'equal))
             ;; Asciidoctor sets `sectids' by default.
@@ -4600,14 +4552,337 @@ Search explicit anchors first (`[[id]]', `[#id]', ...), then fall back
 to a section whose auto-id or title matches.  Return non-nil on success,
 leaving point on the target; return nil and do not move otherwise.
 Ids are case-sensitive, as in Asciidoctor."
-  (let ((pos (or (save-excursion
-                   (goto-char (point-min))
-                   (let ((case-fold-search nil))
-                     (re-search-forward (adoc-re-anchor nil id) nil t)))
+  (let ((pos (or (car (cl-find id (adoc--anchors) :key #'caddr :test #'equal))
                  (adoc--section-position id))))
     (when pos
       (goto-char pos)
       t)))
+
+;;;; Anchors
+
+;; The anchors that count are the ones Asciidoctor turns into ids, so not the
+;; ones in comments, verbatim blocks or literal paragraphs, whose text is
+;; shown as it is.  Completion, the `xref' backend and `adoc-goto-ref-label'
+;; all go by `adoc--anchors'.  Asciidoctor registers some anchors as soon as
+;; it parses them, and that decides which ids the section titles below them
+;; find taken (see `adoc--scan-sections').
+
+(defconst adoc--re-anchor-id "[[:alpha:]_:][[:alnum:]_:.-]*"
+  "Regexp matching an id the way Asciidoctor accepts it in an anchor.")
+
+(defconst adoc--re-inline-anchor
+  (concat "\\(\\\\\\)?\\(?:"
+          "\\[\\[\\[\\(" adoc--re-anchor-id "\\)\\(?:,[^\n]+?\\)?\\]\\]\\]"
+          "\\|\\[\\[\\(" adoc--re-anchor-id "\\)\\(?:,[^\n]+?\\)?\\]\\]"
+          "\\|anchor:\\(" adoc--re-anchor-id "\\)\\[\\(?:[^]\\\n]\\|\\\\.\\)*\\]\\)")
+  "Regexp matching an inline anchor: `[[id]]', `[[[id]]]' or `anchor:id[]'.
+Group 1 matches the backslash that escapes it, and group 2, 3 or 4 the
+id of a bibliography anchor, a `[[id]]' anchor or an anchor macro.")
+
+(defconst adoc--re-block-anchor-line
+  (concat "^\\[\\[\\(" adoc--re-anchor-id "\\)\\(?:,[^\n]+\\)?\\]\\][ \t]*$")
+  "Regexp matching a block anchor line, `[[id]]' or `[[id,reftext]]'.
+Group 1 is the id.")
+
+(defconst adoc--re-block-attribute-line
+  (concat "^\\[\\(?:[[:alnum:]_.#%{,\"'][^\n]*\\|\\[" adoc--re-anchor-id
+          "\\(?:,[^\n]+\\)?\\]\\)?\\][ \t]*$")
+  "Regexp matching a block attribute line or a block anchor line.
+As in Asciidoctor, a line like `[[[ref]]]' or `[ x ]' is text.")
+
+(defconst adoc--re-block-title-or-comment-line
+  "^\\(?:\\.\\.?[^ \t.]\\|//\\(?:[^/]\\|$\\)\\)"
+  "Regexp matching a block title or a line comment.")
+
+(defconst adoc--re-section-title-line
+  "^\\(?:=\\{1,6\\}\\|#\\{1,6\\}\\)[ \t]+[^ \t\n]"
+  "Regexp matching the line of a one-line section title, as Asciidoctor sees it.")
+
+(defconst adoc--re-list-item-start
+  (concat "^\\(?:[ \t]*\\(?:-\\|\\*\\{1,5\\}\\|\\.\\{1,5\\}\\|[0-9]+\\.\\|[a-zA-Z]\\.\\|[IVXivx]+)\\)"
+          "\\|<\\(?:[0-9]+\\|\\.\\)>\\)[ \t]+")
+  "Regexp matching the marker of an ordered, unordered or callout list item.
+The match ends where the item's text begins.")
+
+(defconst adoc--re-dlist-item-start
+  "^[ \t]*\\([^ \t\n]\\).*?\\(?::::\\{0,2\\}\\|;;\\)\\(?:[ \t]\\|$\\)"
+  "Regexp matching a description list term and its delimiter.
+Group 1 is the first character of the term.")
+
+(defun adoc--comment-line-p ()
+  "Return non-nil when the line at point is a line comment."
+  (save-excursion
+    (beginning-of-line)
+    (looking-at-p "//\\(?:[^/]\\|$\\)")))
+
+(defun adoc--list-item-line-p ()
+  "Return non-nil when the line at point starts a list item."
+  (or (looking-at-p adoc--re-list-item-start)
+      (and (not (adoc--comment-line-p))
+           (looking-at-p adoc--re-dlist-item-start))))
+
+(defun adoc--block-preamble-line-p ()
+  "Return non-nil when Asciidoctor reads the line at point before a block.
+That's a block title, a comment, a section title or an attribute entry."
+  (or (looking-at-p adoc--re-block-title-or-comment-line)
+      (looking-at-p adoc--re-section-title-line)
+      (looking-at-p adoc--re-attribute-entry-line)))
+
+(defun adoc--paragraph-break-p ()
+  "Return non-nil when the line at point ends a paragraph above it.
+That's a blank line, a list continuation, a block delimiter or a block
+attribute line, as in Asciidoctor."
+  (or (looking-at-p "[ \t]*$\\|\\+[ \t]*$\\|[|!]=\\{3,\\}[ \t]*$")
+      (looking-at-p adoc--re-block-delimiter)
+      (looking-at-p adoc--re-block-attribute-line)))
+
+(defun adoc--table-ranges ()
+  "Return the (BEG . END) of each `|===' table outside verbatim blocks."
+  (let (ranges)
+    (save-excursion
+      (goto-char (point-min))
+      (while (re-search-forward "^\\([|!]=\\{3,\\}\\)[ \t]*$" nil t)
+        (let ((open (match-beginning 0))
+              (closing (concat "^" (regexp-quote (match-string 1)) "[ \t]*$")))
+          (when (and (not (adoc--in-verbatim-block-p open))
+                     (re-search-forward closing nil t))
+            (push (cons open (point)) ranges)))))
+    (nreverse ranges)))
+
+(defun adoc--table-anchor-registered-p (beg table)
+  "Return non-nil when Asciidoctor registers the anchor at BEG in TABLE.
+TABLE is a (BEG . END) of `adoc--table-ranges'.  It registers an anchor
+that begins the text of a cell, and every anchor in an AsciiDoc (`a')
+cell, as their content is parsed as a document of its own."
+  (save-excursion
+    (goto-char beg)
+    (let ((bound (save-excursion (goto-char (car table)) (line-end-position)))
+          sep)
+      (while (and (setq sep (search-backward "|" bound t))
+                  (eq (char-before) ?\\)))
+      (and sep
+           (or (string-blank-p (buffer-substring-no-properties (1+ sep) beg))
+               (looking-back "\\(?:^\\|[ \t]\\)[0-9.+*<>^]*a"
+                             (line-beginning-position)))))))
+
+(defun adoc--leading-anchor-p (beg)
+  "Return non-nil when the `[[' anchor at BEG begins a list item's text.
+For a description list, that's the text of the term."
+  (and (eq (char-after beg) ?\[)
+       (save-excursion
+         (goto-char beg)
+         (beginning-of-line)
+         (if (looking-at adoc--re-list-item-start)
+             (= beg (match-end 0))
+           (and (looking-at adoc--re-dlist-item-start)
+                (= beg (match-beginning 1)))))))
+
+(defun adoc--paragraph-start (cache)
+  "Move to the first line of the paragraph or list the line at point is in.
+That's the line after the closest one above that ends a paragraph, see
+`adoc--paragraph-break-p'.  CACHE is a cons of the line this last went
+back from and where it got to, reused when no line in between ends a
+paragraph, so going through the items of a long list is quick.  It's
+updated in place."
+  (let ((line (point))
+        (from (car cache)))
+    (if (and from (<= from line)
+             (save-excursion
+               (goto-char from)
+               (while (and (zerop (forward-line 1))
+                           (< (point) line)
+                           (not (adoc--paragraph-break-p))))
+               (>= (point) line)))
+        (goto-char (cdr cache))
+      (while (and (not (bobp))
+                  (save-excursion
+                    (forward-line -1)
+                    (not (adoc--paragraph-break-p))))
+        (forward-line -1)))
+    (setcar cache line)
+    (setcdr cache (point))))
+
+(defun adoc--anchor-registration (beg tables &optional cache)
+  "Return how Asciidoctor treats the inline anchor at BEG.
+That's `registered' when it registers its id as soon as it parses it,
+`rendered' when it only renders it, or nil when it isn't an anchor at
+all, as in a literal paragraph.  TABLES is what `adoc--table-ranges'
+returns, and CACHE is for `adoc--paragraph-start'.
+
+Asciidoctor registers a block anchor, any anchor in a paragraph, one
+that begins the text of a list item, a description list term or a
+table cell, and any in an AsciiDoc table cell.  The text of a list item
+after its first line counts as a paragraph, unless it's indented."
+  (save-excursion
+    (goto-char beg)
+    (beginning-of-line)
+    (let ((line (point))
+          (table (seq-find (lambda (range) (< (car range) beg (cdr range)))
+                           tables)))
+      (cond
+       ((looking-at-p adoc--re-block-anchor-line) 'registered)
+       (table (if (adoc--table-anchor-registered-p beg table) 'registered 'rendered))
+       ((looking-at-p adoc--re-block-attribute-line) nil)
+       (t
+        ;; Go back to the start of the anchor's block, then past the
+        ;; lines Asciidoctor reads before it.
+        (adoc--paragraph-start (or cache (list nil)))
+        (while (and (< (point) line)
+                    (adoc--block-preamble-line-p))
+          (forward-line 1))
+        (cond
+         ((and (= (point) line) (adoc--block-preamble-line-p))
+          ;; a title, or the value of an attribute entry
+          (unless (looking-at-p adoc--re-attribute-entry-line) 'rendered))
+         ((adoc--list-item-line-p)
+          (goto-char line)
+          (while (not (adoc--list-item-line-p))
+            (forward-line -1))
+          (cond
+           ((= (point) line)
+            (if (adoc--leading-anchor-p beg) 'registered 'rendered))
+           ((progn (forward-line 1) (looking-at-p "[ \t]")) 'rendered)
+           (t 'registered)))
+         (t
+          ;; A paragraph with a block style is that block, which Asciidoctor
+          ;; doesn't take anchors from, or a verbatim one with none at all.
+          (let ((style (adoc--block-attribute-above #'adoc--block-attribute-style)))
+            (cond
+             ((member style '("comment" "listing" "literal" "pass" "source")) nil)
+             ((member style '("abstract" "example" "open" "partintro" "quote"
+                              "sidebar" "verse"
+                              "CAUTION" "IMPORTANT" "NOTE" "TIP" "WARNING"))
+              'rendered)
+             ;; a literal paragraph, unless it's styled normal
+             ((and (looking-at-p "[ \t]") (not (equal style "normal"))) nil)
+             (t 'registered))))))))))
+
+(defun adoc--block-attribute-id ()
+  "Return the id the block attribute line at point sets, or nil.
+That's `[[id]]', `[#id]', `[style#id.role]' or `[id=id]'."
+  (let ((case-fold-search nil))
+    (cond
+     ((looking-at adoc--re-block-anchor-line) (match-string-no-properties 1))
+     ((looking-at "\\[\\([^\n]*\\)\\][ \t]*$")
+      (let ((attrs (match-string-no-properties 1)))
+        (cond
+         ;; the first positional attribute's id shorthand, which ends at
+         ;; a role or an option, and unlike an anchor's id can be anything
+         ((string-match "\\`[^,#=\"']*#\\([^].#%,\"' \t]+\\)" attrs)
+          (match-string 1 attrs))
+         ((string-match (concat "\\(?:\\`\\|,\\)[ \t]*id[ \t]*=[ \t]*"
+                                "\\(?:\"\\([^\"]+\\)\"\\|'\\([^']+\\)'\\|\\([^,\"' \t]+\\)\\)"
+                                "[ \t]*\\(?:,\\|\\'\\)")
+                        attrs)
+          (or (match-string 1 attrs) (match-string 2 attrs) (match-string 3 attrs)))))))))
+
+(defun adoc--block-attribute-style ()
+  "Return the block style the block attribute line at point sets, or nil.
+That's its first positional attribute, unless that's only an id, a
+role or an option."
+  (and (not (looking-at-p adoc--re-block-anchor-line))
+       (looking-at "\\[[ \t]*\\([^]\n,#.%=\"' \t]+\\)[ \t]*[],#.%]")
+       (match-string-no-properties 1)))
+
+(defun adoc--anchors (&optional beg end)
+  "Return the anchors between BEG and END as a list of (START END ID REGISTERED).
+BEG and END default to the whole buffer.  The list is in document
+order, and holds the block ids (`[[id]]', `[#id]', `[id=id]') and inline
+anchors (`[[id]]', `[[[id]]]', `anchor:id[]') that aren't escaped and
+aren't in a comment, a verbatim block or a literal paragraph.
+REGISTERED is non-nil for an anchor Asciidoctor registers as soon as it
+parses it, see `adoc--anchor-registration'."
+  (let ((end (or end (point-max)))
+        (tables 'unknown)
+        (cache (list nil))
+        anchors)
+    (save-excursion
+      (save-match-data
+        (goto-char (or beg (point-min)))
+        (while (re-search-forward adoc--re-inline-anchor end t)
+          (let ((start (match-beginning 0))
+                (stop (match-end 0))
+                (id (or (match-string-no-properties 2)
+                        (match-string-no-properties 3)
+                        (match-string-no-properties 4))))
+            (unless (or (match-beginning 1)
+                        (adoc--in-verbatim-block-p start)
+                        (adoc--comment-line-p))
+              (when (eq tables 'unknown)
+                (setq tables (adoc--table-ranges)))
+              (let ((registration (adoc--anchor-registration start tables cache)))
+                (when registration
+                  (push (list start stop id
+                              (and (eq registration 'registered)
+                                   ;; not when it's inside `[[[id]]', say
+                                   (not (and (eq (char-after start) ?\[)
+                                             (eq (char-before start) ?\[)))))
+                        anchors))))))
+        ;; The ids attribute lines like `[#id]' set; `[[id]]' is done.
+        (goto-char (or beg (point-min)))
+        (while (and (< (point) end)
+                    (re-search-forward "^\\[[^[]" end t))
+          (beginning-of-line)
+          (let ((id (and (looking-at-p adoc--re-block-attribute-line)
+                         (not (adoc--in-verbatim-block-p (point)))
+                         (adoc--block-attribute-id))))
+            (when id
+              (push (list (point) (line-end-position) id t) anchors)))
+          (forward-line 1))))
+    (sort anchors (lambda (a b) (< (car a) (car b))))))
+
+(defun adoc--block-attribute-above (getter)
+  "Return what GETTER finds on the block attribute lines above point's line.
+GETTER is called at the start of each of them, closest first, until it
+returns non-nil.  Like Asciidoctor, look past blank lines, comments,
+attribute entries and block titles between them and the line."
+  (save-excursion
+    (let ((own (adoc--delimited-block-at (point)))
+          value)
+      (while (and (not value)
+                  (zerop (forward-line -1))
+                  (let ((block (adoc--delimited-block-at (point))))
+                    (cond
+                     ((and block (not (eq block own)) (>= (point) (nth 1 block)))
+                      ;; skip a comment block, but not any other block
+                      (when (eq (char-after (nth 1 block)) ?/)
+                        (goto-char (nth 1 block))))
+                     ((looking-at-p adoc--re-block-attribute-line)
+                      (setq value (funcall getter))
+                      t)
+                     (t (or (looking-at-p "[ \t]*$")
+                            (looking-at-p adoc--re-block-title-or-comment-line)
+                            (looking-at-p adoc--re-attribute-entry-line)))))))
+      value)))
+
+(defun adoc--section-explicit-id (descriptor)
+  "Return the explicit id of the section title DESCRIPTOR describes, or nil.
+That's the closest id the block attribute lines above the title set
+\(see `adoc--block-attribute-above'), or else an anchor at the end of
+the title text, after a space.  A section that has one gets no
+auto-id."
+  (or (save-excursion
+        (goto-char (nth 4 descriptor))
+        (adoc--block-attribute-above #'adoc--block-attribute-id))
+      (let ((text (nth 3 descriptor)))
+        (when (string-match (concat "[ \t]\\[\\[\\(" adoc--re-anchor-id
+                                    "\\)\\(?:,[^\n]+\\)?\\]\\][ \t]*\\'")
+                            text)
+          (substring-no-properties (match-string 1 text))))))
+
+(defun adoc--anchor-xrefs (predicate)
+  "Return xref items for the buffer's anchors whose id satisfies PREDICATE.
+Each item's summary is the anchor's line."
+  (let ((buffer (current-buffer)))
+    (save-excursion
+      (cl-loop for (start _end id) in (adoc--anchors)
+               when (funcall predicate id)
+               collect (progn
+                         (goto-char start)
+                         (xref-make (string-trim
+                                     (buffer-substring-no-properties
+                                      (line-beginning-position) (line-end-position)))
+                                    (xref-make-buffer-location buffer start)))))))
 
 ;;;; Antora cross-references
 
@@ -4790,31 +5065,9 @@ These supplement the attributes actually defined in the buffer.")
 
 (defun adoc--collect-anchor-ids ()
   "Return a list of the explicit anchor ids defined in the buffer.
-Scans for block ids (`[[id]]', `[#id]'), inline anchors
-\(`[[id,reftext]]') and bibliography anchors (`[[[ref]]]').  Computed
-section auto-ids are intentionally not included."
-  (let ((ids '()))
-    (save-excursion
-      (save-match-data
-        ;; block-id and block-id-shorthand expose the bare id in group 1.
-        (dolist (type '(block-id block-id-shorthand))
-          (goto-char (point-min))
-          (let ((re (adoc-re-anchor type)))
-            (while (re-search-forward re nil t)
-              (push (match-string-no-properties 1) ids))))
-        ;; inline-special is `[[id,reftext]]'; group 2 is `id,reftext'.
-        (goto-char (point-min))
-        (let ((re (adoc-re-anchor 'inline-special)))
-          (while (re-search-forward re nil t)
-            (let ((attrlist (match-string-no-properties 2)))
-              (push (car (split-string attrlist "[ \t,]" t)) ids))))
-        ;; biblio is `[[[ref]]]'; group 2 is `[ref]'.
-        (goto-char (point-min))
-        (let ((re (adoc-re-anchor 'biblio)))
-          (while (re-search-forward re nil t)
-            (push (string-trim (match-string-no-properties 2) "\\[" "\\]")
-                  ids)))))
-    (delete-dups (delq nil ids))))
+See `adoc--anchors'.  Computed section auto-ids are intentionally not
+included."
+  (delete-dups (mapcar #'caddr (adoc--anchors))))
 
 (defun adoc--collect-attribute-names ()
   "Return attribute names for completion.
@@ -4996,27 +5249,10 @@ inside `[source,'."
 
 (defun adoc--anchor-id-at-point ()
   "Return the id of the anchor definition point is on, or nil."
-  (save-excursion
-    (let ((pos (point))
-          (eol (line-end-position))
-          (found nil))
-      (beginning-of-line)
-      (dolist (type '(block-id block-id-shorthand inline-special biblio) found)
-        (unless found
-          (save-excursion
-            (let ((re (adoc-re-anchor type)))
-              (while (and (not found) (re-search-forward re eol t))
-                (when (and (<= (match-beginning 0) pos) (<= pos (match-end 0)))
-                  (setq found
-                        (pcase type
-                          ((or 'block-id 'block-id-shorthand)
-                           (match-string-no-properties 1))
-                          ('inline-special
-                           (car (split-string (match-string-no-properties 2)
-                                               "[ \t,]" t)))
-                          ('biblio
-                           (string-trim (match-string-no-properties 2)
-                                        "\\[" "\\]"))))))))))) ))
+  (let ((pos (point)))
+    (nth 2 (seq-find (lambda (anchor) (<= (car anchor) pos (cadr anchor)))
+                     (adoc--anchors (line-beginning-position)
+                                    (line-end-position))))))
 
 (defun adoc--re-xref-to (id)
   "Return a regexp matching a cross-reference to the anchor ID.
@@ -5065,7 +5301,7 @@ a section, so it has none."
   (delete-dups (append (adoc--collect-anchor-ids) (adoc--collect-section-ids))))
 
 (cl-defmethod xref-backend-definitions ((_backend (eql adoc)) identifier)
-  (append (adoc--xref-collect (adoc-re-anchor nil identifier))
+  (append (adoc--anchor-xrefs (lambda (id) (equal id identifier)))
           (adoc--section-definitions identifier)))
 
 (cl-defmethod xref-backend-references ((_backend (eql adoc)) identifier)
@@ -5078,9 +5314,7 @@ a section, so it has none."
 (cl-defmethod xref-backend-apropos ((_backend (eql adoc)) pattern)
   (require 'apropos)                    ; for `apropos-parse-pattern'
   (let ((re (xref-apropos-regexp pattern)))
-    (cl-loop for id in (adoc--collect-anchor-ids)
-             when (string-match-p re id)
-             append (adoc--xref-collect (adoc-re-anchor nil id)))))
+    (adoc--anchor-xrefs (lambda (id) (string-match-p re id)))))
 
 ;;;; Heading navigation
 

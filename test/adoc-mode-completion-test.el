@@ -46,11 +46,51 @@ collection scans it lazily)."
       [[alpha]]
       [[beta,Beta Text]]
       [#gamma]
+      Text.
+
       [source#delta]
-      [[[biblio1]]]
+      ----
+      code
+      ----
+
+      [bibliography]
+      * [[[biblio1]]] A book.
       "
       (expect (sort (adoc--collect-anchor-ids) #'string<)
               :to-equal '("alpha" "beta" "biblio1" "delta" "gamma"))))
+
+  (it "collects anchor macros and id attributes"
+    (with-adoc-buffer "
+      See anchor:mac[here].
+
+      [id=named,role=r]
+      == Section
+      "
+      (expect (sort (adoc--collect-anchor-ids) #'string<)
+              :to-equal '("mac" "named"))))
+
+  (it "leaves out what Asciidoctor doesn't take for an anchor"
+    (with-adoc-buffer "
+      ----
+      [[listing]]
+      ----
+
+      // [[comment]]
+
+      ////
+      [[block-comment]]
+      ////
+
+       literal [[literal]]
+
+      [source]
+      verbatim [[verbatim]]
+
+      escaped \\[[escaped]]
+
+      [[real]]
+      "
+      (expect (adoc--collect-anchor-ids) :to-equal '("real"))))
 
   (it "returns nil when there are no anchors"
     (with-adoc-buffer "Just some prose with <<a-ref>> but no definitions.\n"

@@ -313,6 +313,106 @@
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
+(describe "explicit section ids"
+  (it "takes the id the attribute lines above the title set"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\n[[a]]\n\n== A\n\n[id=b,role=r]\n// c\n== B\n\n"
+                     "[[x]]\n.Title\n[#c.role]\n\n== C\n\n[[d]]\n////\nc\n////\n\n== D\n"))
+            :to-equal '("a" "b" "c" "d")))
+
+  (it "prefers an id above the title to an anchor at its end"
+    (expect (adoc-test--section-ids "= D\n\n[#x]\n== Foo [[y]]\n\n== Bar [[z]]\n")
+            :to-equal '("x" "z")))
+
+  (it "needs a space before an anchor at the end of the title"
+    (expect (adoc-test--section-ids "= D\n\n== Foo[[x]]\n") :to-equal '("_foo")))
+
+  (it "accepts the ids Asciidoctor does"
+    (expect (adoc-test--section-ids
+             "= D\n\n[[a.b:c-d]]\n== Foo\n\n[id=e.f]\n== Bar\n\n[#80-chars.role]\n== Baz\n")
+            :to-equal '("a.b:c-d" "e.f" "80-chars")))
+
+  (it "matches the real asciidoctor"
+    (assume (executable-find "asciidoctor") "asciidoctor not installed")
+    (dolist (doc '("= D\n\n[[x]]\n\n== Foo\n"
+                   "= D\n\n[#x]\n\n\n== Foo\n"
+                   "= D\n\n[id=x,role=y]\n== Foo\n"
+                   "= D\n\n[id=\"q\"]\n== Foo\n"
+                   "= D\n\n[[x]]\n// c\n== Foo\n"
+                   "= D\n\n[[x]]\n[.role]\n== Foo\n"
+                   "= D\n\n[#x]\n[[y]]\n== Foo\n"
+                   "= D\n\n[[x]]\n[#y]\n== Foo\n"
+                   "= D\n\n[[x]]\n.Title\n== Foo\n"
+                   "= D\n\n[#x]\n== Foo [[y]]\n"
+                   "= D\n\n== Foo[[x]]\n"
+                   "= D\n\n== Foo [[x, Ref]]\n"
+                   "= D\n\n[#a.b]\n== Foo\n"
+                   "= D\n\n[[a.b:c-d]]\n== Foo\n"
+                   "= D\n\n[[x]]\n////\nc\n////\n\n== Bar\n"
+                   "= D\n\n[#80-chars]\n== Foo [[x]]\n"
+                   "= D\n\n[id=9a]\n== Foo\n\n[id=\"a b\"]\n== Bar\n\n[id='q']\n== Baz\n"
+                   "= D\n\n[[x]]\n:attr: x\n\n== Bar\n"))
+      (expect (adoc-test--section-ids doc)
+              :to-equal (adoc-test--asciidoctor-section-ids doc)))))
+
+(describe "anchors taking section ids"
+  (it "counts the anchors Asciidoctor registers before the title"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\n* [[_a]] item\n\n[[_b]]term:: desc\n\n"
+                     "* item\nmore [[_c]]\n\nNOTE: see [[_d]]\n\n"
+                     "|===\n| [[_e]] cell\na| para [[_f]]\n|===\n\n"
+                     "== A\n\n== B\n\n== C\n\n== D\n\n== E\n\n== F\n"))
+            :to-equal '("_a_2" "_b_2" "_c_2" "_d_2" "_e_2" "_f_2")))
+
+  (it "doesn't count the ones it only renders"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\n* item [[_a]]\n\nterm:: desc [[_b]]\n\n"
+                     "* item\n  more [[_c]]\n\n.Title [[_d]]\n----\nx\n----\n\n"
+                     "|===\n| cell [[_e]]\n|===\n\n== Title [[_f]] mid\n\n"
+                     " literal [[_g]]\n\n"
+                     "== A\n\n== B\n\n== C\n\n== D\n\n== E\n\n== F\n\n== G\n"))
+            :to-equal '("_title_mid" "_a" "_b" "_c" "_d" "_e" "_f" "_g")))
+
+  (it "matches the real asciidoctor"
+    (assume (executable-find "asciidoctor") "asciidoctor not installed")
+    (dolist (doc '("= D\n\n* a [[_foo]]\n\n== Foo\n"
+                   "= D\n\n* [[_foo]] a\n\n== Foo\n"
+                   "= D\n\n* a\nmore [[_foo]]\n\n== Foo\n"
+                   "= D\n\n* a\n  more [[_foo]]\n\n== Foo\n"
+                   "= D\n\n* a\n+\npara [[_foo]]\n\n== Foo\n"
+                   "= D\n\n* a\nb\n* c [[_foo]]\n\n== Foo\n"
+                   "= D\n\n* anchor:_foo[] a\n\n== Foo\n"
+                   "= D\n\n. [[_foo]] a\n\n== Foo\n"
+                   "= D\n\n.Title [[_foo]]\n----\nx\n----\n\n== Foo\n"
+                   "= D\n\n literal [[_foo]]\n\n== Foo\n"
+                   "= D\n\nNOTE: x [[_foo]]\n\n== Foo\n"
+                   "= D\n\npara anchor:_foo[] a\n\n== Foo\n"
+                   "= D\n\npara\n* item [[_foo]]\n\n== Foo\n"
+                   "= D\n\npara\n.T [[_foo]]\n\n== Foo\n"
+                   "= D\n\n[[_foo]]term:: desc\n\n== Foo\n"
+                   "= D\n\nterm:: desc [[_foo]]\n\n== Foo\n"
+                   "= D\n\nterm::\n  desc [[_foo]]\n\n== Foo\n"
+                   "= D\n\nterm::\ndesc [[_foo]]\n\n== Foo\n"
+                   "= D\n\n|===\n| a [[_foo]] | b\n|===\n\n== Foo\n"
+                   "= D\n\n|===\n| [[_foo]] a | b\n|===\n\n== Foo\n"
+                   "= D\n\n|===\na| para [[_foo]]\n|===\n\n== Foo\n"
+                   "= D\n\n|===\n| a\n[[_foo]] b\n|===\n\n== Foo\n"
+                   "= D\n\n|===\n  | a [[_foo]]\n|===\n\n== Foo\n"
+                   "= D\n\n== Bar [[_foo]] baz\n\n== Foo\n"
+                   "= D\n\n[[_foo]]\n<<<\n\n== Foo\n"
+                   "= D\n\n* a\n\n  lit [[_foo]]\n\n== Foo\n"
+                   "= D\n\npara [[[_foo]] x\n\n== Foo\n"
+                   "= D\n\n[source,ruby]\n.T\nx = \"[[_foo]]\"\n\n== Foo\n"
+                   "= D\n\n[verse]\nv [[_foo]]\n\n== Foo\n"
+                   "= D\n\n[NOTE]\npara [[_foo]]\n\n== Foo\n"
+                   "= D\n\n[normal]\n  ind [[_foo]]\n\n== Foo\n"
+                   "= D\n\n[.role]\npara [[_foo]]\n\n== Foo\n"
+                   "= D\n\n====\n[source]\npara [[_foo]]\n====\n\n== Foo\n"
+                   "= D\n\n====\n[NOTE]\npara [[_foo]]\n\n[[_foo_2]]\npara\n====\n\n== Foo\n"
+                   "= D\n\n[link=https://x.com#_foo]\nimage::a.png[]\n\n== Foo\n"))
+      (expect (adoc-test--section-ids doc)
+              :to-equal (adoc-test--asciidoctor-section-ids doc)))))
+
 (describe "Antora layout detection"
   (it "detects an antora.yml above the file and uses the kebab style"
     (let* ((root (make-temp-file "adoc-antora-" t))

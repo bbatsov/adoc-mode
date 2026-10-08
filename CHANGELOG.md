@@ -80,6 +80,10 @@
   - A nested block or table left unclosed is no longer highlighted as running past the end of the block it's in.
   - The delimiter that closes a CSV or DSV table no longer opens another table, as in Asciidoctor.
 - [#101](https://github.com/bbatsov/adoc-mode/pull/101): A `file://` link in a section title gives the section's auto-id its text, like the other links do.
+- [#103](https://github.com/bbatsov/adoc-mode/pull/103): Completion, the `xref` backend and section ids agree on what's an anchor, and go by what Asciidoctor takes for one.
+  - `anchor:id[]`, `[id=...]` and ids with `.` or `:` in them count, and anchors in comments, code blocks, literal paragraphs and `[source]` or other verbatim paragraphs don't.
+  - A section takes its id from the closest `[[id]]` or `[#id]` above it, even past blank lines, comments or a block title, and prefers it to an anchor at the end of the title.
+  - Only the anchors Asciidoctor registers before it reaches a section count as taking its auto-id, so one in a block title or in the middle of a list item no longer turns `_foo` into `_foo_2`.
 
 ## 0.9.0 (2026-06-02)
 

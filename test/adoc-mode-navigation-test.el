@@ -564,6 +564,29 @@
       ;; such sections have no auto-id to offer
       (expect (adoc--collect-section-ids) :to-equal '("_plain_one"))))
 
+  (it "ignores anchors in verbatim blocks and comments"
+    (with-temp-buffer
+      (insert "----\n[[foo]]\n----\n\n// [[foo]]\n\n[[foo]]\nreal\n")
+      (adoc-mode)
+      (expect (length (xref-backend-definitions 'adoc "foo")) :to-equal 1)
+      (adoc-goto-ref-label "foo")
+      (expect (line-number-at-pos) :to-equal 7)
+      (goto-char (point-min))
+      (search-forward "[[f")
+      (expect (xref-backend-identifier-at-point 'adoc) :to-be nil)))
+
+  (it "finds the id of an anchor macro or an id attribute at point"
+    (with-temp-buffer
+      (insert "See anchor:mac[here].\n\n[id=named]\n== Section\n")
+      (adoc-mode)
+      (goto-char (point-min))
+      (search-forward "anchor:m")
+      (expect (xref-backend-identifier-at-point 'adoc) :to-equal "mac")
+      (search-forward "[id=")
+      (expect (xref-backend-identifier-at-point 'adoc) :to-equal "named")
+      (expect (length (xref-backend-definitions 'adoc "mac")) :to-equal 1)
+      (expect (length (xref-backend-apropos 'adoc "na")) :to-equal 1)))
+
   (it "finds an inline anchor whose reftext has brackets"
     (with-temp-buffer
       (insert "x [[foo,Some [x] text]] y\n\n<<foo>>\n")
