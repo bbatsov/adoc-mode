@@ -16,26 +16,58 @@
 (describe "adoc-mode title editing"
 
   (it "promotes one-line and two-line titles"
-    (adoc-test-trans "= foo" "== foo" '(adoc-promote-title 1))
-    ;; one-line titles span six levels (0-5), so level 5 wraps to level 0
-    (adoc-test-trans "====== foo" "= foo" '(adoc-promote-title 1))
-    (adoc-test-trans "== foo" "==== foo" '(adoc-promote-title 2))
-    (adoc-test-trans "= foo =" "== foo ==" '(adoc-promote-title 1))
-    (adoc-test-trans "====== foo ======" "= foo =" '(adoc-promote-title 1))
-    (adoc-test-trans "== foo ==" "==== foo ====" '(adoc-promote-title 2))
-    ;; two-line titles span five levels (0-4), so promoting level 4 wraps to 0
+    (adoc-test-trans "=== foo" "== foo" '(adoc-promote-title 1))
+    (adoc-test-trans "====== foo" "===== foo" '(adoc-promote-title 1))
+    (adoc-test-trans "==== foo" "== foo" '(adoc-promote-title 2))
+    (adoc-test-trans "=== foo ===" "== foo ==" '(adoc-promote-title 1))
+    (adoc-test-trans "==== foo ====" "== foo ==" '(adoc-promote-title 2))
     (let ((adoc-enable-two-line-title t))
-      (adoc-test-trans "foo!\n===!" "foo\n---" '(adoc-promote-title 1))
-      (adoc-test-trans "foo!\n+++!" "foo\n===" '(adoc-promote-title 1))
-      (adoc-test-trans "foo!\n---!" "foo\n^^^" '(adoc-promote-title 2))))
+      (adoc-test-trans "foo!\n~~~!" "foo\n---" '(adoc-promote-title 1))
+      (adoc-test-trans "foo!\n^^^!" "foo\n---" '(adoc-promote-title 2))))
+
+  (it "goes the other way with a negative argument"
+    (adoc-test-trans "== f!oo\n" "=== foo\n" '(adoc-promote-title -1))
+    (adoc-test-trans "=== f!oo\n" "== foo\n" '(adoc-demote-title -1))
+    (adoc-test-trans "== f!oo\n" "=== foo\n" '(adoc-promote -1))
+    (adoc-test-trans "=== f!oo\n" "== foo\n" '(adoc-demote -1)))
+
+  (it "doesn't promote or demote a title past the outermost or innermost level"
+    (adoc-test-trans "= f!oo\n" "= foo\n"
+                     '(expect (adoc-promote-title 1) :to-throw 'user-error))
+    (adoc-test-trans "=== f!oo\n" "=== foo\n"
+                     '(expect (adoc-promote-title 3) :to-throw 'user-error))
+    (adoc-test-trans "====== f!oo\n" "====== foo\n"
+                     '(expect (adoc-demote-title 1) :to-throw 'user-error))
+    (adoc-test-trans "====== f!oo ======\n" "====== foo ======\n"
+                     '(expect (adoc-demote-title 1) :to-throw 'user-error))
+    (let ((adoc-enable-two-line-title t))
+      ;; two-line titles only go down to level 4
+      (adoc-test-trans "foo!\n+++!" "foo\n+++"
+                       '(expect (adoc-demote-title 1) :to-throw 'user-error))))
+
+  (it "only promotes a section to level 0 in a book, or to make the document title"
+    (adoc-test-trans "= Doc\n\n== S!ec\n" "= Doc\n\n== Sec\n"
+                     '(expect (adoc-promote-title 1) :to-throw 'user-error))
+    (adoc-test-trans "= Book\n:doctype: book\n\n== P!art\n"
+                     "= Book\n:doctype: book\n\n= Part\n"
+                     '(adoc-promote-title 1))
+    ;; only the header can make a book
+    (adoc-test-trans "= Doc\n\n----\n:doctype: book\n----\n\n== S!ec\n"
+                     "= Doc\n\n----\n:doctype: book\n----\n\n== Sec\n"
+                     '(expect (adoc-promote-title 1) :to-throw 'user-error))
+    ;; the first title can always become the document title
+    (adoc-test-trans "== My D!oc\n\nSome text.\n" "= My Doc\n\nSome text.\n"
+                     '(adoc-promote-title 1))
+    (adoc-test-trans "= D!oc\n\nText.\n" "= Doc\n\nText.\n"
+                     '(progn (adoc-demote-title 1) (adoc-promote-title 1))))
 
   (it "keeps a title's delimiter style when it is followed by text"
     (adoc-test-trans "== Sec!tion\n\nbody\n" "=== Section\n\nbody\n"
-                     '(adoc-promote-title 1))
-    (adoc-test-trans "=== Sec!tion\n\nbody\n" "== Section\n\nbody\n"
                      '(adoc-demote-title 1))
-    (adoc-test-trans "== Sec!tion ==\n\nbody\n" "=== Section ===\n\nbody\n"
+    (adoc-test-trans "=== Sec!tion\n\nbody\n" "== Section\n\nbody\n"
                      '(adoc-promote-title 1))
+    (adoc-test-trans "== Sec!tion ==\n\nbody\n" "=== Section ===\n\nbody\n"
+                     '(adoc-demote-title 1))
     (adoc-test-trans "== Sec!tion\n\nbody\n" "== Section\n\nbody\n"
                      '(adoc-adjust-title-del))
     (adoc-test-trans "== Sec!tion\n\nbody\n" "== Section ==\n\nbody\n"
@@ -44,16 +76,17 @@
                      '(adoc-toggle-title-type t)))
 
   (it "demotes titles"
-    (adoc-test-trans "= foo" "====== foo" '(adoc-demote-title 1))
-    (adoc-test-trans "= foo =" "====== foo ======" '(adoc-demote-title 1))
+    (adoc-test-trans "= foo" "== foo" '(adoc-demote-title 1))
+    (adoc-test-trans "== foo" "==== foo" '(adoc-demote-title 2))
+    (adoc-test-trans "= foo =" "== foo ==" '(adoc-demote-title 1))
     (let ((adoc-enable-two-line-title t))
-      (adoc-test-trans "foo!\n===!" "foo\n+++" '(adoc-demote-title 1))))
+      (adoc-test-trans "foo!\n===!" "foo\n---" '(adoc-demote-title 1))))
 
   (it "defaults to one level when called from Lisp without an argument"
-    (adoc-test-trans "== f!oo\n" "=== foo\n" '(adoc-promote-title))
-    (adoc-test-trans "== f!oo\n" "= foo\n" '(adoc-demote-title))
-    (adoc-test-trans "== f!oo\n" "=== foo\n" '(adoc-promote))
-    (adoc-test-trans "== f!oo\n" "= foo\n" '(adoc-demote)))
+    (adoc-test-trans "=== f!oo\n" "== foo\n" '(adoc-promote-title))
+    (adoc-test-trans "=== f!oo\n" "==== foo\n" '(adoc-demote-title))
+    (adoc-test-trans "=== f!oo\n" "== foo\n" '(adoc-promote))
+    (adoc-test-trans "=== f!oo\n" "==== foo\n" '(adoc-demote)))
 
   (it "toggles the title type"
     (let ((adoc-enable-two-line-title t))
@@ -116,21 +149,29 @@
 (describe "adoc-mode list editing"
 
   (it "promotes/demotes unordered list items"
-    (adoc-test-trans "* foo!" "** foo" '(adoc-promote 1))
-    (adoc-test-trans "** foo!" "* foo" '(adoc-demote 1))
-    (adoc-test-trans "* foo!" "- foo" '(adoc-demote 1))
-    (adoc-test-trans "- foo!" "* foo" '(adoc-promote 1))
-    ;; clamped at the extremes
-    (adoc-test-trans "- foo!" "- foo" '(adoc-demote 1))
-    (adoc-test-trans "***** foo!" "***** foo" '(adoc-promote 1))
+    (adoc-test-trans "* foo!" "** foo" '(adoc-demote 1))
+    (adoc-test-trans "** foo!" "* foo" '(adoc-promote 1))
+    (adoc-test-trans "* foo!" "- foo" '(adoc-promote 1))
+    (adoc-test-trans "- foo!" "* foo" '(adoc-demote 1))
     ;; leading indentation is preserved
-    (adoc-test-trans "  ** foo!" "  *** foo" '(adoc-promote 1))
-    (adoc-test-trans "* foo!" "*** foo" '(adoc-promote 2)))
+    (adoc-test-trans "  ** foo!" "  *** foo" '(adoc-demote 1))
+    (adoc-test-trans "* foo!" "*** foo" '(adoc-demote 2)))
 
   (it "promotes/demotes implicitly-numbered list items"
-    (adoc-test-trans ". foo!" ".. foo" '(adoc-promote 1))
-    (adoc-test-trans ".. foo!" ". foo" '(adoc-demote 1))
-    (adoc-test-trans ". foo!" ". foo" '(adoc-demote 1)))
+    (adoc-test-trans ". foo!" ".. foo" '(adoc-demote 1))
+    (adoc-test-trans ".. foo!" ". foo" '(adoc-promote 1)))
+
+  (it "doesn't promote or demote a list item past the outermost or innermost level"
+    (adoc-test-trans "- foo!" "- foo"
+                     '(expect (adoc-promote 1) :to-throw 'user-error))
+    (adoc-test-trans "* foo!" "* foo"
+                     '(expect (adoc-promote 2) :to-throw 'user-error))
+    (adoc-test-trans "***** foo!" "***** foo"
+                     '(expect (adoc-demote 1) :to-throw 'user-error))
+    (adoc-test-trans ". foo!" ". foo"
+                     '(expect (adoc-promote 1) :to-throw 'user-error))
+    (adoc-test-trans "..... foo!" "..... foo"
+                     '(expect (adoc-demote 1) :to-throw 'user-error)))
 
   (it "refuses to change the level of an explicitly-numbered item"
     (with-temp-buffer

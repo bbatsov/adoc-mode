@@ -2594,6 +2594,15 @@ is recorded whole."
             (setq adoc--block-extents-done
                   (adoc--record-block-extents start end))))))))
 
+(defun adoc--delimited-block-at (pos)
+  "Return the delimited block the line at POS is in, or nil.
+The value is that of the `adoc-delimited-block' property, see
+`adoc--ensure-block-extents'.  Inside a block, a line that looks like
+a section title is plain content, as for highlighting."
+  (save-match-data
+    (adoc--ensure-block-extents (1+ pos))
+    (get-text-property pos 'adoc-delimited-block)))
+
 (defun adoc--record-block-extents (start end)
   "Record the extents of the delimited blocks opened between START and END.
 START has to be outside any block.  Return the position the extents are
@@ -3303,46 +3312,44 @@ A quick `mouse-1' or a `mouse-2' click follows the reference via
 (fset 'adoc-link-keymap adoc-link-keymap)
 
 (defun adoc-promote (&optional arg)
-  "Promote the structure at point ARG levels.
+  "Promote the title or list item at point ARG levels.
 
-When ARG is nil (i.e. when no prefix arg is given), it defaults
-to 1.  When ARG is negative, the structure is demoted that many
-levels instead.
-
-On a section title this adds title levels (e.g. `=' -> `==', see
-`adoc-promote-title').  On a list item it nests the item one
-level deeper (e.g. `*' -> `**', see `adoc-demote' for the
-opposite direction)."
-  (interactive "p")
-  (let ((item (adoc--list-item-at-point)))
-    (if item
-        (adoc--change-list-item-level item (or arg 1))
-      (adoc-promote-title arg))))
-
-(defun adoc-demote (&optional arg)
-  "Demote the structure at point ARG levels.
-
-Analogous to `adoc-promote', see there.  On a list item this
-nests the item one level shallower (e.g. `**' -> `*')."
+As in Org mode, promoting moves the structure up the outline: a
+section title loses a level marker (e.g. `===' -> `==', see
+`adoc-promote-title') and a list item is nested one level
+shallower (e.g. `**' -> `*').  ARG defaults to 1; a negative ARG
+demotes instead."
   (interactive "p")
   (let ((item (adoc--list-item-at-point)))
     (if item
         (adoc--change-list-item-level item (- (or arg 1)))
+      (adoc-promote-title arg))))
+
+(defun adoc-demote (&optional arg)
+  "Demote the title or list item at point ARG levels.
+
+The opposite of `adoc-promote': a section title gains a level
+marker (e.g. `==' -> `===') and a list item is nested one level
+deeper (e.g. `*' -> `**')."
+  (interactive "p")
+  (let ((item (adoc--list-item-at-point)))
+    (if item
+        (adoc--change-list-item-level item (or arg 1))
       (adoc-demote-title arg))))
 
 (defun adoc-promote-title (&optional arg)
-  "Promotes the title at point ARG levels.
+  "Promote the title at point ARG levels, e.g. `===' -> `=='.
 
-When ARG is nil (i.e. when no prefix arg is given), it defaults
-to 1. When ARG is negative, level is demoted that many levels. If
-ARG is 0, see `adoc-adjust-title-del'."
+ARG defaults to 1; a negative ARG demotes instead.  If ARG is 0,
+the title is only reformatted, see `adoc-adjust-title-del'."
   (interactive "p")
-  (adoc-modify-title (or arg 1)))
+  (adoc-modify-title (- (or arg 1))))
 
 (defun adoc-demote-title (&optional arg)
-  "Completely analogous to `adoc-promote-title'."
+  "Demote the title at point ARG levels, e.g. `==' -> `==='.
+The opposite of `adoc-promote-title'."
   (interactive "p")
-  (adoc-promote-title (- (or arg 1))))
+  (adoc-modify-title (or arg 1)))
 
 (defun adoc-adjust-title-del ()
   "Adjusts underline length to match the length of the title's text.
@@ -3404,11 +3411,19 @@ their markers are too easily confused with ordinary prose."
 (defun adoc--unordered-marker (level)
   "Return the unordered list marker for nesting LEVEL (0-based).
 Level 0 is the dash bullet; deeper levels use that many asterisks."
-  (if (<= level 0) "-" (make-string (min level 5) ?*)))
+  (if (= level 0) "-" (make-string level ?*)))
 
 (defun adoc--implicit-numbered-marker (level)
   "Return the implicit-numbered list marker (dots) for LEVEL (0-based)."
-  (make-string (1+ (min (max level 0) 4)) ?.))
+  (make-string (1+ level) ?.))
+
+(defun adoc--check-level (level max-level)
+  "Return LEVEL, or signal a `user-error' if it's outside 0 to MAX-LEVEL.
+For promoting and demoting titles and list items."
+  (cond
+   ((< level 0) (user-error "Cannot promote any further"))
+   ((> level max-level) (user-error "Cannot demote any further"))
+   (t level)))
 
 (defun adoc--increment-marker (marker)
   "Return list MARKER incremented for the next sibling item.
@@ -3429,19 +3444,19 @@ them up."
 (defun adoc--change-list-item-level (item delta)
   "Change list ITEM's nesting level by DELTA, rewriting its marker.
 A positive DELTA nests the item deeper, a negative one shallower.
-The level is clamped to the range the marker style supports."
+Signal a `user-error' when that leaves the range of levels the
+marker style supports."
   (let* ((type (plist-get item :type))
-         (level (plist-get item :level))
+         (level (+ (plist-get item :level) delta))
          (old-marker (plist-get item :marker))
          (beg (plist-get item :marker-beg))
-         new-marker)
-    (pcase type
-      ('unordered
-       (setq new-marker (adoc--unordered-marker (max 0 (min 5 (+ level delta))))))
-      ('implicit-numbered
-       (setq new-marker (adoc--implicit-numbered-marker (max 0 (min 4 (+ level delta))))))
-      (_ (user-error "Cannot change the nesting level of a %s list item"
-                     (symbol-name type))))
+         (new-marker
+          (pcase type
+            ('unordered
+             (adoc--unordered-marker (adoc--check-level level adoc-uolist-max-level)))
+            ('implicit-numbered
+             (adoc--implicit-numbered-marker (adoc--check-level level 4)))
+            (_ (user-error "Cannot change the nesting level of a numbered list item")))))
     (unless (string= new-marker old-marker)
       (save-excursion
         (goto-char beg)
@@ -3830,11 +3845,40 @@ trailing delimiter ('== my title ==').
         (adoc-make-one-line-title sub-type level text)
       (adoc-make-two-line-title level text))))
 
+(defun adoc--book-p ()
+  "Return non-nil when the document header sets the doctype to book.
+The header runs from the first line that isn't blank to the next blank
+line."
+  (save-excursion
+    (save-restriction
+      (widen)
+      (goto-char (point-min))
+      (skip-chars-forward " \t\n")
+      (let ((case-fold-search nil)
+            (end (save-excursion
+                   (if (re-search-forward "^[ \t]*$" nil t) (point) (point-max)))))
+        (re-search-forward "^:doctype:[ \t]+book[ \t]*$" end t)))))
+
+(defun adoc--level-0-title-allowed-p ()
+  "Return non-nil when the title at point may be at level 0.
+In a book, level 0 sections are parts.  Otherwise level 0 is for the
+document title only, which must come before any other title."
+  (or (adoc--book-p)
+      (save-excursion
+        (beginning-of-line)
+        (let (found)
+          (while (and (not found)
+                      (re-search-backward "^=\\{1,6\\}[ \t]+[^ \t\n]" nil t))
+            (setq found (not (adoc--delimited-block-at (point)))))
+          (not found)))))
+
 (defun adoc-modify-title (&optional new-level-rel new-level-abs new-type new-sub-type create)
   "Modify properties of title point is on.
 
 NEW-LEVEL-REL defines the new title level relative to the current
-one. Negative values are allowed. 0 or nil means don't change.
+one. Negative values are allowed. 0 or nil means don't change. A
+resulting level outside the range the title type supports signals a
+`user-error'.
 NEW-LEVEL-ABS defines the new level absolutely. When both
 NEW-LEVEL-REL and NEW-LEVEL-ABS are non-nil, NEW-LEVEL-REL takes
 precedence. When both are nil, level is not affected.
@@ -3887,11 +3931,13 @@ and title's text are not preserved, afterwards its always one space."
            (new-level (cond
                        ((or (null new-level-rel) (eq new-level-rel 0))
                         level)
-                       ((not (null new-level-rel))
-                        (let ((x (% (+ level new-level-rel) level-count)))
-                          (if (< x 0)
-                              (+ x level-count)
-                            x)))
+                       (new-level-rel
+                        (let ((new (adoc--check-level (+ level new-level-rel)
+                                                      (1- level-count))))
+                          (when (and (= new 0) (> level 0)
+                                     (not (adoc--level-0-title-allowed-p)))
+                            (user-error "Only the document title, or a part in a book, can be at level 0"))
+                          new))
                        ((not (null new-level-abs))
                         new-level-abs)
                        (t
@@ -4787,14 +4833,6 @@ buffer stops the search.  With a negative ARG, move forward."
 
 ;;;; Outline cycling
 
-(defun adoc--outline-block-at (pos)
-  "Return the delimited block the line at POS is in, or nil.
-A line that looks like a section title is plain content there, as for
-highlighting (see `adoc--outside-delimited-block-p')."
-  (save-match-data
-    (adoc--ensure-block-extents (1+ pos))
-    (get-text-property pos 'adoc-delimited-block)))
-
 (defun adoc--outline-search (&optional bound move backward looking-at)
   "Search for the next section title, for `outline-search-function'.
 That's the next match of `outline-regexp' at the beginning of a line,
@@ -4803,7 +4841,7 @@ inside delimited blocks don't count.  BOUND, MOVE, BACKWARD and
 LOOKING-AT are as in `outline-search-function'."
   (if looking-at
       (and (looking-at outline-regexp)
-           (not (adoc--outline-block-at (point))))
+           (not (adoc--delimited-block-at (point))))
     (let ((regexp (concat "^\\(?:" outline-regexp "\\)"))
           (limit (or bound (if backward (point-min) (point-max))))
           (origin (point))
@@ -4813,7 +4851,7 @@ LOOKING-AT are as in `outline-search-function'."
                   (if backward
                       (re-search-backward regexp limit t)
                     (re-search-forward regexp limit t)))
-        (let ((block (adoc--outline-block-at (match-beginning 0))))
+        (let ((block (adoc--delimited-block-at (match-beginning 0))))
           (if (not block)
               (setq found t more nil)
             ;; Carry on past the block, none of its lines can be a title.
@@ -4843,7 +4881,7 @@ underlying `outline-minor-mode'."
    (arg (adoc-cycle-buffer))
    ;; Emacs 28 has no `outline-search-function', so check for a block here.
    ((and (outline-on-heading-p)
-         (not (adoc--outline-block-at (line-beginning-position))))
+         (not (adoc--delimited-block-at (line-beginning-position))))
     (outline-cycle))
    (t (indent-for-tab-command))))
 
