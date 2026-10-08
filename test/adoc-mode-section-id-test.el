@@ -634,6 +634,76 @@
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
+(describe "cross-references without text in section titles"
+  (it "show the xreftext of a target above them"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\n[[intro]]\n== Introduction\n\n[reftext=Short]\n== Long\n\n"
+                     "See [[p,Para Text]] here.\n\n[[blk]]\n.Block Title\n----\nx\n----\n\n"
+                     "== See <<intro>> xref:_long[] <<p>> <<blk>>\n"))
+            :to-equal '("intro" "_long" "_see_introduction_short_para_text_block_title")))
+
+  (it "show the id of a target that isn't known yet, or has no xreftext"
+    (expect (adoc-test--section-ids
+             "= D\n\n== See <<later>> <<b>>\n\n[[b]]\n----\nx\n----\n\n[[later]]\n== Later\n")
+            :to-equal '("_see_later_b" "later")))
+
+  (it "leave out an id another line of its block replaces"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\n[[a]]\n[[b]]\n.Block Title\n----\nx\n----\n\n"
+                     "[[c,Ref C]]\n:x: y\n\n[[d]]\npara\n\n== A <<a>> <<b>> <<c>> <<d>>\n"))
+            :to-equal '("_a_a_block_title_c_ref_c")))
+
+  (it "take the reftext of an anchor at the end of a title only for its id"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\n[reftext=R]\n== Title [[o,T]]\n\n"
+                     "[[s]]\n== Other [[p,P]]\n\n== A <<o>> <<s>>\n"))
+            :to-equal '("o" "s" "_a_t_other")))
+
+  (it "get the attributes in effect where the reftext is"
+    (expect (adoc-test--section-ids
+             (concat "= D\n:x: one\n\n[[b,{x}]]\npara\n\nSee [[p,P {x}]].\n\n"
+                     "== Title [[o,T {x}]]\n\n:x: two\n\n== A <<b>> <<p>> <<o>>\n"))
+            :to-equal '("o" "_a_one_p_one_t_x")))
+
+  (it "show the value a counter in a reftext counted"
+    (expect (adoc-test--section-ids
+             "= D\n\n== A {counter:n}\n\n[[b,R {counter:n}]]\npara\n\n== C {counter:n} <<b>>\n")
+            :to-equal '("_a_1" "_c_3_r_2")))
+
+  (it "show the xreftext of the first target with the id"
+    (expect (adoc-test--section-ids
+             "= D\n\n[[x,First]]\npara\n\n[[x]]\n== Second\n\n== A <<x>>\n")
+            :to-equal '("x" "_a_first")))
+
+  (it "take a section's reftext from above it or from the end of its title"
+    (expect (adoc-test--section-ids
+             (concat "= D\n:v: Val\n\n[[t,Above {v}]]\n\n// comment\n== Title\n\n"
+                     "== Other [[o,Trailing]]\n\n== A <<t>> <<o>>\n"))
+            :to-equal '("t" "o" "_a_above_val_trailing")))
+
+  (it "show the cross-references in a title rendered only for its xreftext by their ids"
+    (expect (adoc-test--section-ids
+             "= D\n\n[[a]]\n== A <<c>>\n\n[[c]]\n== Cee\n\n== E <<a>>\n")
+            :to-equal '("a" "c" "_e_a_c")))
+
+  (it "matches the real asciidoctor"
+    (assume (executable-find "asciidoctor") "asciidoctor not installed")
+    (dolist (doc '("= D\n\n[[intro,Intro Text]]\n== Introduction\n\n[#s,reftext=Short]\n== S\n\n== See <<intro>> <<s>>\n"
+                   "= D\n\n[[a]]\n== A <<a>>\n\n== C <<a>>\n\nSee anchor:q[Q Text] and [[p]].\n\n== E <<q>> <<p>>\n"
+                   "= D\n\n[#blk]\n.Block *T*\n----\nx\n----\n\n[[b2,Block (C) Ref]]\n----\nx\n----\n\n== A <<blk>> <<b2>>\n"
+                   "= D\n:x: Val\n\n[[s]]\n== S {x}\n\n== A <<s>>\n\n== B\n\n=== C <<_b>> and <<_a,text>>\n"
+                   "= D\n\n[[x1]]\n== One\n\n[[x2]]\n== Two <<x1>>\n\n== Three <<x2>>\n\n== Four <<x1>>\n"
+                   "= D\n\n[[x1]]\n== One\n\n== Two <<x1>>\n\n== Three <<_two_one>>\n"
+                   "= D\n\n[[x,First]]\n[[x]]\n== Second\n\nSee [[q,Q1]] and [[q,Q2]].\n\n== A <<x>> <<q>>\n"
+                   "= D\n\n[[i]]\n== Intro\n\n[[i,Dup]]\npara\n\n== A <<i>>\n"
+                   "= D\n:x: &\n\n[[b,A {x} B]]\npara\n\n[reftext=R]\n\n== Title\n\n== A <<b>> <<_title>>\n"
+                   "= D\n\n[[a]]\n\n[#b]\n.Block Title\npara\n\n[[c,Ref C]]\n[[d]]\npara\n\n== A <<a>> <<b>> <<d>>\n"
+                   "= D\n\n[reftext=R]\n== Title [[o,T]]\n\n[[s]]\n== Other [[p,P]]\n\n== A <<o>> <<s>>\n"
+                   "= D\n:x: one\n\n[[b,{x}]]\npara\n\n== Title [[o,T {x}]]\n\n:x: two\n\n== A <<b>> <<o>>\n"
+                   "= D\n\n.Block {x}\n[[c]]\n----\ny\n----\n\n== A {counter:n} <<c>>\n\n[[b,R {counter:n}]]\npara\n\n== C <<b>>\n"))
+      (expect (adoc-test--section-ids doc)
+              :to-equal (adoc-test--asciidoctor-section-ids doc)))))
+
 (describe "set references in section titles"
   (it "set and unset the attribute the way Asciidoctor does"
     (expect (adoc-test--section-ids

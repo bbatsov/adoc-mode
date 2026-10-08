@@ -5457,12 +5457,31 @@ nil when there's no text, as the macro shows its target then.  See
                "\\`[[:alpha:]][[:alnum:].+-]+:/\\{0,2\\}" "" uri t t)))
     (if (string-empty-p rest) uri rest)))
 
+(defvar adoc--known-xreftexts nil
+  "The ids Asciidoctor knows so far while it parses, with their xreftexts.
+A hash table of each id to its xreftext, or to a function that returns
+it, bound while `adoc--scan-sections' renders the section titles.")
+
+(defun adoc--known-xreftext (id)
+  "Return the xreftext of ID in `adoc--known-xreftexts', or nil.
+An xreftext Asciidoctor works out only now, such as the title of a
+section with an explicit id, which it doesn't render while parsing,
+shows the cross-references in it by their ids."
+  (let* ((known adoc--known-xreftexts)
+         (xreftext (and known (gethash id known))))
+    (when (functionp xreftext)
+      (setq xreftext (let ((adoc--known-xreftexts nil))
+                       (funcall xreftext)))
+      (puthash id xreftext known))
+    xreftext))
+
 (defun adoc--xref-text (refid macro attributes)
   "Return the text of a cross-reference to REFID that has none of its own.
 MACRO is non-nil for an `xref:' macro, as opposed to `<<refid>>', and
 ATTRIBUTES are the document attributes in effect.  That's the path of
-the HTML file of another document, or REFID in brackets, which is what
-Asciidoctor shows for an id it doesn't know yet."
+the HTML file of another document, or for an id in this one, the
+xreftext of its target when Asciidoctor knows it already, see
+`adoc--known-xreftexts', or else REFID in brackets."
   (let ((hash (string-search "#" refid))
         (ext-re "\\.\\(?:adoc\\|asciidoc\\|asc\\|ad\\|txt\\)\\'")
         path src2src fragment)
@@ -5484,7 +5503,7 @@ Asciidoctor shows for an id it doesn't know yet."
        ((and macro (extname-p refid)) (setq path refid))
        (t (setq fragment refid))))
     (if (not path)
-        (concat "[" fragment "]")
+        (or (adoc--known-xreftext fragment) (concat "[" fragment "]"))
       (concat (cdr (assoc "relfileprefix" attributes))
               path
               (and src2src
@@ -5836,6 +5855,120 @@ See `adoc--scan-sections'."
 (defvar adoc--re-block-attribute-line)  ; with the anchor regexps below
 (defvar adoc--re-block-title-or-comment-line)
 
+(defvar adoc--re-anchor-id)
+
+(defun adoc--reftext (text attributes)
+  "Return the reftext TEXT as Asciidoctor shows it, or nil when it's empty.
+ATTRIBUTES are the document attributes in effect where it's set, which
+the references in it get, see `adoc--substitute-attributes', or nil for
+a reftext Asciidoctor keeps as it is."
+  (let ((text (string-trim text)))
+    (unless (string-empty-p text)
+      (when (and attributes (string-search "{counter" text))
+        ;; Its counters counted where it's set, which ATTRIBUTES have.
+        (setq text (replace-regexp-in-string
+                    "\\(\\\\\\)?{counter\\(2\\)?:\\([^:}]+\\)\\(?::[^}]*\\)?}"
+                    (lambda (ref)
+                      (cond
+                       ((match-beginning 1) ref)
+                       ((match-beginning 2) "")
+                       (t (concat "{" (match-string 3 ref) "}"))))
+                    text t t)))
+      (car (adoc--apply-subs (if attributes
+                                 (adoc--substitute-attributes text attributes)
+                               text)
+                             '(specialcharacters quotes replacements) attributes)))))
+
+(defun adoc--block-attribute-reftext ()
+  "Return the reftext the block attribute line at point sets, or nil."
+  (cond
+   ((looking-at "\\[\\[[^],\n]+,\\(.+\\)\\]\\][ \t]*$")
+    (match-string-no-properties 1))
+   ((looking-at "\\[\\(.*\\)\\][ \t]*$")
+    (adoc--named-attribute "reftext" (adoc--attribute-list
+                                      (match-string-no-properties 1))))))
+
+(defun adoc--block-xreftext (pos attributes)
+  "Return the xreftext the lines from POS down give their block, or nil.
+They're the lines Asciidoctor reads before the block, see
+`adoc--metadata-start'.  It's the reftext the last of them to set one
+sets, see `adoc--block-attribute-reftext', or failing that, the
+block's title.  ATTRIBUTES are the document attributes in effect
+there."
+  (save-excursion
+    (goto-char pos)
+    (let (title reftext)
+      (while (and (not (eobp))
+                  (cond
+                   ((looking-at-p adoc--re-block-attribute-line)
+                    (setq reftext (or (adoc--block-attribute-reftext) reftext))
+                    t)
+                   ((looking-at "\\.\\([^ \t.].*\\)$")
+                    (setq title (match-string-no-properties 1)))
+                   ((looking-at-p "[ \t]*$\\|//\\(?:[^/]\\|$\\)"))
+                   ((looking-at-p adoc--re-attribute-entry-line))))
+        (forward-line 1))
+      (cond
+       (reftext (adoc--reftext reftext attributes))
+       (title (car (adoc--render-section-title title attributes)))))))
+
+(defun adoc--anchor-xreftext (pos attributes)
+  "Return the xreftext of the anchor at POS, or nil when it has none.
+That's the reftext of an inline anchor, or the xreftext of a block id,
+see `adoc--block-xreftext'.  ATTRIBUTES are the document attributes in
+effect there."
+  (save-excursion
+    (goto-char pos)
+    (cond
+     ((and (bolp) (looking-at-p adoc--re-block-attribute-line))
+      (adoc--block-xreftext (adoc--metadata-start pos) attributes))
+     ((looking-at "\\[\\[[^],\n]+,\\([^\n]+?\\)\\]\\]\\|anchor:[^[\n]+\\[\\(\\(?:[^]\\\n]\\|\\\\.\\)+\\)\\]")
+      (adoc--reftext (or (match-string-no-properties 1)
+                         (string-replace "\\]" "]" (match-string-no-properties 2)))
+                     attributes)))))
+
+(defun adoc--section-reftext (descriptor attributes)
+  "Return the reftext of the section DESCRIPTOR describes, rendered, or nil.
+An anchor at the end of its title sets it when the block attribute lines
+above the title set no id, as for `adoc--section-explicit-id', and then
+Asciidoctor keeps it as it is.  Otherwise it's the one the closest of
+those lines sets, with the document ATTRIBUTES substituted."
+  (save-excursion
+    (goto-char (nth 4 descriptor))
+    (let* ((text (nth 3 descriptor))
+           (trailing (and (string-match (concat "[ \t]\\[\\[" adoc--re-anchor-id
+                                                ",\\([^\n]+\\)\\]\\][ \t]*\\'")
+                                        text)
+                          (substring-no-properties (match-string 1 text)))))
+      (if (and trailing
+               (not (adoc--block-attribute-above #'adoc--block-attribute-id)))
+          (adoc--reftext trailing nil)
+        (let ((reftext (adoc--block-attribute-above #'adoc--block-attribute-reftext)))
+          (and reftext (adoc--reftext reftext attributes)))))))
+
+(defun adoc--metadata-start (pos)
+  "Return where the lines Asciidoctor reads before the block at POS begin.
+That's its block attribute and anchor lines, titles, comments and
+attribute entries, which can have blank lines between them, or POS's
+line when there's none."
+  (save-excursion
+    (goto-char pos)
+    (let ((top (line-beginning-position)))
+      (while (and (zerop (forward-line -1))
+                  (or (looking-at-p "[ \t]*$")
+                      (looking-at-p adoc--re-block-attribute-line)
+                      (looking-at-p adoc--re-block-title-or-comment-line)
+                      (looking-at-p adoc--re-attribute-entry-line)))
+        (unless (looking-at-p "[ \t]*$")
+          (setq top (point))))
+      top)))
+
+(defun adoc--register-xreftext (id xreftext)
+  "Add ID to `adoc--known-xreftexts' with XREFTEXT, unless it's there already.
+As in Asciidoctor, the first target with an id keeps it."
+  (when (eq (gethash id adoc--known-xreftexts 'none) 'none)
+    (puthash id xreftext adoc--known-xreftexts)))
+
 (defconst adoc--re-media-macro-line
   "^\\(?:image\\|video\\|audio\\)::[^ \t\n]\\(?:.*?[^ \t\n]\\)?\\[.*\\][ \t]*$"
   "Regexp matching an `image::', `video::' or `audio::' block macro line.")
@@ -5970,6 +6103,7 @@ don't count those, see `adoc--attributes-at'."
                                                               skipped)))
                                      collect (cons pos id)))
                    (taken (make-hash-table :test #'equal))
+                   (adoc--known-xreftexts (make-hash-table :test #'equal))
                    (next (make-hash-table :test #'equal))
                    (result '()))
         (cl-flet ((apply-entry (entry)
@@ -5986,18 +6120,41 @@ don't count those, see `adoc--attributes-at'."
                        (if (not counted)
                            (setq attributes applied)
                          (setq attributes (adoc--apply-attribute-entry name value attributes))
-                         (push (cons pos attributes) counted))))))
+                         (push (cons pos attributes) counted)))))
+                  (register-anchor (anchor own)
+                    (pcase-let ((`(,pos . ,id) anchor)
+                                (attributes attributes))
+                      (puthash id t taken)
+                      ;; The ids above a section title are the section's, and
+                      ;; it's registered with them, and an id another one of
+                      ;; its block's lines replaces isn't registered at all.
+                      (unless (or (>= pos own)
+                                  (save-excursion
+                                    (goto-char pos)
+                                    (and (bolp)
+                                         (looking-at-p adoc--re-block-attribute-line)
+                                         (adoc--block-id-below-p pos))))
+                        (adoc--register-xreftext
+                         id (lambda () (adoc--anchor-xreftext pos attributes)))))))
         (goto-char (point-min))
         (while (re-search-forward re nil t)
           (goto-char (match-beginning 0))
           (let ((descriptor (adoc--heading-descriptor-at-point)))
             (if (or (not descriptor) (adoc--skipped-line-p))
                 (forward-line 1)
-              (let ((start (nth 4 descriptor)))
-                (while (and entries (< (car (car entries)) start))
-                  (apply-entry (pop entries)))
-                (while (and anchors (< (car (car anchors)) start))
-                  (puthash (cdr (pop anchors)) t taken))
+              (let* ((start (nth 4 descriptor))
+                     (own (adoc--metadata-start start)))
+                ;; The entries and the anchors above the title, in order, so
+                ;; a reftext gets the attributes in effect where it is.
+                (while (let ((entry (car (car entries)))
+                             (anchor (car (car anchors))))
+                         (cond
+                          ((and entry (< entry start) (or (not anchor) (<= entry anchor)))
+                           (apply-entry (pop entries))
+                           t)
+                          ((and anchor (< anchor start))
+                           (register-anchor (pop anchors) own)
+                           t))))
                 (if (= (nth 2 descriptor) 0)
                     ;; A level-0 title is the document title, not a
                     ;; section, but its counters count all the same.
@@ -6028,7 +6185,17 @@ don't count those, see `adoc--attributes-at'."
                       (unless (eq (cdr rendered) attributes)
                         (push (cons start (cdr rendered)) counted))
                       (setq attributes (cdr rendered)))
-                    (when id (puthash id t taken))
+                    (when id
+                      (puthash id t taken)
+                      (let ((html (car rendered))
+                            (attributes attributes))
+                        ;; A section's xreftext is its reftext, or its title.
+                        (adoc--register-xreftext
+                         id (lambda ()
+                              (or (adoc--section-reftext descriptor attributes)
+                                  html
+                                  (car (adoc--render-section-title
+                                        title attributes)))))))
                     (push (list id title start (and explicit t)) result)))
                 (goto-char (nth 5 descriptor))))))
         (mapc #'apply-entry entries))
