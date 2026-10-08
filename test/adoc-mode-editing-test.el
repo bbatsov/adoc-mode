@@ -117,6 +117,18 @@
                        '(expect (adoc-promote) :to-throw 'user-error))
       (adoc-test-trans "foo!\n---" "== foo" '(adoc-toggle-title-type))))
 
+  (it "moves by word away from a title or list item, like Org mode"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "Just some prose")
+      (call-interactively #'adoc-promote)
+      (expect (point) :to-equal 11)
+      (call-interactively #'adoc-demote)
+      (expect (point) :to-equal 16)
+      (expect (buffer-string) :to-equal "Just some prose")
+      ;; called from Lisp, they still insist on a title or list item
+      (expect (adoc-promote) :to-throw 'user-error)))
+
   (it "signals a user-error when point is not on a title"
     (adoc-test-trans "just some pr!ose\n" "just some prose\n"
                      '(expect (adoc-promote-title 1) :to-throw 'user-error)))

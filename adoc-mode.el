@@ -3311,31 +3311,39 @@ A quick `mouse-1' or a `mouse-2' click follows the reference via
 ;; Make the symbol usable as the value of a `keymap' text property.
 (fset 'adoc-link-keymap adoc-link-keymap)
 
-(defun adoc-promote (&optional arg)
+(defun adoc-promote (&optional arg interactive)
   "Promote the title or list item at point ARG levels.
 
 As in Org mode, promoting moves the structure up the outline: a
 section title loses a level marker (e.g. `===' -> `==', see
 `adoc-promote-title') and a list item is nested one level
 shallower (e.g. `**' -> `*').  ARG defaults to 1; a negative ARG
-demotes instead."
-  (interactive "p")
-  (let ((item (adoc--list-item-at-point)))
-    (if item
-        (adoc--change-list-item-level item (- (or arg 1)))
-      (adoc-promote-title arg))))
+demotes instead.
 
-(defun adoc-demote (&optional arg)
+Anywhere else, move backward ARG words when called interactively
+\(INTERACTIVE is non-nil), like `org-metaleft'."
+  (interactive (list (prefix-numeric-value current-prefix-arg) t))
+  (let ((item (adoc--list-item-at-point)))
+    (cond
+     (item (adoc--change-list-item-level item (- (or arg 1))))
+     ((and interactive (not (adoc-title-descriptor))) (backward-word arg))
+     (t (adoc-promote-title arg)))))
+
+(defun adoc-demote (&optional arg interactive)
   "Demote the title or list item at point ARG levels.
 
 The opposite of `adoc-promote': a section title gains a level
 marker (e.g. `==' -> `===') and a list item is nested one level
-deeper (e.g. `*' -> `**')."
-  (interactive "p")
+deeper (e.g. `*' -> `**').
+
+Anywhere else, move forward ARG words when called interactively
+\(INTERACTIVE is non-nil), like `org-metaright'."
+  (interactive (list (prefix-numeric-value current-prefix-arg) t))
   (let ((item (adoc--list-item-at-point)))
-    (if item
-        (adoc--change-list-item-level item (or arg 1))
-      (adoc-demote-title arg))))
+    (cond
+     (item (adoc--change-list-item-level item (or arg 1)))
+     ((and interactive (not (adoc-title-descriptor))) (forward-word arg))
+     (t (adoc-demote-title arg)))))
 
 (defun adoc-promote-title (&optional arg)
   "Promote the title at point ARG levels, e.g. `===' -> `=='.
