@@ -4195,6 +4195,53 @@ section that has one gets no auto-id."
               (setq id (match-string-no-properties 1))))
           id))))
 
+(defun adoc--explicit-id-positions ()
+  "Return (POSITION . ID) for the buffer's explicit ids, in document order.
+That's block ids (`[[id]]', `[#id]') and inline anchors (`[[id]]',
+`anchor:id[]') outside comments and verbatim blocks: the ids Asciidoctor
+has registered by the time it reaches the section titles after them.
+It's an approximation, as Asciidoctor registers an inline anchor in a
+block title or a description list term, say, only later on."
+  (let (ids)
+    (save-excursion
+      (save-match-data
+        (pcase-dolist (`(,type . ,group) '((block-id . 1) (block-id-shorthand . 1)
+                                           (inline-special . 2) (inline-general . 3)))
+          (goto-char (point-min))
+          (let ((re (adoc-re-anchor type)))
+            (while (re-search-forward re nil t)
+              (let ((pos (match-beginning 0))
+                    ;; `inline-special' has `id,reftext' in its group
+                    (id (car (split-string (match-string-no-properties group)
+                                           "[ \t,]" t))))
+                (unless (or (null id)
+                            (adoc--in-verbatim-block-p pos)
+                            ;; escaped, or the inside of a `[[[biblio]]]'
+                            (memq (char-before pos) '(?\\ ?\[))
+                            (save-excursion
+                              (goto-char pos)
+                              (beginning-of-line)
+                              (looking-at-p "//\\(?:[^/]\\|$\\)")))
+                  (push (cons pos id) ids))))))))
+    (sort ids (lambda (a b) (< (car a) (car b))))))
+
+(defun adoc--unique-section-id (title params taken next)
+  "Return the auto-id for TITLE with PARAMS, numbered if it's TAKEN.
+PARAMS is (PREFIX . SEPARATOR).  TAKEN is a hash table of the ids in
+use, and the first of `ID', `ID<separator>2', `ID<separator>3', ...
+that isn't is returned, as Asciidoctor does.  NEXT is a hash table of
+the number to try first for each ID, as the ones before it are taken."
+  (let ((id (adoc--section-id title (car params) (cdr params))))
+    (if (not (gethash id taken))
+        id
+      (let ((n (gethash id next 2))
+            candidate)
+        (while (gethash (setq candidate (concat id (cdr params) (number-to-string n)))
+                        taken)
+          (setq n (1+ n)))
+        (puthash id (1+ n) next)
+        candidate))))
+
 (defun adoc--section-table ()
   "Return a list of (ID TITLE POSITION EXPLICIT) for the buffer's sections.
 See `adoc--scan-sections'.  The ids depend on the document header and
@@ -4211,13 +4258,18 @@ delimited blocks are skipped, and so is the document title.  ID is the
 section's explicit id when EXPLICIT is non-nil, otherwise its auto-id,
 or nil where `sectids' is unset.  The document attributes set above a
 title apply to its auto-id: `idprefix', `idseparator' and `sectids', as
-well as the ones it refers to."
+well as the ones it refers to.  An auto-id already taken by an earlier
+section or explicit id gets a number appended, `_foo_2', `_foo_3' and
+so on, as in Asciidoctor."
   (save-excursion
     (save-match-data
       (font-lock-ensure)
       (let ((re (adoc--re-all-titles))
             (antora (adoc--antora-p))
             (entries (adoc--attribute-entries))
+            (anchors (adoc--explicit-id-positions))
+            (taken (make-hash-table :test #'equal))
+            (next (make-hash-table :test #'equal))
             ;; Asciidoctor sets `sectids' by default.
             (attributes (list (cons "sectids" "")))
             (result '()))
@@ -4231,19 +4283,20 @@ well as the ones it refers to."
                 (while (and entries (< (car (car entries)) start))
                   (setq attributes
                         (adoc--apply-attribute-entry (pop entries) attributes)))
+                (while (and anchors (< (car (car anchors)) start))
+                  (puthash (cdr (pop anchors)) t taken))
                 ;; A level-0 title is the document title, not a section.
                 (when (> (nth 2 descriptor) 0)
-                  (let ((explicit (adoc--section-explicit-id descriptor))
-                        (title (string-trim (nth 3 descriptor))))
-                    (push (list (or explicit
-                                    (when (assoc "sectids" attributes)
-                                      (let ((params (adoc--section-id-params
-                                                     attributes antora)))
-                                        (adoc--section-id
-                                         (adoc--substitute-attributes title attributes)
-                                         (car params) (cdr params)))))
-                                title start (and explicit t))
-                          result)))
+                  (let* ((explicit (adoc--section-explicit-id descriptor))
+                         (title (string-trim (nth 3 descriptor)))
+                         (id (or explicit
+                                 (when (assoc "sectids" attributes)
+                                   (adoc--unique-section-id
+                                    (adoc--substitute-attributes title attributes)
+                                    (adoc--section-id-params attributes antora)
+                                    taken next)))))
+                    (when id (puthash id t taken))
+                    (push (list id title start (and explicit t)) result)))
                 (goto-char (nth 5 descriptor))))))
         (nreverse result)))))
 
@@ -4259,7 +4312,7 @@ auto-id, as their anchors already define them."
 
 (defun adoc--collect-section-ids ()
   "Return the auto-ids of the buffer's section titles."
-  (delete-dups (mapcar #'car (adoc--collect-sections))))
+  (mapcar #'car (adoc--collect-sections)))
 
 (defun adoc--section-position (id)
   "Return the start position of the section matching ID, or nil.

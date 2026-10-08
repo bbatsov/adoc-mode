@@ -172,6 +172,54 @@
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
+(describe "duplicate section ids"
+  (it "numbers the ids of repeated titles"
+    (expect (adoc-test--section-ids "= D\n\n== Foo\n\n== Foo\n\n=== Foo\n")
+            :to-equal '("_foo" "_foo_2" "_foo_3"))
+    (expect (adoc-test--section-ids
+             "= D\n:idprefix:\n:idseparator: -\n\n== Foo Bar\n\n== Foo Bar\n")
+            :to-equal '("foo-bar" "foo-bar-2"))
+    (expect (adoc-test--section-ids "= D\n:idseparator:\n\n== Foo\n\n== Foo\n")
+            :to-equal '("_foo" "_foo2")))
+
+  (it "skips the ids explicit anchors above the title already use"
+    (expect (adoc-test--section-ids
+             "= D\n\npara [[_foo]]here\n\n[[_foo_2]]\nx\n\n== Foo\n\n== Bar\n\nanchor:_bar[]\n")
+            :to-equal '("_foo_3" "_bar")))
+
+  (it "doesn't count anchors in verbatim blocks, comments or escaped ones"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\n----\n[[_foo]]\n----\n\n////\n[[_foo]]\n////\n\n"
+                     "// [[_foo]]\n\nx \\[[_foo]]\n\n== Foo\n"))
+            :to-equal '("_foo")))
+
+  (it "resolves a numbered id to its own section"
+    (with-adoc-buffer "= D\n\n== Foo\n\none\n\n== Foo\n\ntwo\n"
+      (expect (adoc--goto-id "_foo_2") :to-be-truthy)
+      (expect (line-number-at-pos) :to-equal 7)
+      (expect (adoc--section-id-at-point) :to-equal "_foo_2")
+      (let ((defs (xref-backend-definitions 'adoc "_foo_2")))
+        (expect (length defs) :to-equal 1)
+        (expect (line-number-at-pos
+                 (xref-location-marker (xref-item-location (car defs))))
+                :to-equal 7))
+      (expect (adoc--collect-section-ids) :to-equal '("_foo" "_foo_2"))))
+
+  (it "matches the real asciidoctor"
+    (assume (executable-find "asciidoctor") "asciidoctor not installed")
+    (dolist (doc '("= D\n\n== Foo\n\n== Foo\n\n== Foo\n"
+                   "= D\n\n== Foo\n\n== Foo 2\n\n== Foo\n\n== Foo\n"
+                   "= D\n:idseparator:\n\n== Foo\n\n== Foo\n\n== Foo 2\n"
+                   "= Foo\n\n== Foo\n\n[discrete]\n== Foo\n\n== Foo\n"
+                   "= D\n\n[[_foo_2]]\n== Bar\n\n== Foo\n\n== Foo\n"
+                   "= D\n\n[#x]\n== Foo\n\n== Foo\n\n== Bar [[_foo_2]]\n\n== Foo\n"
+                   "= D\n\n[source#_foo,ruby]\n----\nx\n----\n\n== Foo\n"
+                   "= D\n\n====\n[[_foo]]\npara\n====\n\n== Foo\n\npara [[_foo_3]]\n\n== Foo\n"
+                   "= D\n\n== Foo\n\n:sectids!:\n\n== Foo\n\n:sectids:\n\n== Foo\n"
+                   "= D\n\n----\n[[_foo]]\n----\n\n// [[_foo]]\n\n== Foo\n"))
+      (expect (adoc-test--section-ids doc)
+              :to-equal (adoc-test--asciidoctor-section-ids doc)))))
+
 (describe "Antora layout detection"
   (it "detects an antora.yml above the file and uses the kebab style"
     (let* ((root (make-temp-file "adoc-antora-" t))

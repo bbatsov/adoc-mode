@@ -71,6 +71,7 @@
 - [#97](https://github.com/bbatsov/adoc-mode/pull/97): Outline folding (`TAB` / `S-TAB`) no longer takes a `==` line inside a listing or other delimited block for a section title (on Emacs 28 only `TAB` on that line itself is fixed).
 - [#99](https://github.com/bbatsov/adoc-mode/pull/99): Title and list editing (`M-left` / `M-right`, `C-c C-t`, `M-RET`, `M-up` / `M-down`) no longer takes a `== ...` or `* ...` line inside a listing or other code block for a title or list item and rewrites it.
 - [#98](https://github.com/bbatsov/adoc-mode/pull/98): Section auto-ids take the document attributes into account the way Asciidoctor does: attribute references in a title are substituted before its id is derived (`== {product} Setup`), `:sectids!:` turns auto-ids off, and `:idprefix:` / `:idseparator:` apply from the line that sets them, including in buffers that aren't visiting a file.
+- [#98](https://github.com/bbatsov/adoc-mode/pull/98): Repeated section titles get numbered ids (`_foo`, `_foo_2`, ...) as in Asciidoctor, skipping the ids explicit anchors above them already use, so a reference to `_foo_2` leads to the second section instead of nowhere.
 
 ## 0.9.0 (2026-06-02)
 
