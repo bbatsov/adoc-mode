@@ -4057,17 +4057,76 @@ and title's text are not preserved, afterwards its always one space."
 ;; them and feed them to completion, the `xref' backend and
 ;; `adoc-goto-ref-label'.
 
-(defun adoc--doc-attribute (name)
-  "Return the value of document attribute NAME, or nil when it is not set.
-An attribute set to an empty value (e.g. `:idprefix:') returns the empty
-string, which is distinct from nil."
-  (when buffer-file-name
+;; Document attributes apply from the line that sets them on, so the scan
+;; that works out the section ids keeps track of them in document order, as
+;; Asciidoctor does.
+
+(defconst adoc--re-attribute-entry-line
+  "^:\\(!\\)?\\([[:alnum:]_][[:alnum:]_-]*\\)\\(!\\)?:\\(?:[ \t]+\\(.*?\\)\\)?[ \t]*$"
+  "Regexp matching an attribute entry line.
+Group 2 is the name and group 4 the value.  Group 1 or 3 matches the
+`!' of an entry that unsets the attribute.")
+
+(defun adoc--in-verbatim-block-p (pos)
+  "Return non-nil when POS is in the content of a verbatim delimited block.
+That's a listing, literal, passthrough or comment block, whose content
+isn't AsciiDoc."
+  (let ((block (adoc--delimited-block-at pos)))
+    (and block (nth 2 block) (> pos (nth 1 block)))))
+
+(defun adoc--attribute-entries ()
+  "Return the buffer's attribute entries as a list of (POSITION NAME VALUE).
+NAME is downcased, as attribute names are case-insensitive, and VALUE
+is nil for an entry that unsets the attribute.  A value continued on
+the next line with a trailing ` \\' is joined up.  Entries in verbatim
+blocks are just text, so they're left out."
+  (let (entries)
     (save-excursion
       (save-match-data
         (goto-char (point-min))
-        (when (re-search-forward
-               (concat "^:" (regexp-quote name) ":[ \t]*\\(.*\\)$") nil t)
-          (string-trim-right (match-string-no-properties 1)))))))
+        (while (re-search-forward adoc--re-attribute-entry-line nil t)
+          (let ((pos (match-beginning 0))
+                (name (downcase (match-string-no-properties 2)))
+                (value (unless (or (match-beginning 1) (match-beginning 3))
+                         (or (match-string-no-properties 4) ""))))
+            (while (and value (string-suffix-p " \\" value)
+                        (zerop (forward-line 1)) (not (eobp)))
+              (setq value (concat (substring value 0 -1)
+                                  (string-trim (buffer-substring-no-properties
+                                                (point) (line-end-position))))))
+            (unless (adoc--in-verbatim-block-p pos)
+              (push (list pos name value) entries))))))
+    (nreverse entries)))
+
+(defun adoc--substitute-attributes (text attributes)
+  "Replace the attribute references in TEXT with their values.
+ATTRIBUTES is an alist of (NAME . VALUE) with downcased names.  A
+reference to an attribute that isn't set stays as it is, as Asciidoctor
+leaves it by default, and an escaped one (`\\{name}') loses its
+backslash."
+  (if (not (string-search "{" text))
+      text
+    (replace-regexp-in-string
+     "\\(\\\\\\)?{\\([[:alnum:]_][[:alnum:]_-]*\\)}"
+     (lambda (ref)
+       (let ((name (downcase (match-string 2 ref))))
+         (cond
+          ((match-beginning 1) (substring ref 1))
+          ((cdr (assoc name attributes)))
+          (t ref))))
+     text t t)))
+
+(defun adoc--apply-attribute-entry (entry attributes)
+  "Return ATTRIBUTES, an alist of (NAME . VALUE), updated by attribute ENTRY.
+ENTRY is one of the elements `adoc--attribute-entries' returns.  Its
+value can refer to the attributes set before it."
+  (let ((name (nth 1 entry))
+        (value (nth 2 entry)))
+    (setq attributes (assoc-delete-all name attributes))
+    (if value
+        (cons (cons name (adoc--substitute-attributes value attributes))
+              attributes)
+      attributes)))
 
 (defun adoc--antora-p ()
   "Return non-nil when the buffer's file lives in an Antora component."
@@ -4075,50 +4134,47 @@ string, which is distinct from nil."
        (locate-dominating-file buffer-file-name "antora.yml")
        t))
 
-(defun adoc--section-id-params ()
-  "Return (PREFIX . SEPARATOR) for section id generation in this buffer.
-See `adoc-section-id-style'."
+(defun adoc--section-id-params (attributes antora)
+  "Return the (PREFIX . SEPARATOR) for section ids under ATTRIBUTES.
+ATTRIBUTES is an alist of the document attributes in effect, and ANTORA
+is non-nil when the buffer's file is in an Antora component.  The
+document's `idprefix' and `idseparator' only count in the `auto' style
+\(see `adoc-section-id-style'), and they default to Antora's in a
+component.  Like Asciidoctor, only the first character of a longer
+separator is used."
   (pcase adoc-section-id-style
     ('asciidoctor (cons "_" "_"))
     ('antora (cons "" "-"))
-    (_
-     (let ((prefix (adoc--doc-attribute "idprefix"))
-           (separator (adoc--doc-attribute "idseparator")))
-       (cond
-        ;; The document sets the attributes explicitly; an unset one keeps
-        ;; Asciidoctor's `_' default.
-        ((or prefix separator)
-         (cons (or prefix "_") (or separator "_")))
-        ((adoc--antora-p) (cons "" "-"))
-        (t (cons "_" "_")))))))
+    (_ (let ((prefix (cdr (assoc "idprefix" attributes)))
+             (separator (or (cdr (assoc "idseparator" attributes))
+                            (if antora "-" "_"))))
+         (cons (or prefix (if antora "" "_"))
+               (substring separator 0 (min 1 (length separator))))))))
 
-(defun adoc--section-id (title &optional prefix separator)
+(defun adoc--section-id (title prefix separator)
   "Return the Asciidoctor auto-id for the section titled TITLE.
-PREFIX and SEPARATOR default to those of `adoc--section-id-params'.
-Mirrors Asciidoctor's id generation: downcase, drop characters outside
-letters/digits/`_'/space/`.'/`-', translate runs of space, `.' and `-'
-to the separator, strip a leading/trailing separator, then prepend the
-prefix."
-  (let* ((params (unless (and prefix separator) (adoc--section-id-params)))
-         (prefix (or prefix (car params)))
-         (separator (or separator (cdr params)))
-         (id (downcase title)))
+PREFIX and SEPARATOR are the `idprefix' and `idseparator' to use, see
+`adoc--section-id-params'.  Mirrors Asciidoctor's id generation:
+downcase, drop characters outside letters/digits/`_'/space/`.'/`-',
+prepend the prefix, translate each run of space, `.', `-' and separator
+characters to one separator, then drop a trailing separator, and a
+leading one when there's no prefix."
+  (let ((id (downcase title)))
     (setq id (replace-regexp-in-string "<[^>]*>" "" id)) ; inline tags
     (setq id (replace-regexp-in-string "[^[:alnum:]_ .-]" "" id)) ; invalid chars
+    (setq id (concat prefix id))
     (if (string-empty-p separator)
         ;; An empty separator only deletes spaces; `.' and `-' are kept.
-        (setq id (replace-regexp-in-string " +" "" id t t))
-      ;; Collapse runs of space, `.', `-' AND the separator itself to a single
-      ;; separator (so e.g. `foo_ bar' -> `foo_bar', not `foo__bar'), then
-      ;; strip a leading/trailing separator.  `-' is kept last in the class so
-      ;; it stays a literal rather than forming a range.
-      (let* ((extra (if (member separator '("." "-")) "" separator))
-             (class (concat "[ ." extra "-]+")))
-        (setq id (replace-regexp-in-string class separator id t t)))
-      (let ((q (regexp-quote separator)))
-        (setq id (replace-regexp-in-string
-                  (concat "\\`\\(?:" q "\\)+\\|\\(?:" q "\\)+\\'") "" id))))
-    (concat prefix id)))
+        (string-replace " " "" id)
+      (setq id (replace-regexp-in-string
+                (concat (regexp-opt-charset (string-to-list (concat " .-" separator)))
+                        "+")
+                separator id t t))
+      (when (string-suffix-p separator id)
+        (setq id (substring id 0 -1)))
+      (if (and (string-empty-p prefix) (string-prefix-p separator id))
+          (substring id 1)
+        id))))
 
 (defun adoc--section-explicit-id (descriptor)
   "Return the explicit id of the section title DESCRIPTOR describes, or nil.
@@ -4139,37 +4195,67 @@ section that has one gets no auto-id."
               (setq id (match-string-no-properties 1))))
           id))))
 
-(defun adoc--collect-sections ()
-  "Return a list of (ID TITLE POSITION) for the buffer's section titles.
-Only headings that font-lock actually fontifies as titles are included,
-so `==' lines inside code or other delimited blocks are skipped.  So are
-sections with an explicit id, which have no auto-id: their anchors
-already define them."
+(defun adoc--section-table ()
+  "Return a list of (ID TITLE POSITION EXPLICIT) for the buffer's sections.
+See `adoc--scan-sections'.  The ids depend on the document header and
+the titles before them, so narrowing doesn't change them."
+  (save-restriction
+    (widen)
+    (adoc--scan-sections)))
+
+(defun adoc--scan-sections ()
+  "Return the sections of the buffer for `adoc--section-table'.
+The list is in document order, with one element for each section title
+font-lock actually fontifies as one, so `==' lines inside code or other
+delimited blocks are skipped, and so is the document title.  ID is the
+section's explicit id when EXPLICIT is non-nil, otherwise its auto-id,
+or nil where `sectids' is unset.  The document attributes set above a
+title apply to its auto-id: `idprefix', `idseparator' and `sectids', as
+well as the ones it refers to."
   (save-excursion
     (save-match-data
       (font-lock-ensure)
       (let ((re (adoc--re-all-titles))
-            (params (adoc--section-id-params))
+            (antora (adoc--antora-p))
+            (entries (adoc--attribute-entries))
+            ;; Asciidoctor sets `sectids' by default.
+            (attributes (list (cons "sectids" "")))
             (result '()))
         (goto-char (point-min))
         (while (re-search-forward re nil t)
           (goto-char (match-beginning 0))
           (let ((descriptor (adoc--heading-descriptor-at-point)))
-            (cond
-             ;; A level-0 title is the document title, not a referenceable
-             ;; section, so skip it (but advance past it).
-             ((and descriptor (= (nth 2 descriptor) 0))
-              (goto-char (nth 5 descriptor)))
-             ((and descriptor (adoc--section-explicit-id descriptor))
-              (goto-char (nth 5 descriptor)))
-             (descriptor
-              (let ((title (string-trim (nth 3 descriptor))))
-                (push (list (adoc--section-id title (car params) (cdr params))
-                            title (nth 4 descriptor))
-                      result)
-                (goto-char (nth 5 descriptor))))
-             (t (forward-line 1)))))
+            (if (not descriptor)
+                (forward-line 1)
+              (let ((start (nth 4 descriptor)))
+                (while (and entries (< (car (car entries)) start))
+                  (setq attributes
+                        (adoc--apply-attribute-entry (pop entries) attributes)))
+                ;; A level-0 title is the document title, not a section.
+                (when (> (nth 2 descriptor) 0)
+                  (let ((explicit (adoc--section-explicit-id descriptor))
+                        (title (string-trim (nth 3 descriptor))))
+                    (push (list (or explicit
+                                    (when (assoc "sectids" attributes)
+                                      (let ((params (adoc--section-id-params
+                                                     attributes antora)))
+                                        (adoc--section-id
+                                         (adoc--substitute-attributes title attributes)
+                                         (car params) (cdr params)))))
+                                title start (and explicit t))
+                          result)))
+                (goto-char (nth 5 descriptor))))))
         (nreverse result)))))
+
+(defun adoc--collect-sections ()
+  "Return a list of (ID TITLE POSITION) for the buffer's section auto-ids.
+See `adoc--section-table'.  Sections with an explicit id have no
+auto-id, as their anchors already define them."
+  (let (sections)
+    (pcase-dolist (`(,id ,title ,pos ,explicit) (adoc--section-table))
+      (when (and id (not explicit))
+        (push (list id title pos) sections)))
+    (nreverse sections)))
 
 (defun adoc--collect-section-ids ()
   "Return the auto-ids of the buffer's section titles."
@@ -4654,8 +4740,8 @@ a section, so it has none."
     (font-lock-ensure)
     (let ((descriptor (adoc--heading-descriptor-at-point)))
       (when (and descriptor (> (nth 2 descriptor) 0))
-        (or (adoc--section-explicit-id descriptor)
-            (adoc--section-id (string-trim (nth 3 descriptor))))))))
+        (car (cl-find (nth 4 descriptor) (adoc--section-table)
+                      :key #'caddr))))))
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql adoc)))
   (or (adoc-xref-id-at-point)

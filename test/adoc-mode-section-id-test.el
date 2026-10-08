@@ -15,6 +15,25 @@
 (require 'adoc-mode-test-helpers)
 (require 'cl-lib)
 
+(defun adoc-test--asciidoctor-section-ids (doc)
+  "Return the ids the real Asciidoctor gives the section titles in DOC."
+  (with-temp-buffer
+    (insert doc)
+    (call-process-region (point-min) (point-max)
+                         "asciidoctor" t t nil "-s" "-o" "-" "-")
+    (goto-char (point-min))
+    (let (ids)
+      (while (re-search-forward "<h[1-6] id=\"\\([^\"]*\\)\"" nil t)
+        (push (match-string 1) ids))
+      (nreverse ids))))
+
+(defun adoc-test--section-ids (doc)
+  "Return the ids `adoc-mode' gives the section titles in DOC, in order."
+  (with-temp-buffer
+    (insert doc)
+    (adoc-mode)
+    (delq nil (mapcar #'car (adoc--section-table)))))
+
 (describe "adoc--section-id"
   (it "generates Asciidoctor-default (underscore) ids"
     (expect (adoc--section-id "Clojure CLI Setup" "_" "_")
@@ -64,24 +83,94 @@
 
 (describe "adoc--section-id-params"
   (it "honours an explicit adoc-section-id-style"
-    (let ((adoc-section-id-style 'antora))
-      (expect (adoc--section-id-params) :to-equal '("" . "-")))
-    (let ((adoc-section-id-style 'asciidoctor))
-      (expect (adoc--section-id-params) :to-equal '("_" . "_"))))
-
-  (it "reads :idprefix: / :idseparator: from the document"
-    (with-temp-buffer
-      (setq buffer-file-name "/tmp/adoc-section-id-fake.adoc")
-      (insert ":idprefix:\n:idseparator: -\n\n= D\n")
+    (let ((doc "= D\n:idprefix: x\n:idseparator: .\n\n== A B\n"))
+      (let ((adoc-section-id-style 'antora))
+        (expect (adoc-test--section-ids doc) :to-equal '("a-b")))
+      (let ((adoc-section-id-style 'asciidoctor))
+        (expect (adoc-test--section-ids doc) :to-equal '("_a_b")))
       (let ((adoc-section-id-style 'auto))
-        (expect (adoc--section-id-params) :to-equal '("" . "-")))))
+        (expect (adoc-test--section-ids doc) :to-equal '("xa.b")))))
 
   (it "defaults to the Asciidoctor style outside Antora"
     (with-temp-buffer
       (setq buffer-file-name "/tmp/adoc-section-id-plain.adoc")
-      (insert "= D\n\n== A\n")
+      (insert "= D\n\n== A B\n")
+      (adoc-mode)
       (let ((adoc-section-id-style 'auto))
-        (expect (adoc--section-id-params) :to-equal '("_" . "_"))))))
+        (expect (adoc--collect-section-ids) :to-equal '("_a_b")))
+      (set-buffer-modified-p nil))))
+
+(describe "document attributes in section ids"
+  (it "applies :idprefix: and :idseparator: in a buffer without a file"
+    (expect (adoc-test--section-ids "= D\n:idprefix:\n:idseparator: -\n\n== Foo Bar\n")
+            :to-equal '("foo-bar")))
+
+  (it "applies an attribute from the line that sets it on"
+    (expect (adoc-test--section-ids "= D\n\n== Foo\n\n:idprefix: x\n\n== Bar\n")
+            :to-equal '("_foo" "xbar")))
+
+  (it "puts the prefix in front before translating the separators"
+    (expect (adoc-test--section-ids "= D\n:idprefix: sec-\n\n== Foo Bar\n")
+            :to-equal '("sec_foo_bar"))
+    (expect (adoc-test--section-ids "= D\n:idprefix: x\n\n== .NET Core\n")
+            :to-equal '("x_net_core"))
+    (expect (adoc-test--section-ids "= D\n:idprefix:\n:idseparator: -\n\n== .NET Core\n")
+            :to-equal '("net-core")))
+
+  (it "gives the same ids when the buffer is narrowed"
+    (with-adoc-buffer "= D\n:idprefix: x\n\n== Foo\n"
+      (re-search-forward "^== Foo")
+      (narrow-to-region (line-beginning-position) (point-max))
+      (expect (adoc--section-id-at-point) :to-equal "xfoo")
+      (expect (adoc--collect-section-ids) :to-equal '("xfoo"))))
+
+  (it "uses only the first character of a longer separator"
+    (expect (adoc-test--section-ids "= D\n:idseparator: ab\n\n== Foo Bar\n")
+            :to-equal '("_fooabar")))
+
+  (it "gives sections no auto-id while sectids is unset"
+    (expect (adoc-test--section-ids "= D\n:sectids!:\n\n== Foo\n") :to-equal nil)
+    (expect (adoc-test--section-ids "= D\n:!sectids:\n\n== Foo\n") :to-equal nil)
+    (expect (adoc-test--section-ids
+             "= D\n\n== Foo\n\n:sectids!:\n\n== Bar\n\n:sectids:\n\n== Baz\n")
+            :to-equal '("_foo" "_baz")))
+
+  (it "keeps explicit section ids while sectids is unset"
+    (with-adoc-buffer "= D\n:sectids!:\n\n[#bar]\n== Foo\n\n== Baz\n"
+      (expect (adoc--collect-section-ids) :to-equal nil)
+      (re-search-forward "^== Foo")
+      (expect (adoc--section-id-at-point) :to-equal "bar")
+      (re-search-forward "^== Baz")
+      (expect (adoc--section-id-at-point) :to-be nil)))
+
+  (it "substitutes attribute references in titles"
+    (expect (adoc-test--section-ids
+             (concat "= D\n:Product: Acme\n:full: {product} Pro\n\n"
+                     "== {product} Setup\n\n== {FULL}\n\n== {missing} Bits\n\n"
+                     "== \\{product} Escaped\n\n:product!:\n\n== {product} Again\n"))
+            :to-equal '("_acme_setup" "_acme_pro" "_missing_bits"
+                        "_product_escaped" "_product_again"))
+    (with-adoc-buffer "= D\n:product: Acme\n\n== {product} Setup\n"
+      (re-search-forward "^== ")
+      (expect (adoc--section-id-at-point) :to-equal "_acme_setup")))
+
+  (it "ignores attribute entries in verbatim blocks"
+    (expect (adoc-test--section-ids
+             "= D\n\n----\n:p: Zed\n----\n\n====\n:q: Zap\n\nx\n====\n\n== {p} {q}\n")
+            :to-equal '("_p_zap")))
+
+  (it "matches the real asciidoctor"
+    (assume (executable-find "asciidoctor") "asciidoctor not installed")
+    (dolist (doc '("= D\n:idprefix:\n:idseparator: -\n\n== Foo Bar\n"
+                   "= D\n\n== Foo\n\n:idprefix: x\n:idseparator: .\n\n== Bar Baz\n"
+                   "= D\n:idseparator: ab\n\n== Foo Bar\n"
+                   "= D\n:idprefix: sec-\n\n== Foo Bar\n\n:idprefix: x\n\n== .NET Core\n"
+                   "= D\n\n== Foo\n\n:sectids!:\n\n== Bar\n\n:sectids:\n\n== Baz\n"
+                   "= D\n:Product: Acme\n:full: {product} Pro\n\n== {full} Setup\n"
+                   "= D\n\n== {p} A\n\n:p: Zed \\\n  Zap\n\n== {p} B\n\n:p!:\n\n== {p} C\n"
+                   "= D\n:p: Zed\n\n== \\{p} A\n\n----\n:p: Zap\n----\n\n== {p} B\n"))
+      (expect (adoc-test--section-ids doc)
+              :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
 (describe "Antora layout detection"
   (it "detects an antora.yml above the file and uses the kebab style"
@@ -98,8 +187,12 @@
               (unwind-protect
                   (let ((adoc-section-id-style 'auto))
                     (expect (adoc--antora-p) :to-be-truthy)
-                    (expect (adoc--section-id-params) :to-equal '("" . "-"))
-                    (expect (adoc--collect-section-ids) :to-equal '("my-section")))
+                    (expect (adoc--collect-section-ids) :to-equal '("my-section"))
+                    ;; the document can override one of Antora's defaults
+                    (goto-char (point-min))
+                    (insert ":idprefix: x\n")
+                    (expect (adoc--collect-section-ids) :to-equal '("xmy-section")))
+                (set-buffer-modified-p nil)
                 (kill-buffer))))
         (delete-directory root t)))))
 
