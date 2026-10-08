@@ -5101,12 +5101,18 @@ match, and the search goes on from there."
     text))
 
 (defun adoc--unescape-special-characters (text)
-  "Return TEXT with `&amp;', `&lt;' and `&gt;' turned back into characters.
-That's what a browser makes of a path Asciidoctor puts in HTML."
+  "Return TEXT with its character references turned back into characters.
+That's `&amp;', `&lt;', `&gt;' and numeric ones like `&#43;', which is
+what a browser makes of a path Asciidoctor puts in HTML."
   (if (string-search "&" text)
-      (adoc--gsub "&\\(amp\\|lt\\|gt\\);" text
+      (adoc--gsub "&\\(amp\\|lt\\|gt\\|#\\([0-9]+\\)\\|#[xX]\\([[:xdigit:]]+\\)\\);" text
                   (lambda (_ s)
-                    (pcase (match-string 1 s) ("amp" "&") ("lt" "<") (_ ">"))))
+                    (let ((code (cond
+                                 ((match-beginning 2) (string-to-number (match-string 2 s)))
+                                 ((match-beginning 3) (string-to-number (match-string 3 s) 16)))))
+                      (cond
+                       ((not code) (pcase (match-string 1 s) ("amp" "&") ("lt" "<") (_ ">")))
+                       ((<= 1 code #x10FFFF) (string code))))))
     text))
 
 (defconst adoc--normal-subs

@@ -84,6 +84,16 @@
       (adoc-mode)
       (insert ":dir: R&D <new>\n\nimage::{dir}/a.png[]\n")
       (expect (adoc--resolve-attribute-references "{dir}/a.png")
-              :to-equal "R&D <new>/a.png"))))
+              :to-equal "R&D <new>/a.png")))
+
+  (it "unescapes a path the way a browser does, as Asciidoctor puts it in HTML as it is"
+    (with-temp-buffer
+      (adoc-mode)
+      (expect (adoc--resolve-attribute-references "{cpp}.png") :to-equal "C++.png")
+      (expect (adoc--resolve-attribute-references "a&amp;b&#x2B;.png") :to-equal "a&b+.png")
+      (expect (adoc--resolve-attribute-references "a&b.png") :to-equal "a&b.png")
+      ;; one no character has is left alone
+      (expect (adoc--resolve-attribute-references "a&#x110000;.png")
+              :to-equal "a&#x110000;.png"))))
 
 ;;; adoc-mode-image-test.el ends here
