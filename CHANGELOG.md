@@ -24,6 +24,10 @@
   - `-` and `*` both mark the outermost level of an unordered list, as in Asciidoctor, so demoting either gives `**`, and an item promoted back out takes the marker its list uses. Turning `*` into `-` used to count as a level change, though Asciidoctor nests the item.
   - Demoting the first item of a list is refused, as in Org, since its siblings would end up nested under it.
   - Away from a title or list item, `M-left` / `M-right` move by word as they do elsewhere in Emacs, instead of signalling an error.
+- [#100](https://github.com/bbatsov/adoc-mode/pull/100): Two-line (setext) titles are deprecated, as they are in Asciidoctor and the AsciiDoc spec, and support for them will be removed in a future release.
+  - `adoc-enable-two-line-title`, `adoc-two-line-title-del` and the unused `adoc-default-title-type` are obsolete.
+  - Enabling two-line titles shows a warning once per session.
+  - While they're enabled, `C-c C-t` converts a two-line title to the one-line style.
 - [#79](https://github.com/bbatsov/adoc-mode/pull/79): `adoc-goto-ref-label` (`C-c C-a`) now completes over the anchors defined in the buffer instead of asking you to type the id blind. It stays permissive, so an id that isn't defined yet can still be entered, and the cross-reference at point is still offered as the default.
 - [#74](https://github.com/bbatsov/adoc-mode/pull/74): The compilation error matcher now also recognises modern `asciidoctor:` diagnostics, not just the legacy AsciiDoc.py `asciidoc:` format, so jumping to warnings and errors works with current Asciidoctor output.
 - [#71](https://github.com/bbatsov/adoc-mode/pull/71): `[source,ocaml]` code blocks now fontify with `neocaml-mode` when it is available, falling back to `tuareg-mode` and then `caml-mode`. To support this, a value in `adoc-code-lang-modes` may now be either a single major mode or a list of candidate modes tried in order (the first defined one wins).

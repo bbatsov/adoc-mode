@@ -228,10 +228,10 @@ Findings are graded:
 | -
 
 | Two-line (setext) titles
-| Off by default (`adoc-enable-two-line-title` is nil), matching their
-  deprecated status. Highlighting, navigation, and imenu all honour the
-  flag, so they ignore two-line titles unless you opt in; promote/demote
-  still understand them so old documents can be converted
+| Deprecated, and support goes away in a future release (#72). Off by
+  default (`adoc-enable-two-line-title` is nil), and enabling it warns.
+  Highlighting, navigation, imenu and title editing all honour the flag;
+  while it's on, `C-c C-t` converts a two-line title to the one-line style
 | -
 
 | Auto-generated IDs, section refs `+<<id>>+`

@@ -132,6 +132,9 @@ configuration file."
           (string :tag "level 4")
           (string :tag "level 5"))
   :group 'adoc)
+(make-obsolete-variable 'adoc-two-line-title-del
+                        "two-line (setext) titles are deprecated and support for them will be removed."
+                        "0.10.0")
 
 (defcustom adoc-delimited-block-del
   '("^/\\{4,\\}"         ; 0 comment
@@ -209,6 +212,9 @@ begins and ends, so that a block is always fontified as a whole (see
   :type '(choice (const :tag "One-line" 1)
                  (const :tag "Two-line" 2))
   :group 'adoc)
+(make-obsolete-variable 'adoc-default-title-type
+                        "two-line (setext) titles are deprecated and support for them will be removed."
+                        "0.10.0")
 
 (defcustom adoc-default-title-sub-type 1
   "Default title sub type, see `adoc-title-descriptor'."
@@ -220,7 +226,10 @@ begins and ends, so that a block is always fontified as a whole (see
   "Whether or not two line titles shall be fontified.
 
 Two-line (Setext) titles are deprecated by Asciidoctor in favor
-of the one-line (atx) style.  This option is nil by default.
+of the one-line (atx) style, and `adoc-mode' will drop support for
+them in a future release, along with this option.  Until then,
+\\<adoc-mode-map>\\[adoc-toggle-title-type] converts the two-line title
+at point to the one-line style while the option is enabled.
 
 nil means never fontify.  t means always fontify.  A number means
 only fontify if the line below has NOT the length of the given
@@ -230,6 +239,9 @@ delimited block lines have a certain length."
                  (const t)
                  number)
   :group 'adoc)
+(make-obsolete-variable 'adoc-enable-two-line-title
+                        "two-line (setext) titles are deprecated and support for them will be removed."
+                        "0.10.0")
 
 (defcustom adoc-section-id-style 'auto
   "How section auto-ids are derived from section titles.
@@ -5519,6 +5531,10 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
   ;; cross-references (`M-?' for references, the xref marker stack, etc.)
   (add-hook 'xref-backend-functions #'adoc--xref-backend nil t)
 
+  (adoc--warn-about-two-line-titles)
+  ;; also catch the option being set as a file- or dir-local variable
+  (add-hook 'hack-local-variables-hook #'adoc--warn-about-two-line-titles nil t)
+
   ;; misc
   (setq-local page-delimiter "^<<<+$")
   (setq-local require-final-newline mode-require-final-newline)
@@ -5533,6 +5549,23 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
 
 ;;;###autoload
 (add-to-list 'auto-mode-alist '("\\.a\\(?:scii\\)?doc\\'" . adoc-mode))
+
+(defvar adoc--two-line-title-warning-shown nil
+  "Non-nil once the two-line title deprecation warning has been shown.")
+
+(defun adoc--warn-about-two-line-titles ()
+  "Warn once per session when two-line titles are enabled.
+They're deprecated, see `adoc-enable-two-line-title'."
+  (when (and adoc-enable-two-line-title
+             (not adoc--two-line-title-warning-shown))
+    (setq adoc--two-line-title-warning-shown t)
+    (display-warning
+     '(adoc-mode two-line-titles)
+     (substitute-command-keys
+      "`adoc-enable-two-line-title' is set, but two-line (setext) titles are \
+deprecated and `adoc-mode' will drop support for them in a future release.  \
+\\<adoc-mode-map>\\[adoc-toggle-title-type] converts the title at point to the \
+one-line style."))))
 
 
 ;; Auto-fill

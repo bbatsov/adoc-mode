@@ -15,6 +15,10 @@
 (require 'adoc-mode)
 (require 'cl-lib)
 
+;; Plenty of specs enable the deprecated two-line titles; keep the
+;; deprecation warning out of the test output.
+(setq adoc--two-line-title-warning-shown t)
+
 ;;;; Test resources
 
 (defconst adoc-test-resources-directory

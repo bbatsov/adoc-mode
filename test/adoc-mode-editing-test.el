@@ -167,6 +167,39 @@
             (adoc-title-scaling-values '(2.0 1.8 1.6 1.4 1.2 1.0)))
         (adoc-update-title-faces)))))
 
+(describe "two-line title deprecation"
+  (before-each
+    (spy-on 'display-warning))
+
+  (it "warns once per session when two-line titles are enabled"
+    (let ((adoc--two-line-title-warning-shown nil)
+          (adoc-enable-two-line-title t))
+      (with-temp-buffer (adoc-mode))
+      (with-temp-buffer (adoc-mode))
+      (expect 'display-warning :to-have-been-called-times 1)))
+
+  (it "warns when they're enabled as a file-local variable"
+    (spy-on 'message)                   ; Emacs's own obsolescence note
+    (let ((adoc--two-line-title-warning-shown nil)
+          (enable-local-variables :all))
+      (with-temp-buffer
+        (insert "= Doc\n\n// Local Variables:\n// adoc-enable-two-line-title: t\n// End:\n")
+        (adoc-mode)
+        (expect 'display-warning :not :to-have-been-called)
+        (hack-local-variables)
+        (expect 'display-warning :to-have-been-called-times 1))))
+
+  (it "stays quiet when they're disabled"
+    (let ((adoc--two-line-title-warning-shown nil)
+          (adoc-enable-two-line-title nil))
+      (with-temp-buffer (adoc-mode))
+      (expect 'display-warning :not :to-have-been-called)))
+
+  (it "marks the two-line title options obsolete"
+    (dolist (var '(adoc-enable-two-line-title adoc-two-line-title-del
+                   adoc-default-title-type))
+      (expect (get var 'byte-obsolete-variable) :to-be-truthy))))
+
 (describe "adoc-mode list editing"
 
   (it "promotes/demotes unordered list items"
