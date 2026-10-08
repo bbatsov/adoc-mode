@@ -287,6 +287,7 @@
                    "____\nquoted\n\nNOTE: inside\n____\n\n"
                    "NOTE: an admonition\n\n"
                    "|===\n|a |b\n\n|c |d\n|===\n\n"
+                   ",===\nName,Age\n\nBob,3\n,===\n\n"
                    "== Another *section*\n\nThe end.\n")))
         (dolist (chunk-size '(37 64 101 250))
           (expect (adoc-test-chunked-fontification-difference text chunk-size)
@@ -564,7 +565,32 @@
       ;; `City,Pop' is a paragraph and the last `,===' opens a table that
       ;; never closes
       (",===\nName,Age\n\nprose, here\n\n,===\nCity,Pop\n,==="
+       ("Name" nil)
+       ("," adoc-table-face)
+       ("prose" nil)
+       ("," adoc-table-face)
        ("City" nil)
+       ("," nil)))
+
+    (when-fontifying-it "fontifies a CSV table with blank lines in it"
+      ;; the blank line sets the first row apart as the header
+      (",===\nName,Age\n\nBob,3\n,==="
+       ("," adoc-table-face)
+       ("Bob" nil)
+       ("," adoc-table-face)
+       (",===" adoc-table-face)))
+
+    (when-fontifying-it "doesn't take a table left open in another block for one"
+      ;; the opening delimiter used to be taken for the closing one
+      ("====\n,===\n====\n\na,b\n"
+       ("a,b" nil)))
+
+    (when-fontifying-it "closes a CSV table only with its own delimiter"
+      (",====\na,b\n,===\nc,d\n,====\n\ne, f"
+       ("c" nil)
+       ("," adoc-table-face)
+       (",====" adoc-table-face)
+       ("e" nil)
        ("," nil))))
 
   ;; ---- Admonitions ---------------------------------------------------

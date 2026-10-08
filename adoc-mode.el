@@ -2750,24 +2750,41 @@ one (see `adoc--ensure-block-extents')."
 Bound by the cell-separator keyword's pre-match form so its anchored
 matcher knows whether to highlight commas (CSV) or colons (DSV).")
 
+(defun adoc--match-csv-dsv-table (end)
+  "Font-lock matcher for a CSV or DSV table opening before END.
+Set the match data to the whole table, with group 1 the opening
+delimiter, 2 its separator, 3 the data and 4 the closing delimiter.
+The block extents pair up the delimiters, see
+`adoc--ensure-block-extents', so the data may hold blank lines, and a
+table left open in another block runs to that block's end, so it has
+no closing delimiter and isn't matched."
+  (let (found)
+    (while (and (not found)
+                (re-search-forward "^\\(\\([,:]\\)=\\{3,\\}\\)[ \t]*$" end t))
+      (let* ((open (match-beginning 0))
+             (block (adoc--delimited-block-at open))
+             (close (and block (= (nth 1 block) open) (nth 5 block))))
+        (when close
+          (let ((close-end (+ close (length (match-string 1)))))
+            (set-match-data
+             (list open close-end
+                   open (match-end 1)
+                   (match-beginning 2) (match-end 2)
+                   (min close (1+ (match-end 0))) close
+                   close close-end))
+            (goto-char close-end)
+            (setq found t)))))
+    found))
+
 (defun adoc-kw-csv-dsv-table ()
   "Create a font-lock keyword for CSV and DSV tables.
 The modern AsciiDoc table delimiter shorthands `,===' (CSV) and
 `:===' (DSV) carry their cell separator in the delimiter itself.  The
-whole block is matched at once - opening line, data, and a closing line
-using the same shorthand - so the separators are only highlighted
-between matching delimiters, never in the surrounding prose."
+whole table is matched at once, see `adoc--match-csv-dsv-table', so the
+separators are only highlighted between matching delimiters, never in
+the surrounding prose."
   (list
-   `(lambda (end)
-      (adoc-kwf-std
-       end
-       ;; The data span stops at a blank line so an unclosed table can't
-       ;; reach across a paragraph and steal a later table's delimiter as
-       ;; its close (which would leak separator highlighting into prose).
-       ,(concat "^\\(\\([,:]\\)=\\{3,\\}[ \t]*\\)\n"  ; 1=open line, 2=sep char
-                "\\(\\(?:[ \t]*[^ \t\n].*\n\\)*?\\)"   ; 3=cell data (no blank lines)
-                "\\(\\2=\\{3,\\}[ \t]*\\)$")           ; 4=close line
-       '(1 4) nil #'adoc--delimited-block-match-p))
+   #'adoc--match-csv-dsv-table
    '(0 '(face nil font-lock-multiline t) t)
    '(1 '(face adoc-table-face adoc-reserved block-del) t)  ; opening delimiter
    '(4 '(face adoc-table-face adoc-reserved block-del) t)  ; closing delimiter
