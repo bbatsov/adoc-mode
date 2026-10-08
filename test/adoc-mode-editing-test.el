@@ -70,7 +70,9 @@
     (adoc-test-trans "----\n** fo!o\n----\n" "----\n** foo\n----\n"
                      '(expect (adoc-promote) :to-throw 'user-error))
     (adoc-test-trans "====\n----\n** fo!o\n----\n====\n" "====\n----\n** foo\n----\n====\n"
-                     '(expect (adoc-promote) :to-throw 'user-error)))
+                     '(expect (adoc-promote) :to-throw 'user-error))
+    (adoc-test-trans "```\n== not a !title\n```\n" "```\n== not a title\n```\n"
+                     '(expect (adoc-demote) :to-throw 'user-error)))
 
   (it "keeps a title's delimiter style when it is followed by text"
     (adoc-test-trans "== Sec!tion\n\nbody\n" "=== Section\n\nbody\n"

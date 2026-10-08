@@ -362,6 +362,10 @@ Findings are graded:
 | Supported
 | -
 
+| Markdown-style fenced code blocks `+```lang+`
+| Supported, natively fontified like `[source,lang]` blocks
+| -
+
 | Callouts in verbatim blocks `<1>`
 | Not highlighted - the markers get the block's own face (the callout
   keyword is commented out); only the callout list after the block is

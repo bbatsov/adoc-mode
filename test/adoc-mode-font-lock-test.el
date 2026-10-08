@@ -281,7 +281,9 @@
                    (apply #'concat (make-list 8 "Example text with *bold* words.\n"))
                    "====\n\n"
                    "....\nliteral\n\n*not bold*\n....\n\n"
-                   "****\nsidebar _text_\n\n// a comment\n****\n\n"
+                   "****\nsidebar _text_\n\n// a comment\n"
+                   "```adoctest-lang\nif x\n== fenced\n```\n****\n\n"
+                   "```\n* not an item\n\n```\n\n"
                    "____\nquoted\n\nNOTE: inside\n____\n\n"
                    "NOTE: an admonition\n\n"
                    "|===\n|a |b\n\n|c |d\n|===\n\n"
@@ -424,7 +426,9 @@
                     (search "code\n") (type "----\n"))
                    ;; titling a nested block
                    ("====\ntext\n\n----\nx\n----\n====\n"
-                    (search "text\n\n") (type ".Title\n"))))
+                    (search "text\n\n") (type ".Title\n"))
+                   ;; finishing a fence
+                   ("Text\n\n``\n== x\n```\n" (line 3) (type "`"))))
           (with-temp-buffer
             (insert (car case))
             (adoc-mode)
@@ -861,7 +865,34 @@
         (goto-char (point-min))
         (search-forward "if")
         (expect (adoc-test-face-at-range (match-beginning 0) (1- (match-end 0)))
-                :to-equal '(adoc-verbatim-face adoc-code-face)))))
+                :to-equal '(adoc-verbatim-face adoc-code-face))))
+
+    (when-fontifying-it "fontifies a fenced code block like a source block"
+      ("```adoctest-lang\nif *x*\n```\n\n*bold*"
+       ("```adoctest-lang" adoc-meta-face)
+       ("if" (font-lock-keyword-face adoc-native-code-face))
+       ("*x*" adoc-native-code-face)
+       ("```" adoc-meta-face)
+       ("bold" adoc-bold-face))
+      ("``` adoctest-lang,linenums\nif\n```"
+       ("if" (font-lock-keyword-face adoc-native-code-face)))
+      ("```\nif *x*\n== y\n```"
+       ("if *x*" (adoc-verbatim-face adoc-code-face))
+       ("== y" (adoc-verbatim-face adoc-code-face))))
+
+    (when-fontifying-it "ends a fenced code block at the first bare fence"
+      ("```\n```adoctest-lang\n```  \n\n*bold*"
+       ("```adoctest-lang" (adoc-verbatim-face adoc-code-face))
+       ("bold" adoc-bold-face)))
+
+    (when-fontifying-it "doesn't take four backticks for a fence"
+      ("````\n\n== Title\n\n````"
+       ("Title" adoc-title-1-face)))
+
+    (when-fontifying-it "doesn't take a fence inside a listing block for a code block"
+      ("----\n```\n----\n\n== Title\n\n```\ncode\n```"
+       ("Title" adoc-title-1-face)
+       ("code" (adoc-verbatim-face adoc-code-face)))))
 
   ;; ---- Language -> major mode resolution -----------------------------
 

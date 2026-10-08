@@ -38,7 +38,7 @@ progress toward that goal in link:doc/spec-compliance.adoc[the spec-compliance d
 Here are some of the main features of `adoc-mode`:
 
 - comprehensive syntax highlighting for all AsciiDoc elements, including backslash-escaped inline formatting (e.g. `+\*not bold*+`)
-- native fontification of source code blocks using language-appropriate major modes
+- native fontification of source code blocks using language-appropriate major modes, Markdown-style `+```+` fences included
 - font-lock support for Asciidoctor inline macros (`+kbd:[]+`, `+btn:[]+`, `+menu:[]+`, etc.)
 - table highlighting for the PSV (`|===`), CSV (`,===`), and DSV (`:===`) formats - PSV is the most common and flexible, so reach for it unless you're pasting comma- or colon-separated data
 - inline image preview with right-click context menus and remote image support

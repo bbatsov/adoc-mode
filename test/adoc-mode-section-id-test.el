@@ -243,7 +243,9 @@
             :to-equal '("_p_zap"))
     (expect (adoc-test--section-ids
              "= D\n\n====\n:q: Zap\n\n....\n:q: Zoo\n....\n====\n\n== {q}\n")
-            :to-equal '("_zap")))
+            :to-equal '("_zap"))
+    (expect (adoc-test--section-ids "= D\n\n```\n:r: Zip\n```\n\n== {r}\n")
+            :to-equal '("_r")))
 
   (it "matches the real asciidoctor"
     (assume (executable-find "asciidoctor") "asciidoctor not installed")
@@ -254,7 +256,8 @@
                    "= D\n\n== Foo\n\n:sectids!:\n\n== Bar\n\n:sectids:\n\n== Baz\n"
                    "= D\n:Product: Acme\n:full: {product} Pro\n\n== {full} Setup\n"
                    "= D\n\n== {p} A\n\n:p: Zed \\\n  Zap\n\n== {p} B\n\n:p!:\n\n== {p} C\n"
-                   "= D\n:p: Zed\n\n== \\{p} A\n\n----\n:p: Zap\n----\n\n== {p} B\n"))
+                   "= D\n:p: Zed\n\n== \\{p} A\n\n----\n:p: Zap\n----\n\n== {p} B\n"
+                   "= D\n\n====\n```ruby\n:p: Zed\n```\n:q: Zap\n====\n\n== {p} {q}\n"))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
@@ -276,7 +279,7 @@
   (it "doesn't count anchors in verbatim blocks, comments or escaped ones"
     (expect (adoc-test--section-ids
              (concat "= D\n\n----\n[[_foo]]\n----\n\n////\n[[_foo]]\n////\n\n"
-                     "====\n----\n[[_foo]]\n----\n====\n\n"
+                     "====\n----\n[[_foo]]\n----\n====\n\n```\n[[_foo]]\n```\n\n"
                      "// [[_foo]]\n\nx \\[[_foo]]\n\n== Foo\n"))
             :to-equal '("_foo")))
 

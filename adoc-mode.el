@@ -2366,17 +2366,20 @@ START-SRC and END-SRC delimit the actual source code."
             ;; whitespaces at the end of the block attributes are silently ignored by Asciidoctor.
             (lang () ",[\t ]*\\(?1:[^],]+\\)")
             (optional-other-args () "\\(?:,[^]]+\\)?"))
-    (outer-brackets-and-delimiter
-     (rx-or
-      (concat
-       "source"
-       (rx-optional (lang))
-       (optional-other-args))
-      (concat
-       (lang)
-       (optional-other-args)))
-     ))
-  "Regexp matching the beginning of source blocks.
+    (concat
+     (outer-brackets-and-delimiter
+      (rx-or
+       (concat
+        "source"
+        (rx-optional (lang))
+        (optional-other-args))
+       (concat
+        (lang)
+        (optional-other-args))))
+     ;; A Markdown-style fenced code block names its language after the
+     ;; fence, as in ```ruby.  Four backticks don't make a fence.
+     "\\|^\\(?2:```\\)[ \t]*\\(?1:[^`, \t\n][^,\n]*?\\)?[ \t]*\\(?:,.*\\)?\n"))
+  "Regexp matching the beginning of source blocks, fenced ones included.
 Group 1 contains the language attribute.
 Group 2 contains the block delimiter.")
 
@@ -2396,13 +2399,20 @@ The first group of the match data delimits the
 actual source code."
   (let (start-header start-src end-src end-block lang)
     (save-match-data
-      (and (setq start-src (re-search-forward adoc-code-block-begin-regexp last noerror))
-           (setq lang (or (match-string 1) t)
-                 start-header (match-beginning 0))
-           (setq end-block (re-search-forward (format "\n%s$" (regexp-quote (match-string 2)))
-                                                   (+ (point) adoc-font-lock-extend-after-change-max) t))
-           (setq end-src (match-beginning 0)))
-      )
+      (while (and (not end-block)
+                  (setq start-src (re-search-forward adoc-code-block-begin-regexp
+                                                     last noerror)))
+        (let ((block (adoc--delimited-block-at (match-beginning 2))))
+          ;; Pass over a delimiter line in the content of a verbatim block and
+          ;; an unterminated block, see `adoc--ensure-block-extents'.
+          (when (and block (= (nth 1 block) (match-beginning 2)))
+            (setq lang (or (match-string 1) t)
+                  start-header (match-beginning 0))
+            (when (re-search-forward
+                   (concat "^" (regexp-quote (match-string 2)) "[ \t]*$")
+                   (nth 3 block) t)
+              (setq end-block (match-end 0)
+                    end-src (max start-src (1- (match-beginning 0)))))))))
     (when end-block
       (set-match-data (list start-header end-block start-src end-src (current-buffer)))
       lang)))
@@ -2496,17 +2506,19 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
 ;; so it never splits a top-level block.
 
 (defconst adoc--re-block-delimiter
-  (concat "^\\("
+  (concat "^\\(?:\\(?1:"
           (mapconcat #'identity
                      '("/\\{4,\\}" "\\+\\{4,\\}" "-\\{4,\\}" "\\.\\{4,\\}"
                        "_\\{4,\\}" "=\\{4,\\}" "\\*\\{4,\\}" "--"
                        "[,:]=\\{3,\\}")
                      "\\|")
-          "\\)[ \t]*$")
+          ;; A fenced code block can name its language after the fence.
+          "\\)\\|\\(?1:```\\)\\(?:[^`\n].*\\)?\\)[ \t]*$")
   "Regexp matching a delimited block or CSV/DSV table delimiter line.
-Group 1 is the delimiter.  These are Asciidoctor's delimiters, not
-the ones `adoc-delimited-block-del' customizes for highlighting.  A
-`|===' table is highlighted line by line, so it needs no extent.")
+Group 1 is the delimiter, which a closing delimiter line repeats.  These
+are Asciidoctor's delimiters, Markdown's ``` fence included, not the
+ones `adoc-delimited-block-del' customizes for highlighting.  A `|==='
+table is highlighted line by line, so it needs no extent.")
 
 (defun adoc--verbatim-delimiter-p (delimiter)
   "Return non-nil when DELIMITER opens a block whose content isn't AsciiDoc.
