@@ -2778,21 +2778,18 @@ between matching delimiters, never in the surrounding prose."
 Group 1 is the break without its indentation, group 2 its character and
 group 3 the spaces between them.")
 
+(defconst adoc--re-table-delimiter "\\([|!]=\\{3,\\}\\)[ \t]*$"
+  "Regexp matching a table delimiter line, from its beginning.
+Group 1 is the delimiter.")
+
 (defconst adoc--re-verbatim-style-line
   "^\\[\\(?:literal\\|listing\\|source\\|verse\\)\\(?:[,#.%].*\\)?\\][ \t]*$"
   "Regexp matching a block attribute line that makes a paragraph verbatim.")
 
-(defun adoc--thematic-break-line-p (pos)
-  "Return non-nil when the line at POS looks like a thematic break."
-  (save-excursion
-    (goto-char pos)
-    (beginning-of-line)
-    (looking-at-p adoc--re-markdown-thematic-break)))
-
 (defun adoc--block-begins-p ()
   "Return non-nil when a block can begin on the line at point.
-That's below a blank line, a section title, a block delimiter or a list
-continuation, or below a block attribute or anchor line, which also
+That's below a blank line, a section title, a block or table delimiter
+or a list continuation, or below a block attribute or anchor line, which also
 ends a paragraph above it.  Block titles,
 comments and attribute entries leave it to the line above them.  A block
 attribute line with a verbatim style, such as `[source]', makes the
@@ -2808,47 +2805,28 @@ line part of a paragraph, though."
            ((looking-at-p "\\[.*\\][ \t]*$") (setq attributes t))
            ((or (looking-at-p (adoc-re-one-line-title nil))
                 (looking-at-p adoc--re-block-delimiter)
+                (looking-at-p adoc--re-table-delimiter)
                 (looking-at-p "\\+[ \t]*$"))
             (throw 'done t))
            ((looking-at-p "\\.[^ \t.]\\|//\\(?:[^/]\\|$\\)\\|:!?[[:alnum:]_][^:\n]*:\\(?:[ \t]\\|$\\)"))
            (t (throw 'done attributes))))))))
 
-(defun adoc--open-list-keys (pos)
-  "Return the keys of the list levels open above the line at POS.
-They come innermost first, see `adoc--list-item-key'.  Lines like
-`* * *' in the list are items when their key is open, and thematic
-breaks, which Asciidoctor puts in the item above, otherwise."
-  (let (keys)
-    (dolist (item (reverse (adoc--list-items-above (list :marker-beg pos) t))
-                  keys)
-      (let* ((key (adoc--list-item-key item))
-             (open (member key keys)))
-        (cond
-         (open (setq keys open))
-         ((not (adoc--thematic-break-line-p (plist-get item :marker-beg)))
-          (push key keys)))))))
-
 (defun adoc--markdown-thematic-break-p ()
   "Return non-nil when the line at point is a Markdown-style thematic break.
 Asciidoctor takes `---', `* * *' and the like for one where a block
 begins, see `adoc--block-begins-p'.  Where `* * *' or `- - -' continues
-a list, it's an item instead when a level open there has the same
-marker, or when it's right below an item."
+a list, it can be an item instead, see `adoc--list-scan'."
   (save-excursion
     (save-match-data
       (beginning-of-line)
       (and (looking-at adoc--re-markdown-thematic-break)
            (not (nth 2 (adoc--delimited-block-at (point))))
-           (let* ((char (match-string-no-properties 2))
-                  (open (and (not (string-empty-p (match-string 3)))
-                             (not (equal char "_"))
-                             (adoc--open-list-keys (match-beginning 1)))))
-             (if open
-                 (not (or (member char open)
-                          (save-excursion
-                            (and (zerop (forward-line -1))
-                                 (adoc--list-item-at-point t)))))
-               (adoc--block-begins-p)))))))
+           (if (adoc--item-shaped-break-p)
+               (let ((breaks (cdr (adoc--thematic-breaks-table))))
+                 (pcase (gethash (point) breaks 'unknown)
+                   ('unknown (nth 3 (adoc--list-scan (point) t)))
+                   (known known)))
+             (adoc--block-begins-p))))))
 
 (defun adoc-get-font-lock-keywords ()
   "Return list of keywords for `adoc-mode'."
@@ -3519,6 +3497,16 @@ non-nil, the sub type is toggled."
 
 ;;;; List editing
 
+(defconst adoc--re-unordered-item (adoc-re-oulisti 'adoc-unordered 'adoc-all-levels)
+  "Regexp matching an unordered list item, see `adoc-re-oulisti'.")
+
+(defconst adoc--re-implicit-item
+  (adoc-re-oulisti 'adoc-implicitly-numbered 'adoc-all-levels)
+  "Regexp matching an implicitly numbered list item, see `adoc-re-oulisti'.")
+
+(defconst adoc--re-explicit-item (adoc-re-oulisti 'adoc-explicitly-numbered)
+  "Regexp matching an explicitly numbered list item, see `adoc-re-oulisti'.")
+
 (defun adoc--list-item-at-point (&optional with-breaks)
   "Return a description of the list item on the current line, or nil.
 The description is a plist with these keys:
@@ -3528,37 +3516,35 @@ The description is a plist with these keys:
 :marker      the marker string, e.g. \"*\", \"..\" or \"1.\"
 :indent      the leading whitespace string
 :marker-beg  buffer position of the marker's first character
-:level       0-based nesting level
 
 Labeled lists and callouts are intentionally not recognised, as
 their markers are too easily confused with ordinary prose, and
 neither are lines in verbatim blocks, such as listings, or thematic
-breaks, such as `* * *', unless WITH-BREAKS is non-nil."
+breaks, such as `* * *'.  With WITH-BREAKS non-nil, a line like that
+is an item whatever it is, with :break set."
   (save-excursion
     (beginning-of-line)
     (cond
      ((nth 2 (adoc--delimited-block-at (point))) nil)
-     ((looking-at (adoc-re-oulisti 'adoc-unordered 'adoc-all-levels))
-      (let ((marker (match-string-no-properties 2)))
-        (unless (and (not with-breaks) (adoc--markdown-thematic-break-p))
-          (list :type 'unordered
-                :marker marker
-                :indent (match-string-no-properties 1)
-                :marker-beg (match-beginning 2)
-                :level (if (string-prefix-p "-" marker) 0 (length marker))))))
-     ((looking-at (adoc-re-oulisti 'adoc-implicitly-numbered 'adoc-all-levels))
-      (let ((marker (match-string-no-properties 2)))
-        (list :type 'implicit-numbered
-              :marker marker
-              :indent (match-string-no-properties 1)
-              :marker-beg (match-beginning 2)
-              :level (1- (length marker)))))
-     ((looking-at (adoc-re-oulisti 'adoc-explicitly-numbered))
+     ((looking-at adoc--re-unordered-item)
+      (let ((item (list :type 'unordered
+                        :marker (match-string-no-properties 2)
+                        :indent (match-string-no-properties 1)
+                        :marker-beg (match-beginning 2))))
+        (cond
+         ((not (looking-at-p adoc--re-markdown-thematic-break)) item)
+         (with-breaks (plist-put item :break t))
+         ((not (adoc--markdown-thematic-break-p)) item))))
+     ((looking-at adoc--re-implicit-item)
+      (list :type 'implicit-numbered
+            :marker (match-string-no-properties 2)
+            :indent (match-string-no-properties 1)
+            :marker-beg (match-beginning 2)))
+     ((looking-at adoc--re-explicit-item)
       (list :type 'explicit-numbered
             :marker (match-string-no-properties 2)
             :indent (match-string-no-properties 1)
-            :marker-beg (match-beginning 2)
-            :level 0)))))
+            :marker-beg (match-beginning 2))))))
 
 (defun adoc--list-item-key (item)
   "Return what sets ITEM's nesting level in its list.
@@ -3572,7 +3558,7 @@ which case it goes back out to that item's level."
 
 (defun adoc--check-level (level max-level)
   "Return LEVEL, or signal a `user-error' if it's outside 0 to MAX-LEVEL.
-For promoting and demoting titles and list items."
+For promoting and demoting titles."
   (cond
    ((< level 0) (user-error "Cannot promote any further"))
    ((> level max-level) (user-error "Cannot demote any further"))
@@ -3594,88 +3580,430 @@ them up."
             (match-string 2 marker)))
    (t marker)))
 
-(defun adoc--list-items-above (item &optional with-breaks)
-  "Return the items above ITEM in its list, nearest first.
-The list ends at a paragraph or block that follows a blank line, as in
-AsciiDoc, or at the start of the delimited block it's in.  A delimited
-block inside the list is skipped as a whole, so its lines aren't taken
-for items.  WITH-BREAKS is passed on to `adoc--list-item-at-point'."
+(defconst adoc--re-description-list-item
+  "^[ \t]*[^ \t\n].*?\\(:::\\{0,2\\}\\|;;\\)\\(?:[ \t]+\\(.*\\)\\)?$"
+  "Regexp matching the first line of a description list item.
+Group 1 is its delimiter, such as `::', and group 2 its text, if any.")
+
+(defun adoc--list-entry-at-point (&optional with-breaks)
+  "Return the list item on the current line, description list items included.
+That's `adoc--list-item-at-point', which see for WITH-BREAKS, or for the
+first line of a description list item, an item of the `labeled' :type
+with its delimiter for a :marker.  It's no use editing, but it counts
+for the nesting, as Asciidoctor nests the other lists in it."
+  (or (adoc--list-item-at-point with-breaks)
+      (save-excursion
+        (beginning-of-line)
+        (and (looking-at adoc--re-description-list-item)
+             (not (adoc--comment-line-p))
+             (list :type 'labeled
+                   :marker (match-string-no-properties 1)
+                   :indent ""
+                   :marker-beg (point)
+                   :text (string-trim (or (match-string-no-properties 2) "")))))))
+
+(defun adoc--list-item-line (item)
+  "Return the beginning of ITEM's line."
+  (- (plist-get item :marker-beg) (length (plist-get item :indent))))
+
+(defconst adoc--re-list-continuation "\\+[ \t]*$"
+  "Regexp matching a list continuation line, from its beginning.")
+
+(defconst adoc--re-table-cell-start
+  (concat "[ \t]*\\(?:" (adoc-re-cell-specifier) "\\)[|!]")
+  "Regexp matching the beginning of a line that starts a table cell.")
+
+(defconst adoc--re-block-metadata-or-entry
+  (concat adoc--re-block-metadata-line
+          "\\|^:!?[[:alnum:]_][^:\n]*:\\(?:[ \t]\\|$\\)")
+  "Regexp matching a block attribute, anchor or title line, or an attribute entry.
+Asciidoctor reads these until it gets to the block they're above.")
+
+(defun adoc--textless-term-p (entry)
+  "Return non-nil when list ENTRY is a description list term without text.
+Asciidoctor takes the paragraph after it for its definition, even after
+a blank line, and nests an item right below it."
+  (and (eq (plist-get entry :type) 'labeled)
+       (string-empty-p (plist-get entry :text))))
+
+(defun adoc--list-continuation-p (item)
+  "Return non-nil when list ITEM is a detached list continuation.
+That's the `continuation' :type `adoc--list-scan' gives a list
+continuation after a blank line that attaches the block below it to the
+outermost item of the list, ending the lists nested in that."
+  (eq (plist-get item :type) 'continuation))
+
+(defun adoc--list-scope (pos tables)
+  "Return where to read the lists for the line at POS, as (START LIMIT TABLE).
+That's the content of the innermost delimited block or table the line is
+in, TABLE being non-nil for a table, whose cells end the lists in them.
+TABLES are the tables' ranges, see `adoc--table-ranges'.  Outside both,
+it's from after the nearest section title above that begins a block, as
+no list goes on past one, or the beginning of the buffer, to its end."
   (save-excursion
-    (goto-char (plist-get item :marker-beg))
-    (let ((own (adoc--delimited-block-at (line-beginning-position)))
-          items)
-      (catch 'done
-        (while (zerop (forward-line -1))
-          (let* ((block (adoc--delimited-block-at (point)))
-                 (nested (and block (not (equal block own)))))
-            (cond
-             (nested (goto-char (car block)))
-             ((and block (<= (point) (nth 1 own))) (throw 'done nil)))
-            (let ((other (and (not nested) (adoc--list-item-at-point with-breaks))))
-              (cond
-               (other (push other items))
-               ((looking-at-p "[ \t]*$"))
-               ((save-excursion
-                  (or (/= (forward-line -1) 0) (looking-at-p "[ \t]*$")))
-                (throw 'done nil)))))))
-      (nreverse items))))
+    (let ((own (adoc--delimited-block-at pos))
+          (table (seq-find (lambda (range) (< (car range) pos (cdr range))) tables)))
+      (cond
+       ((and table (or (not own) (> (car table) (nth 1 own))))
+        (list (progn (goto-char (car table)) (line-beginning-position 2))
+              (progn (goto-char (cdr table)) (line-beginning-position))
+              t))
+       (own
+        (list (progn (goto-char (nth 1 own)) (line-beginning-position 2))
+              (progn (goto-char (1- (nth 3 own))) (line-beginning-position))
+              nil))
+       (t
+        (goto-char pos)
+        (let ((title (adoc-re-one-line-title nil))
+              start)
+          (while (and (not start) (re-search-backward title nil t))
+            (when (and (not (adoc--delimited-block-at (point)))
+                       (save-excursion
+                         (or (/= (forward-line -1) 0) (looking-at-p "[ \t]*$"))))
+              (setq start (line-beginning-position 2))))
+          (list (or start (point-min)) (point-max) nil)))))))
 
-(defun adoc--outer-unordered-marker (item)
-  "Return the marker of the outermost unordered items in ITEM's list.
-That's `-' or `*', so ITEM promoted to the outermost level stays in
-its list.  Return `*' when the list has no such item above ITEM."
-  (or (seq-some (lambda (other)
-                  (let ((marker (plist-get other :marker)))
-                    (and (eq (plist-get other :type) 'unordered)
-                         (= (length marker) 1)
-                         marker)))
-                (adoc--list-items-above item))
-      "*"))
+(defvar-local adoc--thematic-breaks nil
+  "The lines like `* * *' known to be thematic breaks, and when.
+The value is (TICK . TABLE), TABLE mapping the beginning of each such
+line read by `adoc--list-scan' since the buffer was at
+`buffer-chars-modified-tick' TICK to whether it's a thematic break.")
 
-(defun adoc--prev-list-sibling-p (item)
-  "Return non-nil when ITEM's list has an item at ITEM's level above it.
-That's an item with the same marker.  Asciidoctor nests an item with
-a new marker under the one above it, so going up, a shorter marker of
-the same kind, or a different one of the same length, is ITEM's parent."
-  (let ((type (plist-get item :type))
-        (marker (plist-get item :marker)))
-    (catch 'done
-      (dolist (other (adoc--list-items-above item))
-        (when (eq (plist-get other :type) type)
-          (let ((other-marker (plist-get other :marker)))
-            (cond
-             ((string= other-marker marker) (throw 'done t))
-             ((<= (length other-marker) (length marker)) (throw 'done nil))))))
-      nil)))
+(defun adoc--list-scan (pos &optional section)
+  "Read the lists around the line at POS the way Asciidoctor does.
+Return (ITEMS END ENTRY BREAK): the items of the list the line is in,
+in document order, where the list's last line ends, the item on the
+line, and, for a line like `* * *', whether it's a thematic break
+rather than an item.  ITEMS, END and ENTRY are nil when the line isn't
+an item.
+
+Each item gets its nesting :level, from 0, and the :keys open at it,
+innermost first.  As in Asciidoctor, an item whose key, see
+`adoc--list-item-key', is new nests in the item above it, and one with
+the key of an item it's in goes back out to that item's level.
+Description list terms count as items here, so the lists nested in
+them don't run into each other.
+
+The lists are read from the start of the section, or of the delimited
+block or table the line is in, see `adoc--list-scope'.  A list takes in
+blank lines, literal paragraphs, description lists, a term's definition
+and thematic breaks after a blank line, and blocks and tables attached
+with a list continuation, which lasts over one blank line and the
+block's metadata.  It ends at a paragraph after a blank line, a block or
+table that isn't attached, a table cell, and the end of the scope.  A
+continuation after a blank line attaches what follows it to the
+outermost item, unless it's an item, which closes the lists nested in
+that; it's among the items, see `adoc--list-continuation-p'.  A line
+like `* * *' is an item when its key is open or it's right below an item
+or a term waiting for its definition, and a thematic break, nested in
+the item above it, otherwise.
+
+With SECTION non-nil, read on to the end of the section or scope, and
+record which lines like `* * *' are thematic breaks in
+`adoc--thematic-breaks'."
+  (save-excursion
+    (save-restriction
+      (widen)
+      (goto-char pos)
+      (pcase-let*
+          ((target (line-beginning-position))
+           (own (adoc--delimited-block-at target))
+           (tables (adoc--table-ranges))
+           (`(,start ,limit ,in-table) (adoc--list-scope target tables))
+           (breaks (and section (cdr (adoc--thematic-breaks-table))))
+           (title (adoc-re-one-line-title nil))
+           ;; The list being read: its items, nearest first, the keys open,
+           ;; where its last line ends, and what the last line that wasn't
+           ;; blank was, `blank' for one followed by a blank line.
+           (items nil) (keys nil) (end nil) (prev nil)
+           ;; Whether a continuation has had its blank line, where a
+           ;; detached one is while it's pending, the item on the line
+           ;; above, a term waiting for its definition, whether a literal
+           ;; paragraph is going on, and whether the line above starts a
+           ;; table cell.
+           (blanked nil) (detached nil) (above nil) (term nil) (literal nil)
+           (cell nil)
+           (result nil))
+        (cl-labels
+            ((finish ()
+               ;; The list ends before the current line.
+               (when (and (nth 2 result) (null (car result)))
+                 (setcar result (nreverse items))
+                 (setcar (cdr result) end)
+                 (unless section (throw 'done nil)))
+               (setq items nil keys nil end nil prev nil blanked nil
+                     detached nil above nil term nil literal nil))
+             (attach ()
+               ;; Something is attached with a continuation, to the
+               ;; outermost item when it's a detached one.
+               (when detached
+                 (setq keys (last keys))
+                 (push (list :type 'continuation :indent "" :marker-beg detached
+                             :level 0 :keys keys)
+                       items)
+                 (setq detached nil))
+               (setq prev 'text blanked nil term nil))
+             (add (item)
+               (let* ((key (adoc--list-item-key item))
+                      (open (member key keys)))
+                 (setq keys (or open (cons key keys)))
+                 (plist-put item :level (1- (length keys)))
+                 (plist-put item :keys keys)
+                 (push item items))))
+          (goto-char start)
+          (catch 'done
+            (while (and (< (point) limit) (not (eobp)))
+              (let ((block (adoc--delimited-block-at (point)))
+                    (here (point))
+                    (line-above above)
+                    (cell-above cell))
+                (setq above nil cell nil)
+                (cond
+                 ;; A block nested in the scope, at its start.
+                 ((and block (not (eql (car block) (car own))))
+                  (if (and items (eq prev 'continuation))
+                      (attach)
+                    (finish))
+                  (goto-char (1- (nth 3 block)))
+                  (when items (setq end (line-beginning-position 2))))
+                 ((looking-at-p "[ \t]*$")
+                  (setq literal nil)
+                  (when items
+                    (if (and (eq prev 'continuation) (not blanked))
+                        (setq blanked t)
+                      ;; A second one drops a continuation, detached or not.
+                      (setq prev 'blank detached nil))))
+                 ((and literal (not (looking-at-p adoc--re-list-continuation)))
+                  (setq end (line-beginning-position 2)))
+                 ((and section (> here target) (looking-at-p title)
+                       (save-excursion (forward-line -1) (looking-at-p "[ \t]*$")))
+                  (finish)
+                  (throw 'done nil))
+                 ;; A table is skipped as a whole, see `adoc--list-scope'.
+                 ((looking-at adoc--re-table-delimiter)
+                  (let ((close
+                         (or (cdr (assq here tables))
+                             (save-excursion
+                               (forward-line 1)
+                               (re-search-forward
+                                (concat "^" (regexp-quote (match-string-no-properties 1))
+                                        "[ \t]*$")
+                                limit t))
+                             limit)))
+                    (if (and items (eq prev 'continuation))
+                        (attach)
+                      (finish))
+                    (goto-char close)
+                    (beginning-of-line)
+                    (when items (setq end (line-beginning-position 2)))))
+                 ((and in-table (looking-at-p adoc--re-table-cell-start))
+                  (finish)
+                  (setq cell t))
+                 (t
+                  (let* ((other (adoc--list-entry-at-point t))
+                         (shaped (and other (plist-get other :break)))
+                         (break
+                          (and shaped
+                               (not (and items
+                                         (or (member (adoc--list-item-key other) keys)
+                                             term
+                                             (and line-above
+                                                  (or (not (eq (plist-get line-above :type)
+                                                               'labeled))
+                                                      (adoc--textless-term-p line-above))))))
+                               (or items cell-above (adoc--block-begins-p)))))
+                    (when shaped
+                      (when breaks (puthash here (and break t) breaks))
+                      (setq other (and (not break)
+                                       (let ((item (cl-copy-list other)))
+                                         (cl-remf item :break)
+                                         item))))
+                    (when (= here target)
+                      (setq result (list nil nil other break))
+                      (unless (or other section) (throw 'done nil)))
+                    (cond
+                     (other
+                      (setq detached nil)
+                      (add other)
+                      (setq above other
+                            term (adoc--textless-term-p other)
+                            prev 'text blanked nil
+                            end (line-beginning-position 2)))
+                     ((looking-at-p adoc--re-list-continuation)
+                      (when items
+                        (when (eq prev 'blank) (setq detached here))
+                        (setq prev 'continuation blanked nil term nil
+                              end (line-beginning-position 2))))
+                     ((not items))
+                     ((and (eq prev 'blank) (not term) (not break)
+                           (not (looking-at-p "[ \t]+[^ \t\n]")))
+                      (finish))
+                     ((and (eq prev 'continuation)
+                           (looking-at-p adoc--re-block-metadata-or-entry))
+                      ;; What's read before the block the continuation attaches.
+                      (setq blanked nil end (line-beginning-position 2)))
+                     (t
+                      (when (and (memq prev '(blank continuation))
+                                 (looking-at-p "[ \t]+[^ \t\n]"))
+                        (setq literal t))
+                      (attach)
+                      (setq end (line-beginning-position 2)))))))
+                (forward-line 1)))
+            (finish))
+          result)))))
+
+(defun adoc--item-shaped-break-p ()
+  "Return non-nil when the line at point is like `* * *' or `- - -'.
+That's a thematic break that looks like an unordered list item."
+  (and (looking-at-p adoc--re-unordered-item)
+       (looking-at-p adoc--re-markdown-thematic-break)))
+
+(defun adoc--thematic-breaks-table ()
+  "Return `adoc--thematic-breaks', made afresh if the buffer has changed."
+  (let ((tick (buffer-chars-modified-tick)))
+    (unless (eql (car adoc--thematic-breaks) tick)
+      (setq adoc--thematic-breaks (cons tick (make-hash-table))))
+    adoc--thematic-breaks))
+
+(defun adoc--list-items (item)
+  "Return ITEM's list, see `adoc--list-scan', as (ITEMS END ITEM).
+The last is the list's own copy of ITEM, with its :level and :keys."
+  (let ((list (adoc--list-scan (adoc--list-item-line item))))
+    (unless (nth 2 list)
+      (user-error "Not on a list item"))
+    (seq-take list 3)))
+
+(defun adoc--list-next-outside (items item)
+  "Return the first item after ITEM in ITEMS that isn't nested in ITEM.
+A detached list continuation counts, as it ends the lists nested in the
+outermost item, but not for an outermost item, which it belongs to."
+  (let ((level (plist-get item :level)))
+    (seq-find (lambda (other)
+                (and (<= (plist-get other :level) level)
+                     (not (and (zerop level) (adoc--list-continuation-p other)))))
+              (cdr (memq item items)))))
+
+(defun adoc--list-sibling (items item next)
+  "Return ITEM's next sibling in ITEMS when NEXT is non-nil, else its previous one.
+ITEMS are ITEM's list from `adoc--list-items'.  Return nil when an item
+ITEM is nested in comes first, or there's no item at its level."
+  (let ((other (adoc--list-next-outside (if next items (reverse items)) item)))
+    (and other (= (plist-get other :level) (plist-get item :level)) other)))
+
+(defun adoc--list-item-end (items item end)
+  "Return where ITEM ends, with the items nested in it.
+That's at the next item in ITEMS that isn't nested in ITEM, or at END,
+less the blank lines before it.  ITEMS and END are ITEM's list as from
+`adoc--list-items'."
+  (let* ((next (adoc--list-next-outside items item))
+         (pos (if next (adoc--list-item-line next) end)))
+    (save-excursion
+      (goto-char pos)
+      (when (bolp)
+        (while (and (zerop (forward-line -1)) (looking-at-p "[ \t]*$"))
+          (setq pos (point))))
+      pos)))
+
+(defun adoc--free-list-marker (parent taken)
+  "Return a marker for the first item nested in list item PARENT.
+It's of PARENT's kind, and the first of these whose key, see
+`adoc--list-item-key', isn't open at PARENT, see `adoc--list-scan', or
+among TAKEN, so the item nests rather than going back out to an item
+with that key, and the items in it don't go out to it: a marker one
+longer than PARENT's, `**' for `-' or `*', then the shortest one, or
+the next numbering style, `a.' after `1.'."
+  (let* ((type (plist-get parent :type))
+         (marker (plist-get parent :marker))
+         (taken (append (plist-get parent :keys) taken))
+         (char (if (eq type 'unordered) ?* ?.))
+         (length (1+ (if (equal marker "-") 1 (length marker)))))
+    (seq-find (lambda (marker)
+                (not (member (adoc--list-item-key (list :type type :marker marker))
+                             taken)))
+              (if (eq type 'explicit-numbered)
+                  '("1." "a." "A." "i)" "I)")
+                (append (and (<= length 5) (list (make-string length char)))
+                        (mapcar (lambda (n) (make-string n char)) '(1 2 3 4 5))
+                        (and (eq char ?*) (list "-")))))))
+
+(defun adoc--sibling-marker (other)
+  "Return the marker for a new item right after OTHER, at its level."
+  (pcase (plist-get other :type)
+    ('labeled (user-error "Cannot move an item into a description list"))
+    ('explicit-numbered (adoc--increment-marker (plist-get other :marker)))
+    (_ (plist-get other :marker))))
+
+(defun adoc--list-subtree-keys (items item)
+  "Return the keys of the items nested in ITEM, among ITEMS."
+  (let ((level (plist-get item :level)))
+    (mapcar #'adoc--list-item-key
+            (seq-take-while (lambda (other) (> (plist-get other :level) level))
+                            (cdr (memq item items))))))
+
+(defun adoc--shift-list-item (item demote)
+  "Nest list ITEM one level deeper when DEMOTE is non-nil, else shallower.
+See `adoc--change-list-item-level'."
+  (pcase-let* ((`(,items ,_ ,item) (adoc--list-items item))
+               (level (plist-get item :level))
+               (above (cdr (memq item (reverse items))))
+               (new-marker
+                (if demote
+                    (let* ((parent (or (adoc--list-sibling items item nil)
+                                       (user-error "Cannot demote the first item of a list")))
+                           (child (seq-find (lambda (other)
+                                              (= (plist-get other :level) (1+ level)))
+                                            (seq-take-while (lambda (other)
+                                                              (not (eq other parent)))
+                                                            above)))
+                           (taken (adoc--list-subtree-keys items item)))
+                      (if child
+                          (let ((marker (adoc--sibling-marker child)))
+                            ;; Or the items nested in it with that marker would
+                            ;; go back out to its level.
+                            (when (member (adoc--list-item-key child) taken)
+                              (user-error "Cannot demote an item with an item nested in it that has the marker it would get"))
+                            marker)
+                        (or (adoc--free-list-marker parent taken)
+                            (user-error "Cannot demote any further"))))
+                  (when (zerop level)
+                    (user-error "Cannot promote any further"))
+                  ;; As in Org mode, as the items after its own would end up
+                  ;; nested in them.
+                  (let ((next (cadr (memq item items))))
+                    (when (and next (> (plist-get next :level) level))
+                      (user-error "Cannot promote an item without the items nested in it")))
+                  (adoc--sibling-marker
+                   (seq-find (lambda (other)
+                               (and (< (plist-get other :level) level)
+                                    (not (adoc--list-continuation-p other))))
+                             above))))
+               (beg (plist-get item :marker-beg))
+               (old-marker (plist-get item :marker)))
+    (unless (string= new-marker old-marker)
+      (save-excursion
+        (goto-char beg)
+        (delete-region beg (+ beg (length old-marker)))
+        (insert new-marker)))))
 
 (defun adoc--change-list-item-level (item delta)
   "Change list ITEM's nesting level by DELTA, rewriting its marker.
-A positive DELTA nests the item deeper, a negative one shallower.
+A positive DELTA nests the item deeper, a negative one shallower, a
+level at a time, as in Org mode.
 
-The depth is the marker's length, as Asciidoctor nests on a change of
-marker: `-' and `*' both mark the outermost level of an unordered
-list, `**' the next one.  Signal a `user-error' when the new depth is
-outside the five levels `adoc-mode' recognizes, and, as in Org mode,
-when demoting the first item of a list, which would leave it with no
-item to nest under.  A DELTA of 0 leaves ITEM alone."
-  (let ((type (plist-get item :type))
-        (old-marker (plist-get item :marker))
-        (beg (plist-get item :marker-beg)))
-    (when (eq type 'explicit-numbered)
-      (user-error "Cannot change the nesting level of a numbered list item"))
-    (unless (zerop delta)
-      (let ((depth (1+ (adoc--check-level (+ (length old-marker) delta -1) 4))))
-        (when (and (> delta 0) (not (adoc--prev-list-sibling-p item)))
-          (user-error "Cannot demote the first item of a list"))
-        (let ((new-marker (cond
-                           ((eq type 'implicit-numbered) (make-string depth ?.))
-                           ((= depth 1) (adoc--outer-unordered-marker item))
-                           (t (make-string depth ?*)))))
-          (unless (string= new-marker old-marker)
-            (save-excursion
-              (goto-char beg)
-              (delete-region beg (+ beg (length old-marker)))
-              (insert new-marker))))))))
+The nesting goes by the markers, as in Asciidoctor, see
+`adoc--list-scan'.  Promoting an item makes it a sibling of the item
+it's in, so it takes that item's marker.  Demoting an item makes it a
+child of its previous sibling, so it takes the marker of that item's
+children, or a new one if it has none.  Signal a `user-error' for an
+item at the outermost level, for the first item of a list, which would
+have no item to nest under, and for promoting an item with items nested
+in it, and leave the buffer as it was."
+  (let ((line (adoc--list-item-line item)))
+    (atomic-change-group
+      (dotimes (_ (abs delta))
+        (save-excursion
+          (goto-char line)
+          (adoc--shift-list-item (adoc--list-item-at-point) (> delta 0)))))))
 
 (defun adoc-insert-list-item (&optional _arg)
   "Insert a new list item below the item at point.
@@ -3693,114 +4021,29 @@ incremented number or letter."
       (end-of-line)
       (insert "\n" indent new-marker " "))))
 
-(defun adoc--line-list-level ()
-  "Return the nesting level of the list item on the current line, or nil."
-  (let ((item (adoc--list-item-at-point)))
-    (and item (plist-get item :level))))
-
-(defun adoc--list-item-block-end (level)
-  "Return the position at the end of the list item block on the current line.
-Point must be at the beginning of the marker line of an item at
-nesting LEVEL.  The block runs through any immediately following
-continuation lines and more deeply nested items, stopping before
-the first blank line, sibling, or shallower item.  The returned
-position is at the beginning of a line (or `point-max')."
-  (save-excursion
-    (forward-line 1)
-    (let ((end (point)))
-      (while (and (not (eobp))
-                  (not (looking-at-p "[ \t]*$"))
-                  (let ((il (adoc--line-list-level)))
-                    (or (null il) (> il level))))
-        (forward-line 1)
-        (setq end (point)))
-      end)))
-
-(defun adoc--same-list-p (item)
-  "Return non-nil if the item on the current line is a sibling of ITEM.
-Siblings share the same list type, nesting level and indentation
-\(and, for explicitly-numbered lists, the same marker kind), so
-two distinct adjacent lists are not treated as one."
-  (let ((other (adoc--list-item-at-point)))
-    (and other
-         (eq (plist-get other :type) (plist-get item :type))
-         (= (plist-get other :level) (plist-get item :level))
-         (string= (plist-get other :indent) (plist-get item :indent))
-         (or (not (eq (plist-get item :type) 'explicit-numbered))
-             (eq (adoc--explicit-marker-kind (plist-get other :marker))
-                 (adoc--explicit-marker-kind (plist-get item :marker)))))))
-
-(defun adoc--next-sibling-start (from item)
-  "Return the start of the next sibling of ITEM at or after FROM, or nil.
-Blank lines, continuation lines and more deeply nested items are
-skipped.  A shallower item, or a same-level item belonging to a
-different list, stops the search and yields nil."
-  (let ((level (plist-get item :level)))
-    (save-excursion
-      (goto-char from)
-      (catch 'found
-        (while (not (eobp))
-          (unless (looking-at-p "[ \t]*$")
-            (let ((il (adoc--line-list-level)))
-              (cond
-               ((null il))
-               ((and (= il level) (adoc--same-list-p item)) (throw 'found (point)))
-               ((<= il level) (throw 'found nil)))))
-          (forward-line 1))
-        nil))))
-
-(defun adoc--prev-sibling-start (before item)
-  "Return the start of the previous sibling of ITEM before BEFORE, or nil.
-Blank lines, continuation lines and more deeply nested items are
-skipped.  A shallower item, or a same-level item belonging to a
-different list, stops the search and yields nil."
-  (let ((level (plist-get item :level)))
-    (save-excursion
-      (goto-char before)
-      (catch 'found
-        (while (not (bobp))
-          (forward-line -1)
-          (unless (looking-at-p "[ \t]*$")
-            (let ((il (adoc--line-list-level)))
-              (cond
-               ((null il))
-               ((and (= il level) (adoc--same-list-p item)) (throw 'found (point)))
-               ((<= il level) (throw 'found nil))))))
-        nil))))
-
 (defun adoc--move-list-item (down)
   "Move the list item at point past its sibling, DOWN when non-nil else up.
 The item's nested sub-items and continuation lines move with it."
   (let ((item (adoc--list-item-at-point)))
     (unless item
       (user-error "Not on a list item"))
-    (let ((level (plist-get item :level))
-          (col (current-column)))
-      (beginning-of-line)
-      (let* ((s1 (point))
-             (e1 (adoc--list-item-block-end level)))
-        (if down
-            (let ((s2 (adoc--next-sibling-start e1 item)))
-              (unless s2 (user-error "No next item at this level"))
-              (let ((e2 (save-excursion
-                          (goto-char s2)
-                          (adoc--list-item-block-end level))))
-                ;; Avoid merging lines when the buffer lacks a final newline.
-                (when (and (= e2 (point-max)) (/= (char-before e2) ?\n))
-                  (save-excursion (goto-char (point-max)) (insert "\n"))
-                  (setq e2 (point-max)))
-                (transpose-regions s1 e1 s2 e2)
-                (goto-char (+ s1 (- e2 e1)))
-                (move-to-column col)))
-          (let ((ps (adoc--prev-sibling-start s1 item)))
-            (unless ps (user-error "No previous item at this level"))
-            ;; Avoid merging lines when the buffer lacks a final newline.
-            (when (and (= e1 (point-max)) (/= (char-before e1) ?\n))
-              (save-excursion (goto-char (point-max)) (insert "\n"))
-              (setq e1 (point-max)))
-            (transpose-regions ps s1 s1 e1)
-            (goto-char ps)
-            (move-to-column col)))))))
+    (pcase-let* ((`(,items ,end ,item) (adoc--list-items item))
+                 (sibling (or (adoc--list-sibling items item down)
+                              (user-error (if down "No next item at this level"
+                                            "No previous item at this level"))))
+                 (`(,first ,second) (if down (list item sibling) (list sibling item)))
+                 (s1 (adoc--list-item-line first))
+                 (e1 (adoc--list-item-end items first end))
+                 (s2 (adoc--list-item-line second))
+                 (e2 (adoc--list-item-end items second end))
+                 (col (current-column)))
+      ;; Avoid merging lines when the buffer lacks a final newline.
+      (when (and (= e2 (point-max)) (/= (char-before e2) ?\n))
+        (save-excursion (goto-char (point-max)) (insert "\n"))
+        (setq e2 (point-max)))
+      (transpose-regions s1 e1 s2 e2)
+      (goto-char (if down (+ s1 (- e2 e1)) s1))
+      (move-to-column col))))
 
 (defun adoc-move-list-item-down (&optional arg)
   "Move the list item at point down past the next sibling ARG times.

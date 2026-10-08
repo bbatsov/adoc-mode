@@ -22,7 +22,6 @@
 - [#99](https://github.com/bbatsov/adoc-mode/pull/99): `adoc-promote` / `adoc-demote` (`M-left` / `M-right`) and `adoc-promote-title` / `adoc-demote-title` now go the way Org mode's do: promoting moves a title or list item up the outline (`===` to `==`, `**` to `*`) and demoting moves it down, the reverse of before.
   - They stop with an error at either end instead of wrapping around.
   - Only the document title, or a part in a book (`:doctype: book`), can be promoted to level 0, which Asciidoctor reserves for those.
-  - `-` and `*` both mark the outermost level of an unordered list, as in Asciidoctor, so demoting either gives `**`, and an item promoted back out takes the marker its list uses. Turning `*` into `-` used to count as a level change, though Asciidoctor nests the item.
   - Demoting the first item of a list is refused, as in Org, since its siblings would end up nested under it.
   - Away from a title or list item, `M-left` / `M-right` move by word as they do elsewhere in Emacs, instead of signalling an error.
 - [#100](https://github.com/bbatsov/adoc-mode/pull/100): Two-line (setext) titles are deprecated, as they are in Asciidoctor and the AsciiDoc spec, and support for them will be removed in a future release.
@@ -34,6 +33,10 @@
 - [#71](https://github.com/bbatsov/adoc-mode/pull/71): `[source,ocaml]` code blocks now fontify with `neocaml-mode` when it is available, falling back to `tuareg-mode` and then `caml-mode`. To support this, a value in `adoc-code-lang-modes` may now be either a single major mode or a list of candidate modes tried in order (the first defined one wins).
 - [#86](https://github.com/bbatsov/adoc-mode/pull/86): Bold and emphasized text now use plain `bold` / `italic` faces instead of tinting the text with `adoc-gen-face`. This matches `asciidoc-mode` (and the convention in `markdown-mode` / `org-mode`), so switching between the modes is less jarring. Customize `adoc-bold-face` / `adoc-emphasis-face` if you preferred the tint.
 - The example-table tempo template now inserts the modern `|===` delimiter instead of the dated `|====================` run of equals.
+- [#110](https://github.com/bbatsov/adoc-mode/pull/110): List editing nests items the way Asciidoctor does, by the order their markers turn up in, instead of a fixed depth per marker.
+  - `M-up` / `M-down` move an item with the items nested in it, whatever their markers (`* a` then `- b`, or `* a` then `. b`), and across blank lines.
+  - `M-left` gives an item the marker of the item it was in, and `M-right` the marker of its new siblings, or one that isn't in use around it. They work on explicitly numbered items too, and as in Org mode, an item with items nested in it isn't promoted on its own.
+  - A list takes in what Asciidoctor attaches to its items, such as literal paragraphs, description lists and thematic breaks after a blank line, and blocks and tables attached with `+`. It ends at a paragraph after a blank line, a block that isn't attached or a table cell, so an item no longer moves into another list or out of its block.
 
 ### Bugs fixed
 

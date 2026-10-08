@@ -210,20 +210,21 @@
     (adoc-test-trans "* a\n* b!" "* a\n** b" '(adoc-demote 1))
     (adoc-test-trans "- a\n- b!" "- a\n** b" '(adoc-demote 1))
     (adoc-test-trans "* a\n** b!" "* a\n* b" '(adoc-promote 1))
-    (adoc-test-trans "* a\n* b!" "* a\n*** b" '(adoc-demote 2))
+    (adoc-test-trans "* a\n** b\n** c!" "* a\n** b\n*** c" '(adoc-demote 1))
+    (adoc-test-trans "* a\n** b\n*** c!" "* a\n** b\n* c" '(adoc-promote 2))
     ;; leading indentation is preserved
     (adoc-test-trans "  * a\n  ** b\n  ** c!" "  * a\n  ** b\n  *** c" '(adoc-demote 1)))
 
-  (it "gives an item promoted to the outermost level its list's marker"
-    ;; `-' and `*' are both outermost markers, and a change of marker nests
+  (it "gives a promoted item the marker of the item it was in"
     (adoc-test-trans "- a\n** b!" "- a\n- b" '(adoc-promote 1))
     (adoc-test-trans "- a\n** b\n*** c!" "- a\n** b\n** c" '(adoc-promote 1))
     (adoc-test-trans "- a\n+\npara\n** b!" "- a\n+\npara\n- b" '(adoc-promote 1))
-    ;; a detached paragraph ends the list, so there's no marker to follow
-    (adoc-test-trans "- a\n\nPara.\n\n** b!" "- a\n\nPara.\n\n* b" '(adoc-promote 1))
+    ;; whatever kind of list that is
+    (adoc-test-trans ". Step\n* detail!" ". Step\n. detail" '(adoc-promote 1))
+    (adoc-test-trans "1. Step\n* detail!" "1. Step\n2. detail" '(adoc-promote 1))
     ;; and the lines of a code block aren't items
     (adoc-test-trans "[source,yaml]\n----\n- one\n----\n\n. Step\n** detail!"
-                     "[source,yaml]\n----\n- one\n----\n\n. Step\n* detail"
+                     "[source,yaml]\n----\n- one\n----\n\n. Step\n. detail"
                      '(adoc-promote 1)))
 
   (it "promotes/demotes implicitly-numbered list items"
@@ -234,26 +235,60 @@
     (adoc-test-trans "* a\n* b!" "* a\n** b" '(adoc-promote -1))
     (adoc-test-trans "* a\n** b!" "* a\n* b" '(adoc-demote -1)))
 
-  (it "doesn't promote or demote a list item past the outermost or innermost level"
+  (it "doesn't promote a list item past the outermost level"
     (adoc-test-trans "- foo!" "- foo"
                      '(expect (adoc-promote 1) :to-throw 'user-error))
     (adoc-test-trans "* foo!" "* foo"
                      '(expect (adoc-promote 1) :to-throw 'user-error))
-    (adoc-test-trans "* a\n** b!" "* a\n** b"
-                     '(expect (adoc-promote 2) :to-throw 'user-error))
-    (adoc-test-trans "***** a\n***** b!" "***** a\n***** b"
-                     '(expect (adoc-demote 1) :to-throw 'user-error))
+    ;; a lone item is at the outermost level, whatever its marker
+    (adoc-test-trans "- a\n\nPara.\n\n** b!" "- a\n\nPara.\n\n** b"
+                     '(expect (adoc-promote 1) :to-throw 'user-error))
     (adoc-test-trans ". foo!" ". foo"
                      '(expect (adoc-promote 1) :to-throw 'user-error))
-    (adoc-test-trans "..... a\n..... b!" "..... a\n..... b"
-                     '(expect (adoc-demote 1) :to-throw 'user-error)))
+    ;; a step that can't be done leaves the buffer as it was
+    (adoc-test-trans "* a\n** b!" "* a\n** b"
+                     '(expect (adoc-promote 2) :to-throw 'user-error))
+    (adoc-test-trans "* a\n* b!" "* a\n* b"
+                     '(expect (adoc-demote 2) :to-throw 'user-error)))
 
-  (it "demotes past sublists of another kind"
-    (adoc-test-trans "* a\n. b\n* c!" "* a\n. b\n** c" '(adoc-demote 1))
-    (adoc-test-trans ". a\n- b\n. c!" ". a\n- b\n.. c" '(adoc-demote 1))
-    (adoc-test-trans "* a\n1. b\n* c!" "* a\n1. b\n** c" '(adoc-demote 1))
+  (it "demotes a list item with a marker that isn't open already"
+    ;; or it would go back out to the item with that marker
+    (adoc-test-trans "***** a\n***** b!" "***** a\n* b" '(adoc-demote 1))
+    (adoc-test-trans "* a\n*** b\n** c\n** d!" "* a\n*** b\n** c\n**** d"
+                     '(adoc-demote 1))
+    (adoc-test-trans "..... a\n..... b!" "..... a\n. b" '(adoc-demote 1))
+    ;; until there's none left
+    (let ((nest "* a\n** b\n*** c\n**** d\n***** e\n- f\n- g!"))
+      (adoc-test-trans nest (string-remove-suffix "!" nest)
+                       '(expect (adoc-demote 1) :to-throw 'user-error))))
+
+  (it "demotes a list item into the sublist its new parent has"
+    (adoc-test-trans "* a\n. b\n* c!" "* a\n. b\n. c" '(adoc-demote 1))
+    (adoc-test-trans ". a\n- b\n. c!" ". a\n- b\n- c" '(adoc-demote 1))
+    (adoc-test-trans "* a\n1. b\n* c!" "* a\n1. b\n2. c" '(adoc-demote 1))
+    (adoc-test-trans "* a\n- b\n** x\n* c!" "* a\n- b\n** x\n- c" '(adoc-demote 1))
+    ;; and not one an earlier item has
+    (adoc-test-trans "* a\n. x\n* b\n* c!" "* a\n. x\n* b\n** c" '(adoc-demote 1))
     ;; Asciidoctor goes by the marker, not the indentation
-    (adoc-test-trans "* a\n  * b!" "* a\n  ** b" '(adoc-demote 1)))
+    (adoc-test-trans "* a\n  * b!" "* a\n  ** b" '(adoc-demote 1))
+    (adoc-test-trans "Term::\n* a\n* b!" "Term::\n* a\n** b" '(adoc-demote 1)))
+
+  (it "doesn't promote an item without the items nested in it"
+    ;; as the items after them would end up nested in them, as in Org mode
+    (adoc-test-trans "* a\n** b!\n*** c\n** d" "* a\n** b\n*** c\n** d"
+                     '(expect (adoc-promote 1) :to-throw 'user-error))
+    ;; though it goes past a table attached to an item
+    (adoc-test-trans "* a\n** x\n+\n|===\n|y\n|===\n** z!" "* a\n** x\n+\n|===\n|y\n|===\n* z"
+                     '(adoc-promote 1))
+    ;; and nests a term's list in it
+    (adoc-test-trans "Term::\n\nDef.\n\n* a\n* b!" "Term::\n\nDef.\n\n* a\n** b"
+                     '(adoc-demote 1)))
+
+  (it "doesn't promote or demote into a description list"
+    (adoc-test-trans "Term::\n* a!" "Term::\n* a"
+                     '(expect (adoc-promote 1) :to-throw 'user-error))
+    (adoc-test-trans "* a\nTerm:: def\n* b!" "* a\nTerm:: def\n* b"
+                     '(expect (adoc-demote 1) :to-throw 'user-error)))
 
   (it "leaves a list item alone on a zero argument"
     (adoc-test-trans "- a!\n- b" "- a\n- b" '(adoc-promote 0))
@@ -274,13 +309,18 @@
                      "----\n* x\n----\n\n* first\n* second"
                      '(expect (adoc-demote 1) :to-throw 'user-error)))
 
-  (it "refuses to change the level of an explicitly-numbered item"
-    (with-temp-buffer
-      (adoc-mode)
-      (insert "1. foo")
-      (goto-char (point-min))
-      (expect (adoc-promote 1) :to-throw 'user-error)
-      (expect (buffer-string) :to-equal "1. foo")))
+  (it "promotes/demotes explicitly-numbered list items"
+    ;; a new sublist takes the next numbering style
+    (adoc-test-trans "1. a\n2. b!" "1. a\na. b" '(adoc-demote 1))
+    (adoc-test-trans "1. a\na. b!" "1. a\n2. b" '(adoc-promote 1))
+    (adoc-test-trans "* a\n1. b!" "* a\n* b" '(adoc-promote 1))
+    (adoc-test-trans "1. foo!" "1. foo"
+                     '(expect (adoc-promote 1) :to-throw 'user-error)))
+
+  (it "demotes an item without sending the items nested in it back out"
+    (adoc-test-trans "* a\n* b!\n- c\n** d" "* a\n*** b\n- c\n** d" '(adoc-demote 1))
+    (adoc-test-trans "* a\n** x\n* b!\n- c\n** d" "* a\n** x\n* b\n- c\n** d"
+                     '(expect (adoc-demote 1) :to-throw 'user-error)))
 
   (it "inserts a sibling list item"
     (adoc-test-trans "* foo!" "* foo\n* " '(adoc-insert-list-item))
@@ -334,13 +374,147 @@
     (adoc-test-trans "* one\n** sub\n* two!\n" "* two\n* one\n** sub\n"
                      '(adoc-move-list-item-up)))
 
-  (it "does not treat a different-type item as a sibling"
+  (it "nests an item with another marker in the one above, as Asciidoctor does"
+    ;; so it moves along with that item
+    (adoc-test-trans "1. alpha!\n- bullet\n2. beta\n" "2. beta\n1. alpha\n- bullet\n"
+                     '(adoc-move-list-item-down))
+    (adoc-test-trans "* a!\n- b\n* c\n" "* c\n* a\n- b\n" '(adoc-move-list-item-down))
+    (adoc-test-trans "* item\n. step\n* other!\n" "* other\n* item\n. step\n"
+                     '(adoc-move-list-item-up))
+    ;; whichever marker the list starts with
+    (adoc-test-trans "- a!\n* b\n- c\n" "- c\n- a\n* b\n" '(adoc-move-list-item-down))
+    ;; an item with an enclosing item's marker goes back out to its level
+    (adoc-test-trans "* a\n- b\n** c\n- d!\n* e\n" "* a\n- d\n- b\n** c\n* e\n"
+                     '(adoc-move-list-item-up)))
+
+  (it "moves a list item past its sibling across blank lines"
+    (adoc-test-trans "* a!\n\n* b" "* b\n\n* a\n" '(adoc-move-list-item-down))
+    (adoc-test-trans "* a\n\n* b!" "* b\n\n* a\n" '(adoc-move-list-item-up))
+    ;; with the items nested in it, blank lines or not
+    (adoc-test-trans "* a!\n\n** sub\n* b\n" "* b\n* a\n\n** sub\n"
+                     '(adoc-move-list-item-down))
+    (adoc-test-trans "* a\n* b!\n\n** sub\n" "* b\n\n** sub\n* a\n"
+                     '(adoc-move-list-item-up)))
+
+  (it "moves a list item with the blocks attached to it"
+    (adoc-test-trans "* a!\n+\n----\n* x\n----\n* b\n" "* b\n* a\n+\n----\n* x\n----\n"
+                     '(adoc-move-list-item-down))
+    (adoc-test-trans "* a\n+\n----\n* x\n----\n* b!\n" "* b\n* a\n+\n----\n* x\n----\n"
+                     '(adoc-move-list-item-up))
+    (adoc-test-trans "* a!\ntext\n* b\nmore\n" "* b\nmore\n* a\ntext\n"
+                     '(adoc-move-list-item-down)))
+
+  (it "keeps what Asciidoctor attaches to an item in its list"
+    ;; a literal paragraph, a description list, a detached continuation and
+    ;; a thematic break after a blank line
+    (adoc-test-trans "* aa\n\n  literal\n\n** bb!\n** cc\n* dd\n"
+                     "* aa\n\n  literal\n\n** cc\n** bb\n* dd\n"
+                     '(adoc-move-list-item-down))
+    (adoc-test-trans "* aa\n\nterm:: def\n\n** bb!\n** cc\n* dd\n"
+                     "* aa\n\nterm:: def\n\n** cc\n** bb\n* dd\n"
+                     '(adoc-move-list-item-down))
+    (adoc-test-trans "* aa\n* bb!\n\n  literal for bb\n\n* cc"
+                     "* bb\n\n  literal for bb\n* aa\n\n* cc"
+                     '(adoc-move-list-item-up))
+    (adoc-test-trans "* alpha!\n** sub\n\n+\npara\n* beta\n"
+                     "* beta\n* alpha\n** sub\n\n+\npara\n"
+                     '(adoc-move-list-item-down))
+    (adoc-test-trans "- aa!\n\n* * *\n\n- bb" "- bb\n\n- aa\n\n* * *\n"
+                     '(adoc-move-list-item-down))
+    ;; and a list in a table cell stays in it
+    (adoc-test-trans "|===\na|\n* x!\n* y\n|===\n" "|===\na|\n* y\n* x\n|===\n"
+                     '(adoc-move-list-item-down))
+    (adoc-test-trans "|===\na|\n* x\n* y\na|\n* z!\n|===\n" "|===\na|\n* x\n* y\na|\n* z\n|===\n"
+                     '(expect (adoc-move-list-item-up) :to-throw 'user-error))
+    (adoc-test-trans "|===\na|\n* x\n* y!\n  a|\n* z\n|===\n" "|===\na|\n* x\n* y\n  a|\n* z\n|===\n"
+                     '(expect (adoc-move-list-item-down) :to-throw 'user-error))
+    ;; though a line like a cell's outside a table is just text
+    (adoc-test-trans "* a!\n|b\n* c" "* c\n* a\n|b\n" '(adoc-move-list-item-down))
+    ;; a table or block attached with a continuation, blank lines or not
+    (adoc-test-trans "* a\n+\n|===\n|y\n|===\n* z!" "* z\n* a\n+\n|===\n|y\n|===\n"
+                     '(adoc-move-list-item-up))
+    (adoc-test-trans "* a!\n+\n\n----\nx\n----\n* b\n" "* b\n* a\n+\n\n----\nx\n----\n"
+                     '(adoc-move-list-item-down))
+    ;; and a term's definition after a blank line
+    (adoc-test-trans "* a\n\nTerm::\n\nDefinition.\n\n* b!" "* b\n\n* a\n\nTerm::\n\nDefinition.\n"
+                     '(adoc-move-list-item-up)))
+
+  (it "follows Asciidoctor's continuations"
+    ;; a continuation lasts over one blank line, not two
+    (adoc-test-trans "* a!\n+\n\n\n----\nx\n----\n* b\n" "* a\n+\n\n\n----\nx\n----\n* b\n"
+                     '(expect (adoc-move-list-item-down) :to-throw 'user-error))
+    ;; and over the attribute entries and titles above its block
+    (adoc-test-trans "* a!\n+\n:foo: bar\n.Title\n----\nx\n----\n* b\n"
+                     "* b\n* a\n+\n:foo: bar\n.Title\n----\nx\n----\n"
+                     '(adoc-move-list-item-down))
+    ;; a detached one doesn't close the nested lists when an item follows
+    (adoc-test-trans "* a1\n- a3\n\n+\n\n- a6!" "* a1\n- a6\n\n- a3\n\n+\n"
+                     '(adoc-move-list-item-up))
+    ;; but does when it attaches a block to the outermost item
+    (adoc-test-trans "* a\n** b\n\n+\n----\nx\n----\n** c!"
+                     "* a\n** b\n\n+\n----\nx\n----\n** c"
+                     '(expect (adoc-move-list-item-up) :to-throw 'user-error)))
+
+  (it "keeps a continuation over the metadata of its block, blank lines or not"
+    (adoc-test-trans "* a\n+\n\n.Title\n\n----\nx\n----\n* b!"
+                     "* b\n* a\n+\n\n.Title\n\n----\nx\n----\n"
+                     '(adoc-move-list-item-up)))
+
+  (it "takes a term's definition only until something is attached to it"
+    (adoc-test-trans "* x!\nTerm::\n+\n----\ncode\n----\n\nPara.\n\n* y"
+                     "* x\nTerm::\n+\n----\ncode\n----\n\nPara.\n\n* y"
+                     '(expect (adoc-move-list-item-down) :to-throw 'user-error)))
+
+  (it "doesn't take a line in a literal paragraph for an item"
+    (adoc-test-trans "* a\n\n  literal\n* b!" "* a\n\n  literal\n* b"
+                     '(expect (adoc-move-list-item-up) :to-throw 'user-error)))
+
+  (it "reads the lists in the whole buffer when it's narrowed"
     (with-temp-buffer
       (adoc-mode)
-      (insert "1. alpha\n- bullet\n2. beta\n")
+      (insert "* a\n\n* * *\n")
+      (narrow-to-region (line-beginning-position 0) (point-max))
+      (goto-char (point-min))
+      (expect (adoc--list-item-at-point) :not :to-be nil)
+      (widen)
+      (goto-char (point-max))
+      (forward-line -1)
+      (expect (adoc--markdown-thematic-break-p) :to-be nil)))
+
+  (it "ends a list where Asciidoctor does"
+    ;; at a block that isn't attached with a continuation
+    (adoc-test-trans "* alpha!\n----\ncode\n----\n* beta\n"
+                     "* alpha\n----\ncode\n----\n* beta\n"
+                     '(expect (adoc-move-list-item-down) :to-throw 'user-error))
+    (adoc-test-trans "* alpha\n----\ncode\n----\n* beta!\n"
+                     "* alpha\n----\ncode\n----\n* beta\n"
+                     '(expect (adoc-move-list-item-up) :to-throw 'user-error))
+    ;; at a continuation that isn't one, as it's indented
+    (adoc-test-trans "* a!\n  +\n----\nx\n----\n* b\n" "* a\n  +\n----\nx\n----\n* b\n"
+                     '(expect (adoc-move-list-item-down) :to-throw 'user-error))
+    ;; and at the next term of a description list it's in
+    (adoc-test-trans "Apples::\n* red\n* green!\nPears::\n* yellow\n"
+                     "Apples::\n* red\n* green\nPears::\n* yellow\n"
+                     '(expect (adoc-move-list-item-down) :to-throw 'user-error)))
+
+  (it "doesn't move a list item into another list"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "* a\n\nPara.\n\n* b\n")
       (goto-char (point-min))
       (expect (adoc-move-list-item-down) :to-throw 'user-error)
-      (expect (buffer-string) :to-equal "1. alpha\n- bullet\n2. beta\n")))
+      (goto-char (point-max))
+      (forward-line -1)
+      (expect (adoc-move-list-item-up) :to-throw 'user-error)
+      (expect (buffer-string) :to-equal "* a\n\nPara.\n\n* b\n"))
+    ;; or out of the block it's in
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "* a\n\n====\n* b\n====\n\n* c\n")
+      (goto-char (point-min))
+      (search-forward "* b")
+      (expect (adoc-move-list-item-down) :to-throw 'user-error)
+      (expect (adoc-move-list-item-up) :to-throw 'user-error)))
 
   (it "errors when there is no sibling to move past"
     (with-temp-buffer

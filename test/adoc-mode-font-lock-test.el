@@ -601,7 +601,42 @@
       ("* a\n** b\n\n* * *" (11 11 adoc-list-face))
       ("- a\n- - -" (5 5 adoc-list-face))
       ;; or right below an item
-      ("* a\n- - -" (5 5 adoc-list-face)))
+      ("* a\n- - -" (5 5 adoc-list-face))
+      ("Term::\n* * *" (8 8 adoc-list-face))
+      ;; or a term waiting for its definition
+      ("Term::\n\n- - -" (9 9 adoc-list-face))
+      ;; though not below a term with its text
+      ("Term:: def\n* * *" ("* * *" adoc-complex-replacement-face))
+      ;; and an item like that opens its level
+      ("* a\n- - -\n** b\n+\n----\nx\n----\n- - -" (30 30 adoc-list-face))
+      ;; but not after a table that ends the list
+      ("** b\n|===\n|cell\n|===\n* * *" ("* * *" adoc-complex-replacement-face)))
+
+    (when-fontifying-it "fontifies a thematic break that begins a table cell"
+      (". a\n+\n|===\na|\n- - -\n|===" ("- - -" adoc-complex-replacement-face)))
+
+    (it "tells thematic breaks from items in any order, and again after a change"
+      (let ((doc "* a\n+\n|===\na|\nx\n\n- - -\n|===\n* * *\n"))
+        (dolist (order '((7 9) (9 7)))
+          (with-temp-buffer
+            (insert doc)
+            (adoc-mode)
+            (let ((answers
+                   (mapcar (lambda (line)
+                             (goto-char (point-min))
+                             (forward-line (1- line))
+                             (cons line (adoc--markdown-thematic-break-p)))
+                           order)))
+              (expect (alist-get 7 answers) :to-be-truthy)
+              (expect (alist-get 9 answers) :to-be nil)))))
+      (with-temp-buffer
+        (insert "- a\n\n* * *\n")
+        (adoc-mode)
+        (goto-char (point-min))
+        (forward-line 2)
+        (expect (adoc--markdown-thematic-break-p) :to-be-truthy)
+        (save-excursion (goto-char (point-min)) (delete-char 1) (insert "*"))
+        (expect (adoc--markdown-thematic-break-p) :to-be nil)))
 
     (when-fontifying-it "doesn't take a line in a listing for a thematic break"
       ("----\n* * *\n----" ("* * *" adoc-code-face)))
