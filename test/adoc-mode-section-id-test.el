@@ -737,6 +737,62 @@
                      "== A\n\n== B\n\n== C\n\n== D\n\n== E\n\n== F\n\n== G\n"))
             :to-equal '("_title_mid" "_a" "_b" "_c" "_d" "_e" "_f" "_g")))
 
+  (it "counts a bibliography anchor only in a bibliography list"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\n[bibliography]\n* [[[_a]]] A book.\n\nText.\n\n"
+                     "* [[[_b]]] A list.\n\npara [[[_c]]] x\n\n"
+                     "[bibliography]\n* [[_d]] Not one.\n\n"
+                     "== A\n\n== B\n\n== C\n\n== D\n"))
+            :to-equal '("_a_2" "_b" "_c" "_d")))
+
+  (it "counts only the last id the lines above a block give it"
+    (expect (adoc-test--section-ids "= D\n\n[#_bar]\n[#y]\n== Foo\n\n== Bar\n")
+            :to-equal '("y" "_bar"))
+    (expect (adoc-test--section-ids "= D\n\n[[_bar]]\n\n[#y]\npara\n\n== Bar\n")
+            :to-equal '("_bar")))
+
+  (it "counts a bibliography anchor only in the bibliography list itself"
+    ;; not in a list nested in it, or in a block in a bibliography section
+    (expect (adoc-test--section-ids "= D\n\n[bibliography]\n* [[[a]]] A\n** [[[_b]]] B\n\n== b\n")
+            :to-equal '("_b"))
+    (expect (adoc-test--section-ids
+             "= D\n\n[bibliography]\n== Refs\n\n====\n* [[[_a]]] A\n====\n\n== a\n")
+            :to-equal '("_refs" "_a"))
+    ;; where a leading `[[id]]' anchor counts again
+    (expect (adoc-test--section-ids
+             "= D\n\n[bibliography]\n- [[[bib2]]] B\n* [[_qux0]] item\n\n== qux0\n")
+            :to-equal '("_qux0_2"))
+    ;; and only in a bibliography section's own lists
+    (expect (adoc-test--section-ids
+             (concat "= D\n:idprefix:\n:idseparator: -\n\n[bibliography]\n== References\n\n"
+                     "* [[[a]]] A\n\n== Glossary\n\n* [[setup]] Setup\n\n== Setup\n"))
+            :to-equal '("references" "glossary" "setup-2")))
+
+  (it "goes by the style of a table cell, or of its column"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\n[cols=\"1a,1\"]\n|===\n| para [[_a]]\n| x [[_b]]\n|===\n\n"
+                     "|===\nl| [[_c]] x\n|===\n\n== A\n\n== B\n\n== C\n"))
+            :to-equal '("_a_2" "_b" "_c"))
+    ;; the style of the column at the cell's place in its row, spans or not
+    (expect (adoc-test--section-ids
+             "= D\n\n[cols=\"1,1,1a\"]\n|===\n2+| wide | para [[_foo]]\n|===\n\n== Foo\n")
+            :to-equal '("_foo"))
+    (expect (adoc-test--section-ids
+             "= D\n\n[cols=\"1,1,1a\"]\n|===\n2*| x | para [[_foo]]\n|===\n\n== Foo\n")
+            :to-equal '("_foo_2"))
+    ;; but not in a header row
+    (expect (adoc-test--section-ids
+             "= D\n\n[cols=\"1a,1\",options=\"header\"]\n|===\n| H [[_foo]] | H2\n| x | y\n|===\n\n== Foo\n")
+            :to-equal '("_foo")))
+
+  (it "doesn't count an anchor in a branch that doesn't hold"
+    (expect (adoc-test--section-ids "= D\n\nifdef::nope[]\n[[_foo]]\npara\nendif::[]\n\n== Foo\n")
+            :to-equal '("_foo")))
+
+  (it "goes by anchors case-sensitively"
+    (expect (adoc-test--section-ids "= D\n\nAnchor:_foo[] x\n\n== Foo\n")
+            :to-equal '("_foo")))
+
   (it "matches the real asciidoctor"
     (assume (executable-find "asciidoctor") "asciidoctor not installed")
     (dolist (doc '("= D\n\n* a [[_foo]]\n\n== Foo\n"
@@ -775,7 +831,30 @@
                    "= D\n\n====\n[NOTE]\npara [[_foo]]\n\n[[_foo_2]]\npara\n====\n\n== Foo\n"
                    "= D\n\n[link=https://x.com#_foo]\nimage::a.png[]\n\n== Foo\n"
                    "= Doc\nJohn Doe\nv1.0 [[_x1]]\n\n== x1\n"
-                   "= Doc\n:foo: bar \\\n[[_x2]]baz\n\n== x2\n"))
+                   "= Doc\n:foo: bar \\\n[[_x2]]baz\n\n== x2\n"
+                   "= D\n\npara [[[_foo]]] x\n\n== Foo\n"
+                   "= D\n\n* [[[_foo]]] a\n\n== Foo\n"
+                   "= D\n\n[bibliography]\n* [[[_foo]]] a\n\n== Foo\n"
+                   "= D\n\n[bibliography]\n* [[_foo]] a\n\n== Foo\n"
+                   "= D\n\n[bibliography]\n== Refs\n\n* [[[_foo]]] a\n\n== Foo\n"
+                   "= D\n\n[#_bar]\n[#y]\n== Foo\n\n== Bar\n"
+                   "= D\n\n[[_bar]]\n[#y]\npara\n\n== Bar\n"
+                   "= D\n\n[cols=\"1a,1\"]\n|===\n| para with [[_foo]]\n| x\n|===\n\n== Foo\n"
+                   "= D\n\n[cols=\"1,1a\"]\n|===\n| x\n| para with [[_foo]]\n|===\n\n== Foo\n"
+                   "= D\n\n[cols=\"2*a\"]\n|===\n| a | para with [[_foo]]\n|===\n\n== Foo\n"
+                   "= D\n\n|===\nl| [[_foo]] x\n|===\n\n== Foo\n"
+                   "= D\n\nifdef::nope[]\n[[_foo]]\npara\nendif::[]\n\n== Foo\n"
+                   "= D\n\nAnchor:_foo[] x\n\n== Foo\n"
+                   "= D\n\n[bibliography]\n* [[[a]]] A\n** [[[_b]]] B\n\n== b\n"
+                   "= D\n\n[bibliography]\n== Refs\n\n====\n* [[[_a]]] A\n====\n\n== a\n"
+                   "= D\n\n[bibliography]\n- [[[bib2]]] B\n* [[_qux0]] item\n\n== qux0\n"
+                   "= D\n:idprefix:\n:idseparator: -\n\n[bibliography]\n== References\n\n* [[[a]]] A\n\n== Glossary\n\n* [[setup]] Setup\n\n== Setup\n"
+                   "= D\n\n[cols=\"1,1,1a\"]\n|===\n2+| wide | para [[_foo]]\n|===\n\n== Foo\n"
+                   "= D\n\n[cols=\"1,1a\"]\n|===\n.2+| tall | a\n| para [[_foo]]\n|===\n\n== Foo\n"
+                   "= D\n\n[cols=\"1,1,1a\"]\n|===\n2*| x | para [[_foo]]\n|===\n\n== Foo\n"
+                   "= D\n\n[cols=\"1a,1\",options=\"header\"]\n|===\n| H [[_foo]] | H2\n| x | y\n|===\n\n== Foo\n"
+                   "= D\n\n[cols=\"1a,1\"]\n|===\n| H [[_foo]] | H2\n\n| x | y\n|===\n\n== Foo\n"
+                   "= D\n\n[cols=\"1a,2\"]\n|===\n2*| y z [[_foo]]\n2+| x\n|===\n\n== Foo\n"))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 

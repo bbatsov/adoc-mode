@@ -98,6 +98,10 @@
   - Attribute names are stored the way Asciidoctor stores them, so `:a.b:` sets `ab`, and the document header sets `doctitle`, `author`, `revnumber` and the like.
   - `ifdef` separates the attributes at whichever of `,` and `+` comes first and ignores an `endif` for another attribute, as Asciidoctor does, and the explicit id above a section title is found past `ifdef` lines but not past `include::` ones.
   - A counter in a section title counts in the image paths below it.
+- [#113](https://github.com/bbatsov/adoc-mode/pull/113): Section ids count the anchors Asciidoctor registers in more of the cases it does.
+  - A `[[[id]]]` anchor counts only at the start of an item in a bibliography list, not in a list nested in it, and a `[[id]]` anchor there doesn't.
+  - Of the ids the lines above a block give it, only the last counts, as Asciidoctor drops the others.
+  - The anchors in a table cell styled `a` by its column in `cols` count, but not in a header row, those in a literal `l|` cell don't, and neither do those in an `ifdef` branch that doesn't hold or in `Anchor:x[]`, as the macro names are case-sensitive.
 - [#105](https://github.com/bbatsov/adoc-mode/pull/105): Section auto-ids follow Asciidoctor's substitution order, so titles with passthroughs (`+{x}+`, `pass:[...]`), escaped quoted text (`\__x__`) or attribute values holding markup get the ids Asciidoctor gives them, and so do titles with icons, index terms or links under `:hide-uri-scheme:`.
 - [#107](https://github.com/bbatsov/adoc-mode/pull/107): An attribute entry that refers to the attribute it sets, as in `:product: {product} Pro`, gets its earlier value for section ids instead of leaving the reference as it is.
 - [#107](https://github.com/bbatsov/adoc-mode/pull/107): Counters (`{counter:step}`, `{counter2:step}`) in section titles, attribute entries and the document title count as they do in Asciidoctor, so the auto-ids of the titles that use them match.

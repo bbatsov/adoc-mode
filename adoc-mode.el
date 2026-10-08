@@ -5668,7 +5668,8 @@ title apply to its auto-id: `idprefix', `idseparator' and `sectids', as
 well as the ones it refers to, counters included, which count in the
 titles and attribute entries above it.  An auto-id already taken by an
 earlier section or explicit id gets a number appended, `_foo_2',
-`_foo_3' and so on, as in Asciidoctor.
+`_foo_3' and so on, as in Asciidoctor, but not by an anchor in a
+conditional branch that doesn't hold.
 
 COUNTED is a list of (POSITION . ATTRIBUTES) for the attributes in
 effect after each title and attribute entry from the first title that
@@ -5683,7 +5684,12 @@ counts a counter on, as the attribute entries don't count those, see
                    (adoc--skipped-ranges skipped)
                    (counted '())
                    (anchors (cl-loop for (pos _end id registered) in (adoc--anchors)
-                                     when registered collect (cons pos id)))
+                                     when (and registered
+                                               (not (seq-some (lambda (range)
+                                                                (and (<= (car range) pos)
+                                                                     (< pos (cdr range))))
+                                                              skipped)))
+                                     collect (cons pos id)))
                    (taken (make-hash-table :test #'equal))
                    (next (make-hash-table :test #'equal))
                    (result '()))
@@ -6031,21 +6037,246 @@ attribute line, as in Asciidoctor, but not one the preprocessor drops."
             (push (cons open (point)) ranges)))))
     (nreverse ranges)))
 
-(defun adoc--table-anchor-registered-p (beg table)
-  "Return non-nil when Asciidoctor registers the anchor at BEG in TABLE.
-TABLE is a (BEG . END) of `adoc--table-ranges'.  It registers an anchor
-that begins the text of a cell, and every anchor in an AsciiDoc (`a')
-cell, as their content is parsed as a document of its own."
+(defun adoc--table-column-styles (table)
+  "Return the styles of TABLE's columns, from its `cols' attribute, or nil.
+TABLE is a (BEG . END) of `adoc--table-ranges'.  Each style is a letter,
+such as ?a for an AsciiDoc column, or nil for a column without one."
+  (save-excursion
+    (goto-char (car table))
+    (let ((cols (adoc--block-attribute-above
+                 (lambda ()
+                   (and (looking-at (concat "\\[\\(?:.*,\\)?[ \t]*cols[ \t]*=[ \t]*"
+                                            "\\(?:\"\\([^\"]*\\)\"\\|'\\([^']*\\)'"
+                                            "\\|\\([^],]*\\)\\)"))
+                        (or (match-string-no-properties 1)
+                            (match-string-no-properties 2)
+                            (match-string-no-properties 3)))))))
+      (cond
+       ((null cols) nil)
+       ((string-match-p "\\`[ \t]*[0-9]+[ \t]*\\'" cols)
+        (make-list (string-to-number cols) nil))
+       (t
+        (mapcan (lambda (spec)
+                  (if (string-match "\\`[ \t]*\\(?:\\([0-9]+\\)\\*\\)?.*?\\([a-z]\\)?[ \t]*\\'"
+                                    spec)
+                      (make-list (if (match-beginning 1)
+                                     (string-to-number (match-string 1 spec))
+                                   1)
+                                 (and (match-beginning 2) (aref (match-string 2 spec) 0)))
+                    (list nil)))
+                (split-string cols "[,;]")))))))
+
+(defun adoc--table-cell-spec (sep)
+  "Return (COLSPAN ROWSPAN FACTOR STYLE) for the spec of the cell at SEP.
+That's the cell the `|' at SEP starts, whose spec is the text right
+before the `|', back to the last whitespace.  COLSPAN and ROWSPAN are
+how many columns and rows it takes up, FACTOR how many cells it stands
+for (`3*|'), and STYLE its style letter, such as ?a, or nil."
+  (save-excursion
+    (goto-char sep)
+    (if (looking-back (concat "\\(?:^\\|[ \t]\\)"
+                              "\\(?:\\([0-9]*\\)\\(?:\\.\\([0-9]*\\)\\)?\\([*+]\\)\\)?"
+                              "[<^>.]*\\([a-z]\\)?")
+                      (line-beginning-position))
+        (let ((first (and (match-beginning 1) (string-to-number (match-string 1))))
+              (second (and (match-beginning 2) (string-to-number (match-string 2))))
+              (multiply (equal (match-string 3) "*")))
+          (list (if (and first (not multiply) (> first 0)) first 1)
+                (if (and second (not multiply) (> second 0)) second 1)
+                (if (and first multiply (> first 0)) first 1)
+                (and (match-beginning 4) (aref (match-string 4) 0))))
+      (list 1 1 1 nil))))
+
+(defun adoc--table-header-row-p (table)
+  "Return non-nil when the first row of TABLE is a header row.
+That's when its `header' option is set, or when it isn't unset and the
+table's first line is followed by a blank line."
+  (save-excursion
+    (goto-char (car table))
+    (let ((options (adoc--block-attribute-above
+                    (lambda ()
+                      (cond
+                       ((looking-at-p ".*\\(?:%\\|options=\"[^\"]*\\|[,[]\\)noheader")
+                        'no)
+                       ((looking-at-p ".*\\(?:%\\|options=\"[^\"]*\\|[,[]\\)header")
+                        'yes))))))
+      (or (eq options 'yes)
+          (and (not (eq options 'no))
+               (zerop (forward-line 1))
+               (not (looking-at-p "[ \t]*$"))
+               (zerop (forward-line 1))
+               (looking-at-p "[ \t]*$"))))))
+
+(defvar adoc--table-cells-cache nil
+  "A hash table of `adoc--table-cells' by table, or nil.
+Bound while `adoc--anchors' goes through the buffer.")
+
+(defun adoc--table-cells (table)
+  "Return a vector of (SEP . STYLE) for the cells of TABLE, in order.
+TABLE is a (BEG . END) of `adoc--table-ranges'.  SEP is where the `|'
+starting a cell is, and STYLE its style letter, such as ?a, or nil.
+
+As in Asciidoctor, a cell has the style its spec gives it, as in `a|',
+or else the one in the table's `cols' attribute for its place among
+the cells of its row, see `adoc--table-column-styles'.  The cells of a
+header row have none, whatever they say."
+  (or (and adoc--table-cells-cache (gethash (car table) adoc--table-cells-cache))
+      (let ((cells (adoc--scan-table-cells table)))
+        (when adoc--table-cells-cache
+          (puthash (car table) cells adoc--table-cells-cache))
+        cells)))
+
+(defun adoc--scan-table-cells (table)
+  "Return the cells of TABLE for `adoc--table-cells'."
+  (save-excursion
+    (let* ((styles (adoc--table-column-styles table))
+           (header (adoc--table-header-row-p table))
+           (end (progn (goto-char (cdr table)) (line-beginning-position)))
+           (columns (or (and styles (length styles))
+                        (progn
+                          (goto-char (car table))
+                          (forward-line 1)
+                          (max 1 (cl-count ?| (buffer-substring-no-properties
+                                               (point) (line-end-position)))))))
+           (row 0) (index 0) (filled 0) (taken 0) spanned cells)
+      (goto-char (car table))
+      (forward-line 1)
+      (while (search-forward "|" end t)
+        (let ((sep (1- (point))))
+          (unless (eq (char-before sep) ?\\)
+            (pcase-let ((`(,colspan ,rowspan ,factor ,style) (adoc--table-cell-spec sep)))
+              (dotimes (copy factor)
+                ;; The copies of a duplicated cell all have its text, so
+                ;; its style is the one that registers its anchors most.
+                (let ((this (and (not (and header (zerop row)))
+                                 (or style (nth index styles)))))
+                  (if (zerop copy)
+                      (push (cons sep this) cells)
+                    (let ((first (cdr (car cells))))
+                      (setcdr (car cells)
+                              (cond ((or (eq first ?a) (eq this ?a)) ?a)
+                                    ((eq first ?l) this)
+                                    (t first))))))
+                ;; A cell spanning rows takes up columns in the rows below,
+                ;; TAKEN of them in this one.
+                (dotimes (i (1- rowspan))
+                  (if (< i (length spanned))
+                      (setf (nth i spanned) (+ (nth i spanned) colspan))
+                    (setq spanned (append spanned (list colspan)))))
+                (setq index (1+ index)
+                      filled (+ filled colspan))
+                (when (>= filled (- columns taken))
+                  (setq row (1+ row) index 0 filled 0
+                        taken (or (car spanned) 0) spanned (cdr spanned))))))))
+      (vconcat (nreverse cells)))))
+
+(defun adoc--table-anchor-registration (beg table)
+  "Return how Asciidoctor treats the anchor at BEG in TABLE.
+That's as for `adoc--anchor-registration'.  TABLE is a (BEG . END) of
+`adoc--table-ranges'.  Asciidoctor registers an anchor that begins the
+text of a cell, and every anchor in an AsciiDoc cell, as its content is
+parsed as a document of its own, but takes the text of a literal cell
+as it is.  See `adoc--table-cells' for the style of a cell."
   (save-excursion
     (goto-char beg)
     (let ((bound (save-excursion (goto-char (car table)) (line-end-position)))
           sep)
       (while (and (setq sep (search-backward "|" bound t))
                   (eq (char-before) ?\\)))
-      (and sep
-           (or (string-blank-p (buffer-substring-no-properties (1+ sep) beg))
-               (looking-back "\\(?:^\\|[ \t]\\)[0-9.+*<>^]*a"
-                             (line-beginning-position)))))))
+      (if (not sep)
+          'rendered
+        (let* ((cells (adoc--table-cells table))
+               (low 0) (high (1- (length cells))) style)
+          (while (<= low high)
+            (let* ((middle (/ (+ low high) 2))
+                   (cell (aref cells middle)))
+              (cond
+               ((< (car cell) sep) (setq low (1+ middle)))
+               ((> (car cell) sep) (setq high (1- middle)))
+               (t (setq style (cdr cell) low (1+ high))))))
+          (cond
+           ((eq style ?l) nil)
+           ((or (eq style ?a)
+                (string-blank-p (buffer-substring-no-properties (1+ sep) beg)))
+            'registered)
+           (t 'rendered)))))))
+
+(defvar adoc--bibliography-cache nil
+  "A hash table of the list items `adoc--bibliography-item-p' went past, or nil.
+It maps the beginning of an item's line to (FIRST . BIBLIOGRAPHY), where
+FIRST is the beginning of the line of its list's first item, and
+BIBLIOGRAPHY whether that list is a bibliography.  Bound while
+`adoc--anchors' goes through the buffer.")
+
+(defconst adoc--re-unordered-item-marker "[ \t]*\\(-\\|\\*\\{1,5\\}\\)[ \t]+"
+  "Regexp matching the marker of an unordered list item, as group 1.")
+
+(defun adoc--bibliography-item-p (beg)
+  "Return non-nil when BEG begins the text of an item in a bibliography list.
+That's an unordered list with the `bibliography' style, or right in a
+section with that style, as in Asciidoctor, and the item has the marker
+of its first item, as a list nested in it is another list."
+  (save-excursion
+    (goto-char beg)
+    (beginning-of-line)
+    (and (looking-at adoc--re-unordered-item-marker)
+         (= beg (match-end 0))
+         (let* ((marker (match-string-no-properties 1))
+                (list (adoc--bibliography-list (point))))
+           (and (cdr list)
+                (equal marker (save-excursion
+                                (goto-char (car list))
+                                (looking-at adoc--re-unordered-item-marker)
+                                (match-string-no-properties 1))))))))
+
+(defun adoc--bibliography-list (line)
+  "Return (FIRST . BIBLIOGRAPHY) for the list of the item on LINE.
+See `adoc--bibliography-cache'."
+  (or (and adoc--bibliography-cache (gethash line adoc--bibliography-cache))
+      (save-excursion
+        (goto-char line)
+        (let ((first line) (items (list line)) known title)
+          ;; Up to the line above the list, past its items and their text.
+          (while (and (not known)
+                      (zerop (forward-line -1))
+                      (cond
+                       ((looking-at-p "[ \t]*$"))
+                       ((looking-at-p adoc--re-unordered-item-marker)
+                        (setq known (and adoc--bibliography-cache
+                                         (gethash (point) adoc--bibliography-cache)))
+                        (unless known
+                          (setq first (point))
+                          (push (point) items))
+                        t)
+                       ((looking-at-p adoc--re-section-title-line)
+                        (setq title (point))
+                        nil)
+                       ((looking-at-p adoc--re-block-attribute-line) nil)
+                       (t (save-excursion
+                            (and (zerop (forward-line -1))
+                                 (not (looking-at-p "[ \t]*$"))))))))
+          (let ((value
+                 (or known
+                     (progn
+                       (goto-char first)
+                       (cons first
+                             (let ((style (adoc--block-attribute-above
+                                           #'adoc--block-attribute-style)))
+                               (if style
+                                   (equal style "bibliography")
+                                 (and (not (adoc--delimited-block-at first))
+                                      (or title
+                                          (re-search-backward adoc--re-section-title-line
+                                                              nil t))
+                                      (progn
+                                        (goto-char (or title (point)))
+                                        (equal (adoc--block-attribute-above
+                                                #'adoc--block-attribute-style)
+                                               "bibliography"))))))))))
+            (when adoc--bibliography-cache
+              (dolist (item items)
+                (puthash item value adoc--bibliography-cache)))
+            value)))))
 
 (defun adoc--leading-anchor-p (beg)
   "Return non-nil when the `[[' anchor at BEG begins a list item's text.
@@ -6141,7 +6372,7 @@ after its first line counts as a paragraph, unless it's indented."
        ;; the text of a verse block is verbatim, but gets inline markup
        ((eq (adoc--in-verbatim-block-p beg) 'verse) 'rendered)
        ((looking-at-p adoc--re-block-anchor-line) 'registered)
-       (table (if (adoc--table-anchor-registered-p beg table) 'registered 'rendered))
+       (table (adoc--table-anchor-registration beg table))
        ((looking-at-p adoc--re-block-attribute-line) nil)
        (t
         (adoc--block-content-start (or cache (make-list 3 nil)))
@@ -6201,6 +6432,21 @@ role or an option."
        (looking-at "\\[[ \t]*\\([^]\n,#.%=\"' \t]+\\)[ \t]*[],#.%]")
        (match-string-no-properties 1)))
 
+(defun adoc--block-id-overridden-p ()
+  "Return non-nil when a later block attribute line overrides the id at point.
+That's one that sets an id too, above the same block, as Asciidoctor
+only keeps the last id a block gets."
+  (save-excursion
+    (catch 'done
+      (while (zerop (forward-line 1))
+        (cond
+         ((adoc--skipped-line-p))
+         ((looking-at-p adoc--re-block-attribute-line)
+          (when (adoc--block-attribute-id)
+            (throw 'done t)))
+         ((not (or (looking-at-p "[ \t]*$") (adoc--metadata-line-p)))
+          (throw 'done nil)))))))
+
 (defun adoc--anchors (&optional beg end)
   "Return the anchors between BEG and END as a list of (START END ID REGISTERED).
 BEG and END default to the whole buffer.  The list is in document
@@ -6209,8 +6455,15 @@ anchors (`[[id]]', `[[[id]]]', `anchor:id[]') that aren't escaped and
 aren't in a comment, a literal paragraph or a verbatim block, though a
 verse block's text gets its inline anchors.
 REGISTERED is non-nil for an anchor Asciidoctor registers as soon as it
-parses it, see `adoc--anchor-registration'."
+parses it, see `adoc--anchor-registration'.  A `[[[id]]]' anchor is
+only registered at the start of an item in a bibliography list, see
+`adoc--bibliography-item-p', and a `[[id]]' anchor there isn't.
+Of the ids the block attribute lines above a block set, only the last
+one is registered, as Asciidoctor drops the others."
   (let ((end (or end (point-max)))
+        (case-fold-search nil)
+        (adoc--table-cells-cache (make-hash-table))
+        (adoc--bibliography-cache (make-hash-table))
         (tables 'unknown)
         (cache (make-list 3 nil))
         anchors)
@@ -6220,6 +6473,7 @@ parses it, see `adoc--anchor-registration'."
         (while (re-search-forward adoc--re-inline-anchor end t)
           (let ((start (match-beginning 0))
                 (stop (match-end 0))
+                (biblio (match-beginning 2))
                 (id (or (match-string-no-properties 2)
                         (match-string-no-properties 3)
                         (match-string-no-properties 4))))
@@ -6232,9 +6486,17 @@ parses it, see `adoc--anchor-registration'."
                 (when registration
                   (push (list start stop id
                               (and (eq registration 'registered)
+                                   (not (and (save-excursion
+                                               (goto-char start)
+                                               (beginning-of-line)
+                                               (looking-at-p adoc--re-block-anchor-line))
+                                             (adoc--block-id-overridden-p)))
                                    ;; not when it's inside `[[[id]]', say
                                    (not (and (eq (char-after start) ?\[)
-                                             (eq (char-before start) ?\[)))))
+                                             (eq (char-before start) ?\[)))
+                                   (if (adoc--leading-anchor-p start)
+                                       (eq (and biblio t) (adoc--bibliography-item-p start))
+                                     (not biblio))))
                         anchors))))))
         ;; The ids attribute lines like `[#id]' set; `[[id]]' is done.
         (goto-char (or beg (point-min)))
@@ -6245,7 +6507,9 @@ parses it, see `adoc--anchor-registration'."
                          (not (adoc--in-verbatim-block-p (point)))
                          (adoc--block-attribute-id))))
             (when id
-              (push (list (point) (line-end-position) id t) anchors)))
+              (push (list (point) (line-end-position) id
+                          (not (adoc--block-id-overridden-p)))
+                    anchors)))
           (forward-line 1))))
     (sort anchors (lambda (a b) (< (car a) (car b))))))
 
