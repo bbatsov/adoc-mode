@@ -168,6 +168,12 @@ Findings are graded:
 | *Fixed* - highlighted as an anchor and navigable (see `block-id-shorthand`)
 | -
 
+| Thematic and page breaks `+'''+`, `+<<<+`, and the Markdown-style `+---+`,
+  `+* * *+` and the like
+| Supported; a `+* * *+` line continuing a list is an item when Asciidoctor reads
+  it as one
+| -
+
 | Hard line breaks (line ending in `` +``)
 | Preserved when filling; `[%hardbreaks]` option not specially handled
 | Low
@@ -189,6 +195,11 @@ Findings are graded:
 
 | Unordered `*` / `-`, nested by repetition
 | Supported
+| -
+
+| Nesting by a change of marker (`*` then `-`, `*` then `.`)
+| Supported; the list commands nest items by the order their markers turn up
+  in, as Asciidoctor does
 | -
 
 | Ordered, explicit (`1.`, `a.`, `i)`) and implicit (`.`, `..`)
