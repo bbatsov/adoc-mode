@@ -270,7 +270,42 @@
         (expect (outline-invisible-p body) :to-be-truthy)
         (adoc-cycle-buffer)
         (adoc-cycle-buffer)
-        (expect (outline-invisible-p body) :not :to-be-truthy)))))
+        (expect (outline-invisible-p body) :not :to-be-truthy))))
+
+  (defun adoc-test--block-buffer ()
+    (adoc-mode)
+    (insert "= Top\n\n== A\n\n[source]\n----\n== code\nmore code\n----\n\n"
+            "after\n\n== B\n\nbody b\n")
+    (goto-char (point-min)))
+
+  (it "doesn't fold at a title-like line inside a delimited block"
+    (with-temp-buffer
+      (adoc-test--block-buffer)
+      (let ((more (save-excursion (search-forward "more code") (point))))
+        (search-forward "== code") (beginning-of-line)
+        (adoc-cycle)
+        (expect (outline-invisible-p more) :not :to-be-truthy))))
+
+  (it "folds a section across a delimited block holding a title-like line"
+    (assume (boundp 'outline-search-function)
+            "outline-search-function needs Emacs 29")
+    (with-temp-buffer
+      (adoc-test--block-buffer)
+      (let ((after (save-excursion (search-forward "after") (point))))
+        (search-forward "== A") (beginning-of-line)
+        (adoc-cycle)
+        (expect (outline-invisible-p after) :to-be-truthy))))
+
+  (it "skips title-like lines inside delimited blocks when moving by heading"
+    (assume (boundp 'outline-search-function)
+            "outline-search-function needs Emacs 29")
+    (with-temp-buffer
+      (adoc-test--block-buffer)
+      (search-forward "== A") (beginning-of-line)
+      (outline-next-heading)
+      (expect (looking-at-p "== B") :to-be-truthy)
+      (outline-previous-heading)
+      (expect (looking-at-p "== A") :to-be-truthy))))
 
 (describe "adoc-mode cross-reference following"
 

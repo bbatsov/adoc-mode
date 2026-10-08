@@ -4787,6 +4787,48 @@ buffer stops the search.  With a negative ARG, move forward."
 
 ;;;; Outline cycling
 
+(defun adoc--outline-block-at (pos)
+  "Return the delimited block the line at POS is in, or nil.
+A line that looks like a section title is plain content there, as for
+highlighting (see `adoc--outside-delimited-block-p')."
+  (save-match-data
+    (adoc--ensure-block-extents (1+ pos))
+    (get-text-property pos 'adoc-delimited-block)))
+
+(defun adoc--outline-search (&optional bound move backward looking-at)
+  "Search for the next section title, for `outline-search-function'.
+That's the next match of `outline-regexp' at the beginning of a line,
+like `outline-minor-mode' does without this function, except that lines
+inside delimited blocks don't count.  BOUND, MOVE, BACKWARD and
+LOOKING-AT are as in `outline-search-function'."
+  (if looking-at
+      (and (looking-at outline-regexp)
+           (not (adoc--outline-block-at (point))))
+    (let ((regexp (concat "^\\(?:" outline-regexp "\\)"))
+          (limit (or bound (if backward (point-min) (point-max))))
+          (origin (point))
+          (more t)
+          found)
+      (while (and more
+                  (if backward
+                      (re-search-backward regexp limit t)
+                    (re-search-forward regexp limit t)))
+        (let ((block (adoc--outline-block-at (match-beginning 0))))
+          (if (not block)
+              (setq found t more nil)
+            ;; Carry on past the block, none of its lines can be a title.
+            (let ((next (if backward
+                            (car block)
+                          (next-single-property-change
+                           (match-beginning 0) 'adoc-delimited-block
+                           nil (point-max)))))
+              (if (if backward (> next limit) (< next limit))
+                  (goto-char next)
+                (setq more nil))))))
+      (unless found
+        (goto-char (if move limit origin)))
+      found)))
+
 (defun adoc-cycle (&optional arg)
   "Cycle the visibility of the section subtree at point.
 On a section title, rotate its subtree between folded, child
@@ -4799,7 +4841,10 @@ underlying `outline-minor-mode'."
   (interactive "P")
   (cond
    (arg (adoc-cycle-buffer))
-   ((outline-on-heading-p) (outline-cycle))
+   ;; Emacs 28 has no `outline-search-function', so check for a block here.
+   ((and (outline-on-heading-p)
+         (not (adoc--outline-block-at (line-beginning-position))))
+    (outline-cycle))
    (t (indent-for-tab-command))))
 
 (defun adoc-cycle-buffer ()
@@ -5355,6 +5400,9 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
                               (save-excursion
                                 (skip-chars-forward "=")
                                 (current-column))))
+  ;; Emacs 29+ (on 28, title-like lines in blocks still count as headings)
+  (when (boundp 'outline-search-function)
+    (setq-local outline-search-function #'adoc--outline-search))
   (outline-minor-mode 1)
 
   ;; fill
