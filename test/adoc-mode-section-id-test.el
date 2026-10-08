@@ -264,6 +264,48 @@
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
+(describe "attribute entries in section ids"
+  (it "applies only the entries Asciidoctor reads as entries"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\npara\n:a: x\n\n* item\n:b: x\n\n"
+                     "|===\n| cell\n:c: x\n|===\n\n.Title\n:d: x\npara\n\n"
+                     "== {a} {b} {c} {d}\n"))
+            :to-equal '("_a_b_c_x")))
+
+  (it "skips the entries in ifdef and ifndef branches that don't hold"
+    (expect (adoc-test--section-ids
+             (concat "= D\n:a:\nifdef::env-github[]\n:idprefix:\nendif::[]\n"
+                     "ifndef::env-github[:idprefix: x]\n"
+                     "ifdef::a+b[]\n:p: pp\nendif::[]\nifdef::a,b[]\n:q: qq\nendif::[]\n"
+                     "ifdef::nope[]\nifdef::a[]\n:r: rr\nendif::[]\nendif::[]\n\n"
+                     "== {p} {q} {r}\n"))
+            :to-equal '("xp_qq_r")))
+
+  (it "starts from the attributes Asciidoctor sets"
+    (expect (adoc-test--section-ids "= D\n\n== {backend} {note-caption}\n")
+            :to-equal '("_html5_note")))
+
+  (it "matches the real asciidoctor"
+    (assume (executable-find "asciidoctor") "asciidoctor not installed")
+    (dolist (doc '("= D\n\npara\n:x: y\n\n== A {x}\n"
+                   "= D\n\n* item\n:x: y\n\n== A {x}\n"
+                   "= D\n\n* item\n\n:x: y\n\n== A {x}\n"
+                   "= D\n\n|===\na|\n:x: y\n\ntext\n|===\n\n== A {x}\n"
+                   "= D\n\n== S\n:x: y\n\n== A {x}\n"
+                   "= D\n\n[source]\n:x: y\n----\nc\n----\n\n== A {x}\n"
+                   "= D\n\nterm::\n:x: y\n\n== A {x}\n"
+                   "= D\n\n:x: a\npara\n:x: b\n\n== A {x}\n"
+                   "= D\n\n////\nifdef::nope[]\n////\n\n:x: y\n\n== A {x}\n"
+                   "= D\n\nifdef::nope[]\n:x: y\nendif::[]\n\n== A {x}\n"
+                   "= D\n\nifdef::backend-html5[]\n:x: y\nendif::[]\n\n== A {x}\n"
+                   "= D\n\nifdef::nope[:x: y]\n\n== A {x}\n"
+                   "= D\n:a:\nifndef::a,b[]\n:x: y\nendif::[]\nifndef::a+b[]\n:z: w\nendif::[]\n\n== A {x} {z}\n"
+                   "= D\n:x: a\nifdef::x[]\n:y: b\nendif::[]\n:x!:\nifdef::x[]\n:y: c\nendif::[]\n\n== {y}\n"
+                   "= D\n\n\\ifdef::nope[]\n\n:x: y\n\n== A {x}\n"
+                   "= D\n\n== {backend} {doctype} {note-caption}\n"))
+      (expect (adoc-test--section-ids doc)
+              :to-equal (adoc-test--asciidoctor-section-ids doc)))))
+
 (describe "duplicate section ids"
   (it "numbers the ids of repeated titles"
     (expect (adoc-test--section-ids "= D\n\n== Foo\n\n== Foo\n\n=== Foo\n")

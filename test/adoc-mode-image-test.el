@@ -35,6 +35,21 @@
       (expect (adoc--resolve-attribute-references "plain.png")
               :to-equal "plain.png")
       (expect (adoc--resolve-attribute-references "")
-              :to-equal ""))))
+              :to-equal "")))
+
+  (it "resolves them the way Asciidoctor does at the image"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert ":base: https://example.com\n:Img: {base}/a.png\n:gone: x\n:gone!:\n\n"
+              "image::{img}[]\n\n:base: http://other\n")
+      (let ((pos (save-excursion (search-backward "image::"))))
+        ;; case-insensitive, nested, and as set above the image
+        (expect (adoc--resolve-attribute-references "{IMG}" pos)
+                :to-equal "https://example.com/a.png")
+        (expect (adoc--resolve-attribute-references "{base}" pos)
+                :to-equal "https://example.com")
+        ;; unset, and the built-in character attributes
+        (expect (adoc--resolve-attribute-references "{gone}{sp}x" pos)
+                :to-equal "{gone} x")))))
 
 ;;; adoc-mode-image-test.el ends here

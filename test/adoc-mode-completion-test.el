@@ -97,16 +97,17 @@ collection scans it lazily)."
       (expect (adoc--collect-anchor-ids) :to-equal nil))))
 
 (describe "adoc--collect-attribute-names"
-  (it "includes buffer-defined attributes and strips subnames"
-    (with-adoc-buffer ":my-attr: value\n:other.sub.deep: w\n:flag!:\n"
+  (it "includes buffer-defined attributes, set or unset"
+    (with-adoc-buffer ":my-attr: value\n:flag!:\n:!other:\n:a.b: w\n"
       (let ((names (adoc--collect-attribute-names)))
         (expect (member "my-attr" names) :to-be-truthy)
-        ;; multi-segment subnames are stripped to the bare name
-        (expect (member "other" names) :to-be-truthy)
-        (expect (member "other.sub" names) :to-be nil)
-        ;; a trailing unset `!' is not part of the name
+        ;; the unset `!' is not part of the name
         (expect (member "flag" names) :to-be-truthy)
-        (expect (member "flag!" names) :to-be nil))))
+        (expect (member "flag!" names) :to-be nil)
+        (expect (member "other" names) :to-be-truthy)
+        ;; a name with a dot can't be referenced
+        (expect (member "a" names) :to-be nil)
+        (expect (member "a.b" names) :to-be nil))))
 
   (it "includes curated intrinsic attributes"
     (with-adoc-buffer "no attributes here\n"

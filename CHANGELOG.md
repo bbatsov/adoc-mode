@@ -84,6 +84,11 @@
   - `anchor:id[]`, `[id=...]` and ids with `.` or `:` in them count, and anchors in comments, code blocks, literal paragraphs and `[source]` or other verbatim paragraphs don't.
   - A section takes its id from the closest `[[id]]` or `[#id]` above it, even past blank lines, comments or a block title, and prefers it to an anchor at the end of the title.
   - Only the anchors Asciidoctor registers before it reaches a section count as taking its auto-id, so one in a block title or in the middle of a list item no longer turns `_foo` into `_foo_2`.
+- [#106](https://github.com/bbatsov/adoc-mode/pull/106): Section ids and the attribute references in image paths only take the attribute entries Asciidoctor applies into account.
+  - Entries in the text of a paragraph or list item, or in a table, no longer count.
+  - `ifdef` and `ifndef` branches count only when their condition holds, so the common `ifdef::env-github[]` block no longer changes the ids.
+  - The attributes Asciidoctor and Antora set by default, like `backend-html5` or `env-site`, count as set.
+  - Image paths resolve their references the way titles do: by the entries above them, case-insensitively, and through attributes that refer to other attributes.
 
 ## 0.9.0 (2026-06-02)
 
