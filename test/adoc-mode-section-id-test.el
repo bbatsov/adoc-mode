@@ -92,7 +92,9 @@
     (expect (adoc--section-id "A link:x.html[] b" "_" "_") :to-equal "_a_x_html_b")
     (expect (adoc--section-id "A link:x[a=b] c" "_" "_") :to-equal "_a_x_c")
     (expect (adoc--section-id "See <<t,the target>>" "_" "_")
-            :to-equal "_see_the_target"))
+            :to-equal "_see_the_target")
+    (expect (adoc--section-id "See file:///x/y.html[Local] docs" "_" "_")
+            :to-equal "_see_local_docs"))
 
   (it "leaves images, anchors and quote roles out"
     (expect (adoc--section-id "Logo image:x.png[Alt text] here" "_" "_")
@@ -135,6 +137,7 @@
                     "A link:x.html[Text,window=_blank] b"
                     "E https://x.org[\"Quoted, text\",role=x] f"
                     "Mail mailto:a@b.org[Me]" "See xref:other.adoc#frag[]"
+                    "See file:///x/y.html[Local] docs" "Or file:///x/y.html[] too"
                     "A link:x[a=b] c" "B https://x.org[a=b] c" "C xref:o.adoc[a=b] d"
                     "Logo image:x.png[Alt text] here" "Foo [[x]] mid"
                     "A [.red]#big# deal" "B [.x]_it_ c" "x[0]_suffix_ y[1]#z#"

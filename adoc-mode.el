@@ -400,6 +400,13 @@ level-1 through level-5 sections.")
 (defconst adoc-uolist-max-level 5
   "Max unordered (bulleted) list item nesting level, counting starts at 0.")
 
+(defconst adoc--url-schemes '("http" "https" "ftp" "file" "irc")
+  "The URL schemes Asciidoctor makes a link of, as in `https://example.org'.")
+
+(defconst adoc--link-macro-names
+  (append adoc--url-schemes '("mailto" "callto" "link"))
+  "The names of the inline macros that link somewhere, as in `mailto:me[Me]'.")
+
 ;; I think it's actually not worth the fuzz to try to sumarize regexps until
 ;; profiling profes otherwise. Nevertheless I can't stop doing it.
 (defconst adoc-summarize-re-uolisti t
@@ -2146,7 +2153,7 @@ TEXTPROPS is an additional plist with textproperties."
 ;; largely copied from adoc-kw-inline-macro
 ;; TODO: output text should be affected by quotes & co, e.g. bold, emph, ...
 (defun adoc-kw-inline-macro-urls-attribute-list ()
-  (let ((cmd-name (regexp-opt '("http" "https" "ftp" "file" "irc" "mailto" "callto" "link"))))
+  (let ((cmd-name (regexp-opt adoc--link-macro-names)))
     (list
      ;; The link text (group 5) may hold other, already highlighted, markup,
      ;; e.g. `https://example.org[the *bold* text]'.
@@ -2160,7 +2167,7 @@ TEXTPROPS is an additional plist with textproperties."
      '(6 '(face adoc-meta-face adoc-reserved t) t))))            ; ]
 
 (defun adoc-kw-inline-macro-urls-no-attribute-list ()
-  (let ((cmd-name (regexp-opt '("http" "https" "ftp" "file" "irc" "mailto" "callto" "link"))))
+  (let ((cmd-name (regexp-opt adoc--link-macro-names)))
     (list
      `(lambda (end) (adoc-kwf-std end ,(adoc-re-inline-macro cmd-name nil nil 'empty) '(0) '(0)))
      '(0 '(face nil keymap adoc-link-keymap mouse-face adoc-link-mouse-face help-echo "mouse-1: visit this link")) ; clickable
@@ -2201,7 +2208,7 @@ TEXTPROPS is an additional plist with textproperties."
 ;;   because part of the match (the __) contains text properties with
 ;;   adoc-reserved non-nil, also because quote highlighting already happened.
 (defun adoc-kw-standalone-urls ()
-  (let* ((url "\\b\\(?:https?\\|ftp\\|file\\|irc\\)://[^][ \t\n<>]*[a-zA-Z0-9_/]")
+  (let* ((url (concat "\\b" (regexp-opt adoc--url-schemes) "://[^][ \t\n<>]*[a-zA-Z0-9_/]"))
          (url<> (concat "<\\(?:" url "\\)>"))
          (email "[a-zA-Z0-9_][-a-zA-Z0-9_._]*@[-a-zA-Z0-9_._]*[a-zA-Z0-9_]")
          (both (concat "\\(?:" url "\\)\\|\\(?:" url<> "\\)\\|\\(?:" email "\\)")))
@@ -3358,16 +3365,14 @@ marker, or when it's right below an item."
 
 (defun adoc--inline-link-at-point ()
   "Return the target of an inline link or URL macro covering point, or nil.
-Handles `link:target[...]' and `scheme:target[...]' (for the http,
-https, ftp, file, irc, mailto and callto schemes).  The result is the
-string to open: the bare target for `link:', or `scheme:target' for the
-URL schemes (the attribute list / label is dropped)."
+Handles `link:target[...]' and `scheme:target[...]' (for the schemes
+in `adoc--link-macro-names').  The result is the string to open: the
+bare target for `link:', or `scheme:target' for the URL schemes (the
+attribute list / label is dropped)."
   (save-excursion
     (let ((pos (point))
           (eol (line-end-position))
-          (re (adoc-re-inline-macro
-               (regexp-opt '("http" "https" "ftp" "file" "irc" "mailto"
-                             "callto" "link")))))
+          (re (adoc-re-inline-macro (regexp-opt adoc--link-macro-names))))
       (beginning-of-line)
       (catch 'found
         (while (re-search-forward re eol t)
@@ -3422,8 +3427,9 @@ When point is on an xref or cross-reference, jump to its anchor."
    ((adoc--inline-link-at-point)
     (let ((target (adoc--inline-link-at-point)))
       (cond
-       ((string-match-p
-         "\\`\\(?:https?\\|ftp\\|file\\|irc\\|mailto\\|callto\\):" target)
+       ;; Every macro but `link:' is named after its URI scheme.
+       ((string-match-p (concat "\\`" (regexp-opt (remove "link" adoc--link-macro-names)) ":")
+                        target)
         (browse-url target))
        ((file-exists-p target) (find-file target))
        (t (user-error "File not found: %s" target)))))
@@ -4340,7 +4346,8 @@ Attribute references are expected to be substituted already."
                 "" text t t))
     (setq text (replace-regexp-in-string "<<[^,>\n]+,[ \t]*\\([^>\n]+\\)>>" "\\1" text t))
     (setq text (replace-regexp-in-string
-                "\\(link:\\|mailto:\\|xref:\\|\\(?:https?\\|ftp\\|irc\\)://\\)\\([^][ \t\n]*\\)\\[\\([^]\n]*\\)\\]"
+                (concat "\\(link:\\|mailto:\\|xref:\\|" (regexp-opt adoc--url-schemes)
+                        "://\\)\\([^][ \t\n]*\\)\\[\\([^]\n]*\\)\\]")
                 (lambda (macro)
                   (let ((kind (match-string 1 macro))
                         (target (match-string 2 macro))

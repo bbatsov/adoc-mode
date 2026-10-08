@@ -79,6 +79,7 @@
   - The list commands leave the lines of a nested listing or other verbatim block alone, and its attribute entries and anchors no longer affect section ids.
   - A nested block or table left unclosed is no longer highlighted as running past the end of the block it's in.
   - The delimiter that closes a CSV or DSV table no longer opens another table, as in Asciidoctor.
+- [#101](https://github.com/bbatsov/adoc-mode/pull/101): A `file://` link in a section title gives the section's auto-id its text, like the other links do.
 
 ## 0.9.0 (2026-06-02)
 
