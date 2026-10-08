@@ -75,15 +75,19 @@ See also `adoc-display-remote-images'."
 
 (declare-function adoc--attributes-at "adoc-mode" (pos))
 (declare-function adoc--substitute-attributes "adoc-mode" (text attributes))
+(declare-function adoc--unescape-special-characters "adoc-mode" (text))
 
 (defun adoc--resolve-attribute-references (str &optional pos)
   "Resolve AsciiDoc attribute references in STR.
 They get the values the document attributes have at POS, or at the end
 of the buffer when POS is nil, see `adoc--attributes-at'.  References
-to attributes that aren't set are left unchanged."
+to attributes that aren't set are left unchanged.  The values are kept
+escaped for HTML, as Asciidoctor keeps them, so they're unescaped the
+way a browser would."
   (if (not (string-search "{" str))
       str
-    (adoc--substitute-attributes str (adoc--attributes-at (or pos most-positive-fixnum)))))
+    (adoc--unescape-special-characters
+     (adoc--substitute-attributes str (adoc--attributes-at (or pos most-positive-fixnum))))))
 
 (defvar adoc-image-overlay-functions nil
   "Functions called after the creation of an image overlay.

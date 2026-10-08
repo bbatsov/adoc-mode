@@ -50,6 +50,13 @@
                 :to-equal "https://example.com")
         ;; unset, and the built-in character attributes
         (expect (adoc--resolve-attribute-references "{gone}{sp}x" pos)
-                :to-equal "{gone} x")))))
+                :to-equal "{gone} x"))))
+
+  (it "keeps the special characters in their values"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert ":dir: R&D <new>\n\nimage::{dir}/a.png[]\n")
+      (expect (adoc--resolve-attribute-references "{dir}/a.png")
+              :to-equal "R&D <new>/a.png"))))
 
 ;;; adoc-mode-image-test.el ends here

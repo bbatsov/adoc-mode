@@ -4371,13 +4371,27 @@ backslash."
           (t ref))))
      text t t)))
 
+(defun adoc--attribute-value (value attributes)
+  "Return the attribute entry VALUE as Asciidoctor stores it.
+That's with its special characters escaped and the attribute references
+in it substituted from ATTRIBUTES, or for a `pass:' macro, its text with
+the substitutions the macro names applied."
+  (let ((case-fold-search nil))
+    (if (string-match "\\`pass:\\([a-z]+\\(?:,[a-z-]+\\)*\\)?\\[\\(.*\\)]\\'" value)
+        (adoc--apply-subs (match-string 2 value)
+                          (adoc--pass-subs (or (match-string 1 value) ""))
+                          attributes)
+      (adoc--substitute-attributes (adoc--escape-special-characters value)
+                                   attributes))))
+
 (defun adoc--apply-attribute-entry (name value attributes)
   "Return ATTRIBUTES, an alist of (NAME . VALUE), with NAME set to VALUE.
-A nil VALUE unsets it.  VALUE can refer to the attributes set before.
-ATTRIBUTES itself is left alone."
+A nil VALUE unsets it.  VALUE can refer to the attributes set before,
+and it's stored the way Asciidoctor stores it, see
+`adoc--attribute-value'.  ATTRIBUTES itself is left alone."
   (setq attributes (cl-remove name attributes :key #'car :test #'equal))
   (if value
-      (cons (cons name (adoc--substitute-attributes value attributes))
+      (cons (cons name (adoc--attribute-value value attributes))
             attributes)
     attributes))
 
@@ -4417,101 +4431,570 @@ separator is used."
          (cons (or prefix (if antora "" "_"))
                (substring separator 0 (min 1 (length separator))))))))
 
-(defun adoc--link-macro-text (text)
-  "Return the text a link or xref macro with attribute list TEXT shows.
-That's TEXT itself unless it has named attributes, and then its first
-positional attribute.  Return nil when there's none, as the macro shows
-its target then."
-  (cond
-   ((string-empty-p text) nil)
-   ((not (string-search "=" text)) text)
-   ((string-match "\\`\"\\([^\"]*\\)\"" text) (match-string 1 text))
-   (t (let ((first (car (split-string text ","))))
-        (unless (string-search "=" first) first)))))
+;; An auto-id is derived from the title as Asciidoctor renders it, in HTML,
+;; so the title goes through Asciidoctor's substitutions, as far as they
+;; matter for the id.  Asciidoctor first takes the passthroughs out of the
+;; way, then escapes the special characters, formats the quoted text,
+;; substitutes the attribute references, makes the replacements and converts
+;; the macros, in that order, and finally puts the passthroughs back with
+;; their own substitutions applied.  So the regexps below are Asciidoctor's,
+;; and they match the escaped text: `&lt;&lt;id&gt;&gt;' for `<<id>>'.
 
-(defun adoc--section-title-text (title)
-  "Return the text of section TITLE the way Asciidoctor renders it.
-Only as far as it matters for its id, which is derived from the
-rendered title with the markup taken out: link and xref macros give
-their text, images and anchors nothing, a role list before quoted
-text goes, emphasis loses its underscores, and the replacements for
-the copyright sign, dashes, the ellipsis and arrows become entities.
-Attribute references are expected to be substituted already."
-  (if (not (string-match-p "[][+<>_(:.=-]" title))
-      title                             ; nothing to render
-    (adoc--render-section-title title)))
-
-(defun adoc--render-section-title (title)
-  "Do the work of `adoc--section-title-text' for TITLE."
+(defun adoc--gsub (regexp text replace)
+  "Return TEXT with the matches for REGEXP replaced by what REPLACE returns.
+REPLACE is called with the match and TEXT, with the match data set.
+When it returns nil, the match is left alone and the search goes on
+from its second character.  Group 9 of REGEXP stands for a lookahead
+in one of Asciidoctor's regexps: what it matches isn't part of the
+match, and the search goes on from there."
   (let ((case-fold-search nil)
-        (text title))
-    ;; Raw HTML passes through, and the id leaves its tags out.
-    (setq text (replace-regexp-in-string
-                "\\+\\+\\+\\(.+?\\)\\+\\+\\+\\|pass:[a-z,]*\\[\\(.*?\\)\\]"
-                (lambda (pass)
-                  (let ((content (or (match-string 1 pass) (match-string 2 pass))))
-                    (save-match-data
-                      (replace-regexp-in-string "<[^>]+>" "" content))))
-                text t t))
-    (setq text (replace-regexp-in-string
-                "\\[\\[[^]\n]*\\]\\]\\|anchor:[^ \t\n[]+\\[[^]\n]*\\]\\|image:[^ \t\n[]+\\[[^]\n]*\\]"
-                "" text t t))
-    (setq text (replace-regexp-in-string "<<[^,>\n]+,[ \t]*\\([^>\n]+\\)>>" "\\1" text t))
-    (setq text (replace-regexp-in-string
-                (concat "\\(link:\\|mailto:\\|xref:\\|" (regexp-opt adoc--url-schemes)
-                        "://\\)\\([^][ \t\n]*\\)\\[\\([^]\n]*\\)\\]")
-                (lambda (macro)
-                  (let ((kind (match-string 1 macro))
-                        (target (match-string 2 macro))
-                        (label (match-string 3 macro)))
-                    (save-match-data
-                      (cond
-                       ((adoc--link-macro-text label))
-                       ((string-suffix-p "//" kind) (concat kind target))
-                       ;; Asciidoctor shows the converted path of another
-                       ;; document
-                       ((equal kind "xref:")
-                        (replace-regexp-in-string
-                         "\\.adoc\\(?:#.*\\)?\\'" ".html" target))
-                       (t target)))))
-                text t t))
-    ;; A role or other attribute list before quoted text: `[.role]#text#'.
-    (setq text (replace-regexp-in-string
-                "\\(^\\|[^[:alnum:]_;:}]\\)\\[[^]\n]*\\]\\([#*_`^~]\\)" "\\1\\2" text t))
-    ;; Emphasis, the one kind of quoted text whose markup is a valid id
-    ;; character.  Constrained emphasis needs no word character around it,
-    ;; and as matching it uses up the character after it, it takes another
-    ;; pass for each emphasized word that directly follows another.
-    (setq text (replace-regexp-in-string "__\\(.+?\\)__" "\\1" text t))
-    (let ((re (concat "\\(^\\|[^[:alnum:]_;:}]\\)_\\([^ \t\n]\\|[^ \t\n].*?[^ \t\n]\\)_"
-                      "\\([^[:alnum:]_]\\|$\\)")))
-      (while (string-match re text)
-        (setq text (replace-match "\\1\\2\\3" t nil text))))
-    ;; Replacements, except the ones that give an apostrophe, whose
-    ;; characters the id drops anyway.
-    (setq text (replace-regexp-in-string "\\(?:^\\| \\)--\\(?: \\|$\\)" "" text t t))
-    (while (string-match "\\([[:alnum:]_]\\)--\\([[:alnum:]_]\\)" text)
-      (setq text (replace-match "\\1\\2" t nil text)))
-    (replace-regexp-in-string
-     "\\(\\\\\\)?\\(([CR])\\|(TM)\\|\\.\\.\\.\\|->\\|=>\\|<-\\|<=\\)"
-     (lambda (replacement)
-       (if (match-beginning 1) (substring replacement 1) ""))
-     text t t)))
+        (start 0)
+        (parts '()))
+    (while (and (<= start (length text)) (string-match regexp text start))
+      (let* ((beg (match-beginning 0))
+             (end (or (match-beginning 9) (match-end 0)))
+             (replacement (and (< beg end)
+                               (funcall replace (substring text beg end) text))))
+        (if replacement
+            (setq parts (cons replacement (cons (substring text start beg) parts))
+                  start end)
+          (push (substring text start (min (1+ beg) (length text))) parts)
+          (setq start (1+ beg)))))
+    (when (< start (length text))
+      (push (substring text start) parts))
+    (apply #'concat (nreverse parts))))
 
-(defun adoc--section-id (title prefix separator)
+(defun adoc--unescape (match)
+  "Return MATCH without its first backslash, the way an escaped one shows."
+  (let ((i (string-search "\\" match)))
+    (concat (substring match 0 i) (substring match (1+ i)))))
+
+(defun adoc--escape-special-characters (text)
+  "Return TEXT with `&', `<' and `>' escaped, as in HTML."
+  (if (string-match-p "[&<>]" text)
+      (adoc--gsub "[&<>]" text
+                  (lambda (char _)
+                    (pcase char ("&" "&amp;") ("<" "&lt;") (_ "&gt;"))))
+    text))
+
+(defun adoc--unescape-special-characters (text)
+  "Return TEXT with `&amp;', `&lt;' and `&gt;' turned back into characters.
+That's what a browser makes of a path Asciidoctor puts in HTML."
+  (if (string-search "&" text)
+      (adoc--gsub "&\\(amp\\|lt\\|gt\\);" text
+                  (lambda (_ s)
+                    (pcase (match-string 1 s) ("amp" "&") ("lt" "<") (_ ">"))))
+    text))
+
+(defconst adoc--normal-subs
+  '(specialcharacters quotes attributes replacements macros)
+  "The substitutions Asciidoctor applies to a section title, in order.")
+
+(defun adoc--pass-subs (spec)
+  "Return the substitutions SPEC names, as in `pass:q,a[text]'."
+  (let (subs)
+    (dolist (name (split-string spec "," t))
+      (dolist (sub (pcase name
+                     ((or "n" "normal") adoc--normal-subs)
+                     ((or "c" "v" "verbatim" "specialchars") '(specialcharacters))
+                     ("q" '(quotes))
+                     ("a" '(attributes))
+                     ("r" '(replacements))
+                     ("m" '(macros))
+                     (_ (let ((sub (intern-soft name)))
+                          (and (memq sub adoc--normal-subs) (list sub))))))
+        (unless (memq sub subs)
+          (setq subs (append subs (list sub))))))
+    subs))
+
+(defconst adoc--re-pass-macro
+  (concat "\\(?:\\(\\\\\\)?\\[\\([^]]+\\)]\\)?\\(\\\\\\{0,2\\}\\)\\(\\+\\+\\+?\\|\\$\\$\\)"
+          "\\(.*?\\)\\4"
+          "\\|\\(\\\\\\)?pass:\\([a-z]+\\(?:,[a-z-]+\\)*\\)?\\[\\(\\|.*?[^\\]\\)]")
+  "Regexp matching `+++text+++', `++text++', `$$text$$' and `pass:[text]'.
+Group 2 is an attribute list in front, 3 the backslashes before the
+`+' or `$' signs in 4, and 5 the text.  For the `pass:' macro, group 6
+is a backslash in front, 7 the substitutions and 8 the text.")
+
+(defconst adoc--re-pass
+  (concat "\\(?:\\(\\\\\\)?\\[\\([^]]+\\)]\\)?\\(\\\\\\)?"
+          "\\+\\([^ \t\n]\\|[^ \t\n].*?[^ \t\n]\\)\\+\\(?9:[^[:alnum:]_]\\|\\'\\)")
+  "Regexp matching `+text+', the constrained passthrough.
+Group 2 is an attribute list in front, 4 the text, and 1 or 3 a
+backslash before the attribute list or the text.")
+
+(defconst adoc--re-stem-macro
+  "\\\\?\\(?:stem\\|\\(?:latex\\|ascii\\)math\\):\\([a-z]+\\(?:,[a-z-]+\\)*\\)?\\[\\(.*?[^\\]\\)]"
+  "Regexp matching a `stem:', `latexmath:' or `asciimath:' macro.
+Group 1 is its substitutions and group 2 its text.")
+
+(defun adoc--extract-passthroughs (text extract)
+  "Return TEXT with its passthroughs taken out, as Asciidoctor does first.
+EXTRACT is called with the text of each passthrough and the
+substitutions it gets, and returns the placeholder to put in its
+place.  An escaped passthrough is left as text."
+  (when (string-match-p "\\+\\+\\|\\$\\$\\|pass:" text)
+    (setq text
+          (adoc--gsub
+           adoc--re-pass-macro text
+           (lambda (match s)
+             (let ((attrs (match-string 2 s))
+                   (escapes (length (match-string 3 s)))
+                   (boundary (match-string 4 s)))
+               (cond
+                ((and boundary (> escapes 0))
+                 (concat (and attrs (concat (match-string 1 s) "[" attrs "]"))
+                         (make-string (1- escapes) ?\\)
+                         boundary (match-string 5 s) boundary))
+                (boundary
+                 ;; An attribute list makes the passthrough a span, which
+                 ;; leaves no trace in the id, unless it's escaped.
+                 (concat (and (match-beginning 1) (concat "[" attrs "]"))
+                         (funcall extract (match-string 5 s)
+                                  (unless (equal boundary "+++")
+                                    '(specialcharacters)))))
+                ((match-beginning 6) (substring match 1))
+                (t (let ((subs (match-string 7 s)))
+                     (funcall extract (string-replace "\\]" "]" (match-string 8 s))
+                              (adoc--pass-subs (or subs "")))))))))))
+  (when (string-search "+" text)
+    (setq text
+          (adoc--gsub
+           adoc--re-pass text
+           (lambda (_ s)
+             (let ((beg (match-beginning 0))
+                   (attrs (match-string 2 s))
+                   (content (match-string 4 s)))
+               (cond
+                ;; Like constrained quoted text, it needs a character in
+                ;; front that can't be part of a word, unless that's the
+                ;; backslash of an escape.
+                ((and (not (match-beginning 1))
+                      (or attrs (not (match-beginning 3)))
+                      (> beg 0)
+                      (string-match-p "[[:alnum:]_;:\\]" (substring s (1- beg) beg)))
+                 nil)
+                ((match-beginning 3)
+                 (concat (match-string 1 s) (and attrs (concat "[" attrs "]"))
+                         "+" content "+"))
+                (t (concat (and (match-beginning 1) (concat "[" attrs "]"))
+                           (funcall extract content '(specialcharacters))))))))))
+  (when (string-match-p "stem:\\|math:" text)
+    (setq text
+          (adoc--gsub
+           adoc--re-stem-macro text
+           (lambda (match s)
+             (if (string-prefix-p "\\" match)
+                 (substring match 1)
+               (let ((subs (match-string 1 s)))
+                 (funcall extract (string-replace "\\]" "]" (match-string 2 s))
+                          (if subs (adoc--pass-subs subs) '(specialcharacters)))))))))
+  text)
+
+(defconst adoc--quote-subs
+  (cl-flet ((unconstrained (mark &optional text)
+              (concat "\\\\?\\(?:\\[\\([^]]+\\)]\\)?" mark
+                      "\\(" (or text ".+?") "\\)" mark))
+            (constrained (open close &optional before after)
+              (concat "\\(^\\|[^[:alnum:]_;:" (or before "}") "]\\)"
+                      "\\(?:\\[\\([^]]+\\)]\\)?" open
+                      "\\([^ \t\n]\\|[^ \t\n].*?[^ \t\n]\\)" close
+                      "\\(?9:[^[:alnum:]_" after "]\\|\\'\\)")))
+    `((,(unconstrained "\\*\\*") "<strong>" "</strong>")
+      (,(constrained "\\*" "\\*") "<strong>" "</strong>" t)
+      (,(constrained "\"`" "`\"") "&#8220;" "&#8221;" t)
+      (,(constrained "'`" "`'" "`}") "&#8216;" "&#8217;" t)
+      (,(unconstrained "``") "<code>" "</code>")
+      (,(constrained "`" "`" "\"'`}" "\"'`") "<code>" "</code>" t)
+      (,(unconstrained "__") "<em>" "</em>")
+      (,(constrained "_" "_") "<em>" "</em>" t)
+      (,(unconstrained "##") "<mark>" "</mark>")
+      (,(constrained "#" "#" "&}") "<mark>" "</mark>" t)
+      (,(unconstrained "\\^" "[^ \t\n]+?") "<sup>" "</sup>")
+      (,(unconstrained "~" "[^ \t\n]+?") "<sub>" "</sub>")))
+  "Asciidoctor's quoted text, as (REGEXP OPEN CLOSE CONSTRAINED).
+They're formatted in this order, as text between OPEN and CLOSE.
+Group 1 of the REGEXP of unconstrained quoted text is an attribute
+list in front and group 2 the text.  Constrained quoted text needs a
+character that can't be part of a word on either side, which is group
+1, and then group 2 is the attribute list and 3 the text.")
+
+(defun adoc--sub-quotes (text)
+  "Return TEXT with its quoted text formatted, as Asciidoctor does it."
+  (if (not (string-match-p "[*_`#^~]" text))
+      text
+    (pcase-dolist (`(,regexp ,open ,close ,constrained) adoc--quote-subs)
+      (setq text
+            (adoc--gsub
+             regexp text
+             (lambda (match s)
+               (let ((attrs (match-string (if constrained 2 1) s))
+                     (quoted (concat open (match-string (if constrained 3 2) s) close)))
+                 (cond
+                  ((not (string-prefix-p "\\" match))
+                   (concat (and constrained (match-string 1 s)) quoted))
+                  ;; An escaped attribute list is just text.
+                  ((and constrained attrs) (concat "[" attrs "]" quoted))
+                  (t (substring match 1))))))))
+    text))
+
+(defconst adoc--title-replacements
+  '(("\\\\?(C)" "&#169;")
+    ("\\\\?(R)" "&#174;")
+    ("\\\\?(TM)" "&#8482;")
+    ("\\(?: \\|^\\|\\\\\\)--\\(?: \\|$\\)" "&#8201;&#8212;&#8201;")
+    ("\\([[:alnum:]_]\\)\\\\?--\\(?9:[[:alnum:]_]\\)" "&#8212;&#8203;" leading)
+    ("\\\\?\\.\\.\\." "&#8230;&#8203;")
+    ("\\\\?`'" "&#8217;")
+    ("\\([[:alnum:]]\\)\\\\?'\\(?9:[[:alpha:]]\\)" "&#8217;" leading)
+    ("\\\\?-&gt;" "&#8594;")
+    ("\\\\?=&gt;" "&#8658;")
+    ("\\\\?&lt;-" "&#8592;")
+    ("\\\\?&lt;=" "&#8656;")
+    ("\\\\?\\(&\\)amp;\\(\\(?:[a-zA-Z][a-zA-Z]+[0-9]\\{0,2\\}\\|#[0-9]\\{2,6\\}\\|#x[0-9a-fA-F]\\{2,5\\}\\);\\)"
+     "" bounding))
+  "Asciidoctor's replacements, as (REGEXP REPLACEMENT RESTORE), in order.
+With a RESTORE of `leading', group 1 of REGEXP is put back in front
+of the REPLACEMENT, and with `bounding', group 2 after it too.  The
+last one turns an escaped entity, `&amp;copy;', back into one.")
+
+(defun adoc--sub-replacements (text)
+  "Return TEXT with Asciidoctor's replacements made."
+  (if (not (string-match-p "[-(.`'&]" text))
+      text
+    (pcase-dolist (`(,regexp ,replacement ,restore) adoc--title-replacements)
+      (setq text
+            (adoc--gsub
+             regexp text
+             (lambda (match s)
+               (cond
+                ((string-search "\\" match) (adoc--unescape match))
+                ((eq restore 'leading) (concat (match-string 1 s) replacement))
+                ((eq restore 'bounding)
+                 (concat (match-string 1 s) replacement (match-string 2 s)))
+                (t replacement))))))
+    text))
+
+(defun adoc--first-positional-attribute (attrlist)
+  "Return the first positional attribute in ATTRLIST, or nil if there's none."
+  (cond
+   ((string-match "\\`[ \t]*\"\\(\\(?:[^\"\\]\\|\\\\.\\)*\\)\"" attrlist)
+    (string-replace "\\\"" "\"" (match-string 1 attrlist)))
+   ((string-match "\\`[ \t]*\\([^,]*?\\)[ \t]*\\(?:,\\|\\'\\)" attrlist)
+    (let ((first (match-string 1 attrlist)))
+      (unless (or (string-empty-p first)
+                  (string-match-p "\\`[[:alnum:]_][[:alnum:]_-]*[ \t]*=" first))
+        first)))))
+
+(defun adoc--link-text (text trigger)
+  "Return the text of a link macro with the attribute list TEXT.
+An attribute list with TRIGGER in it is parsed, and its first
+positional attribute is the text, otherwise TEXT itself is.  Return
+nil when there's no text, as the macro shows its target then."
+  (let ((text (string-replace "\\]" "]" text)))
+    (when (string-search trigger text)
+      (setq text (or (adoc--first-positional-attribute text) "")))
+    (setq text (string-remove-suffix "^" text))
+    (unless (string-empty-p text) text)))
+
+(defun adoc--uri-without-scheme (uri)
+  "Return URI without its scheme, the way `hide-uri-scheme' shows it."
+  (let ((rest (replace-regexp-in-string
+               "\\`[[:alpha:]][[:alnum:].+-]+:/\\{0,2\\}" "" uri t t)))
+    (if (string-empty-p rest) uri rest)))
+
+(defun adoc--xref-text (refid macro attributes)
+  "Return the text of a cross-reference to REFID that has none of its own.
+MACRO is non-nil for an `xref:' macro, as opposed to `<<refid>>', and
+ATTRIBUTES are the document attributes in effect.  That's the path of
+the HTML file of another document, or REFID in brackets, which is what
+Asciidoctor shows for an id it doesn't know yet."
+  (let ((hash (string-search "#" refid))
+        (ext-re "\\.\\(?:adoc\\|asciidoc\\|asc\\|ad\\|txt\\)\\'")
+        path src2src fragment)
+    (cl-flet ((extname-p (file) (string-match-p "\\.[^/]*\\'" file)))
+      (cond
+       ((and hash (> hash 0))
+        (setq path (substring refid 0 hash)
+              fragment (substring refid (1+ hash)))
+        (cond
+         ((and macro (string-suffix-p ".adoc" path))
+          (setq path (substring path 0 -5) src2src t))
+         (macro (setq src2src (not (extname-p path))))
+         ((string-match ext-re path)
+          (setq path (substring path 0 (match-beginning 0)) src2src t))
+         (t (setq src2src t))))
+       (hash (setq fragment (substring refid 1)))
+       ((and macro (string-suffix-p ".adoc" refid))
+        (setq path (substring refid 0 -5) src2src t))
+       ((and macro (extname-p refid)) (setq path refid))
+       (t (setq fragment refid))))
+    (if (not path)
+        (concat "[" fragment "]")
+      (concat (cdr (assoc "relfileprefix" attributes))
+              path
+              (and src2src
+                   (or (cdr (assoc "relfilesuffix" attributes))
+                       (cdr (assoc "outfilesuffix" attributes))
+                       ".html"))))))
+
+(defun adoc--kbd-keys (keys)
+  "Return the list of keys in KEYS, the text of a `kbd:' macro."
+  (let* ((keys (string-trim (string-replace "\\]" "]" keys)))
+         (comma (and (> (length keys) 1) (string-search "," keys 1)))
+         (plus (and (> (length keys) 1) (string-search "+" keys 1)))
+         (delim (cond ((and comma plus) (if (< comma plus) "," "+"))
+                      (comma ",")
+                      (plus "+"))))
+    (cond
+     ((not delim) (list keys))
+     ;; A delimiter at the end is a key itself, as in `Ctrl++'.
+     ((string-suffix-p delim keys)
+      (let ((split (mapcar #'string-trim
+                           (split-string (substring keys 0 -1) (regexp-quote delim)))))
+        (append (butlast split) (list (concat (car (last split)) delim)))))
+     (t (mapcar #'string-trim (split-string keys (regexp-quote delim)))))))
+
+(defun adoc--index-term (term)
+  "Return what Asciidoctor shows of the visible index term TERM."
+  (car (split-string (string-trim term) " &gt;&gt; \\| &amp;&gt; ")))
+
+(defun adoc--link (target text attributes)
+  "Return a link to TARGET that shows TEXT, or TARGET when that's nil.
+ATTRIBUTES are the document attributes in effect, where
+`hide-uri-scheme' leaves the scheme out of a TARGET that's shown."
+  (concat "<a>"
+          (or text
+              (if (assoc "hide-uri-scheme" attributes)
+                  (adoc--uri-without-scheme target)
+                target))
+          "</a>"))
+
+(defconst adoc--re-kbd-btn-macro
+  "\\(\\\\\\)?\\(kbd\\|btn\\):\\[\\(.*?[^\\]\\)]"
+  "Asciidoctor's regexp for the `kbd:' and `btn:' macros.")
+
+(defconst adoc--re-image-macro
+  "\\\\?i\\(mage\\|con\\):\\([^ \t\n:[]\\(?:[^\n[]*[^ \t\n[]\\)?\\)\\[\\(\\|.*?[^\\]\\)]"
+  "Asciidoctor's regexp for the `image:' and `icon:' macros.")
+
+(defconst adoc--re-index-term
+  "\\\\?\\(?:\\(indexterm2?\\):\\[\\(.*?[^\\]\\)]\\|((\\(.+?\\)))\\(?9:[^)]\\|\\'\\)\\)"
+  "Asciidoctor's regexp for index terms, `((term))' and `(((term)))'.")
+
+(defconst adoc--re-link
+  (concat "\\(^\\|link:\\|[ \t]\\|\\\\?&lt;\\(\\)\\|[]>()[;\"']\\)"
+          "\\(\\\\?" (regexp-opt adoc--url-schemes) "://\\)"
+          "\\(?:\\([^][ \t\n]+\\)\\[\\(\\|.*?[^\\]\\)]"
+          "\\|\\2\\([^ \t\n]+?\\)&gt;"
+          "\\|\\([^][ \t\n<]*\\([^][ \t\n,.?!<)]\\)\\)\\)")
+  "Asciidoctor's regexp for a URL, bare or as in `https://example.org[text]'.
+Group 1 is what comes in front, and group 2 matches when that's `<'.
+Group 3 is the scheme, then group 4 the rest of the target and 5 the
+text, or group 6 the rest of a target between `<' and `>', or 7 the
+rest of a bare one and 8 its last character.")
+
+(defconst adoc--re-link-macro
+  "\\\\?\\(?:link\\|\\(mailto\\)\\):\\(\\|[^ \t\n:[][^ \t\n[]*\\)\\[\\(\\|.*?[^\\]\\)]"
+  "Asciidoctor's regexp for the `link:' and `mailto:' macros.")
+
+(defconst adoc--re-xref-macro
+  (concat "\\\\?\\(?:&lt;&lt;\\([[:alnum:]_#/.:{].*?\\)&gt;&gt;"
+          "\\|xref:\\([[:alnum:]_#/.:{].*?\\)\\[\\(?:]\\|\\(.*?[^\\]\\)]\\)\\)")
+  "Asciidoctor's regexp for a cross-reference, `<<id>>' or `xref:id[]'.")
+
+(defvar adoc--re-inline-anchor)        ; with the other anchor regexps below
+
+(defun adoc--sub-macros (text attributes)
+  "Return TEXT with its inline macros converted, as Asciidoctor does it.
+ATTRIBUTES are the document attributes in effect.  Only the macros
+that make a difference to a section id are converted, and footnotes
+and menus aren't, though they do."
+  (cl-flet ((convert (regexp replace)
+              (setq text (adoc--gsub regexp text replace))))
+    (when (and (assoc "experimental" attributes)
+               (string-match-p "kbd:\\|btn:" text))
+      (convert adoc--re-kbd-btn-macro
+               (lambda (match s)
+                 (cond
+                  ((match-beginning 1) (substring match 1))
+                  ((equal (match-string 2 s) "btn")
+                   (concat "<b>" (match-string 3 s) "</b>"))
+                  (t (mapconcat (lambda (key) (concat "<kbd>" key "</kbd>"))
+                                (adoc--kbd-keys (match-string 3 s))
+                                "+"))))))
+    (when (string-match-p "image:\\|icon:" text)
+      (convert adoc--re-image-macro
+               (lambda (match s)
+                 (cond
+                  ((string-prefix-p "\\" match) (substring match 1))
+                  ((or (equal (match-string 1 s) "mage") (assoc "icons" attributes))
+                   "<img>")
+                  ;; Without icons, an icon shows its name.
+                  (t (concat "<span>["
+                             (replace-regexp-in-string
+                              "[_-]" " " (file-name-base (match-string 2 s)) t t)
+                             "&#93;</span>"))))))
+    (when (string-match-p "((\\|indexterm" text)
+      (convert adoc--re-index-term
+               (lambda (match s)
+                 (let ((escaped (string-prefix-p "\\" match))
+                       (term (match-string 3 s)))
+                   (cond
+                    ((equal (match-string 1 s) "indexterm")
+                     (if escaped (substring match 1) ""))
+                    ((match-beginning 1)
+                     (if escaped
+                         (substring match 1)
+                       (let ((term (string-trim (string-replace "\\]" "]" (match-string 2 s)))))
+                         (or (and (string-search "=" term)
+                                  (adoc--first-positional-attribute term))
+                             term))))
+                    ;; `\(((term)))' escapes the concealed term and leaves a
+                    ;; visible one in parentheses.
+                    (escaped
+                     (if (and (string-prefix-p "(" term) (string-suffix-p ")" term))
+                         (concat "(" (adoc--index-term (substring term 1 -1)) ")")
+                       (substring match 1)))
+                    ((string-prefix-p "(" term)
+                     (if (string-suffix-p ")" term)
+                         ""
+                       (concat "(" (adoc--index-term (substring term 1)))))
+                    ((string-suffix-p ")" term)
+                     (concat (adoc--index-term (substring term 0 -1)) ")"))
+                    (t (adoc--index-term term)))))))
+    (when (string-search "://" text)
+      (convert adoc--re-link
+               (lambda (match s)
+                 (let ((prefix (match-string 1 s))
+                       (scheme (match-string 3 s))
+                       (text (match-string 5 s)))
+                   (cond
+                    ((and (match-beginning 2) (not text)
+                          (string-prefix-p "\\" prefix))
+                     (substring match 1))
+                    ((string-prefix-p "\\" scheme)
+                     (concat prefix (substring match (1+ (length prefix)))))
+                    ;; `<https://example.org>'
+                    ((and (match-beginning 2) (not text))
+                     (if (match-beginning 6)
+                         (adoc--link (concat scheme (match-string 6 s)) nil attributes)
+                       match))
+                    (text
+                     (concat (unless (equal prefix "link:") prefix)
+                             (adoc--link (concat scheme (match-string 4 s))
+                                         (adoc--link-text text "=")
+                                         attributes)))
+                    ((member prefix '("link:" "\"" "'")) match)
+                    (t
+                     ;; A bare URL leaves a trailing `;' or `:', and a `)'
+                     ;; before it, out.
+                     (let ((target (concat scheme (match-string 7 s)))
+                           (suffix ""))
+                       (when (member (match-string 8 s) '(";" ":"))
+                         (setq suffix (match-string 8 s)
+                               target (substring target 0 -1))
+                         (when (string-suffix-p ")" target)
+                           (setq suffix (concat ")" suffix)
+                                 target (substring target 0 -1))))
+                       (if (equal target scheme)
+                           match
+                         (concat prefix (adoc--link target nil attributes) suffix)))))))))
+    (when (string-match-p "link:\\|mailto:" text)
+      (convert adoc--re-link-macro
+               (lambda (match s)
+                 (if (string-prefix-p "\\" match)
+                     (substring match 1)
+                   (let ((mailto (match-beginning 1))
+                         (target (match-string 2 s)))
+                     (adoc--link target
+                                 (or (adoc--link-text (match-string 3 s)
+                                                      (if mailto "," "="))
+                                     (and mailto target))
+                                 attributes))))))
+    (when (string-match-p "\\[\\[\\|anchor:" text)
+      (convert adoc--re-inline-anchor
+               (lambda (match _)
+                 (if (string-prefix-p "\\" match) (substring match 1) "<a></a>"))))
+    (when (string-match-p "&lt;&lt;\\|xref:" text)
+      (convert adoc--re-xref-macro
+               (lambda (match s)
+                 (if (string-prefix-p "\\" match)
+                     (substring match 1)
+                   (let ((refid (or (match-string 1 s) (match-string 2 s)))
+                         (macro (match-beginning 2))
+                         (text (match-string 3 s)))
+                     (cond
+                      (macro
+                       (when text
+                         (setq text (string-replace "\\]" "]" text))
+                         (when (string-search "=" text)
+                           (setq text (adoc--first-positional-attribute text)))))
+                      ((string-search "," refid)
+                       (let ((comma (string-search "," refid)))
+                         (setq text (string-trim-left (substring refid (1+ comma)))
+                               refid (substring refid 0 comma)))
+                       (when (string-empty-p text) (setq text nil))))
+                     (concat "<a>" (or text (adoc--xref-text refid macro attributes))
+                             "</a>")))))))
+  text)
+
+(defun adoc--apply-subs (text subs attributes)
+  "Return TEXT with the substitutions SUBS applied, as Asciidoctor does it.
+SUBS is a list of the symbols in `adoc--normal-subs', and ATTRIBUTES
+an alist of the document attributes in effect, see
+`adoc--substitute-attributes'.  With `macros' among them, the
+passthroughs are taken out first, and put back with their own
+substitutions applied at the end."
+  (let ((passthroughs '()))
+    (when (memq 'macros subs)
+      (setq text (adoc--extract-passthroughs
+                  text
+                  (lambda (content pass-subs)
+                    (push (cons content pass-subs) passthroughs)
+                    (format "\u0096%d\u0097" (1- (length passthroughs)))))))
+    (dolist (sub subs)
+      (setq text (pcase-exhaustive sub
+                   ('specialcharacters (adoc--escape-special-characters text))
+                   ('quotes (adoc--sub-quotes text))
+                   ('attributes (adoc--substitute-attributes text attributes))
+                   ('replacements (adoc--sub-replacements text))
+                   ('macros (adoc--sub-macros text attributes)))))
+    (if (not passthroughs)
+        text
+      (setq passthroughs (nreverse passthroughs))
+      (adoc--gsub "\u0096\\([0-9]+\\)\u0097" text
+                  (lambda (_ s)
+                    (let ((pass (nth (string-to-number (match-string 1 s))
+                                     passthroughs)))
+                      (adoc--apply-subs (car pass) (cdr pass) attributes)))))))
+
+(defun adoc--render-section-title (title &optional attributes)
+  "Return section TITLE rendered in HTML, as Asciidoctor renders it.
+Only as far as it matters for its id, see `adoc--sub-macros'.
+ATTRIBUTES is an alist of the document attributes in effect, see
+`adoc--substitute-attributes'."
+  (if (string-match-p "[][\\&<>*_`#^~\"'{(.=+$:-]" title)
+      (let ((case-fold-search nil))
+        (adoc--apply-subs title adoc--normal-subs attributes))
+    title))                             ; nothing to render
+
+(defun adoc--section-id (title prefix separator &optional attributes)
   "Return the Asciidoctor auto-id for the section titled TITLE.
 PREFIX and SEPARATOR are the `idprefix' and `idseparator' to use, see
-`adoc--section-id-params'.  Mirrors Asciidoctor's id generation: take
-the rendered title (see `adoc--section-title-text'), downcase it, drop
-entities and characters outside letters/digits/`_'/space/`.'/`-',
-prepend the prefix, translate each run of space, `.', `-' and separator
-characters to one separator, then drop a trailing separator, and a
-leading one when there's no prefix."
-  (let ((id (downcase (adoc--section-title-text title))))
+`adoc--section-id-params', and ATTRIBUTES the document attributes in
+effect, see `adoc--substitute-attributes'.  Mirrors Asciidoctor's id
+generation: take the rendered title (see `adoc--render-section-title'),
+downcase it, drop its tags, entities and characters outside
+letters/digits/`_'/space/`.'/`-', prepend the prefix, translate each
+run of space, `.', `-' and separator characters to one separator, then
+drop a trailing separator, and a leading one when there's no prefix."
+  (let ((id (downcase (adoc--render-section-title title attributes))))
     (setq id (replace-regexp-in-string
-              "&\\(?:[a-z][a-z]+[0-9]\\{0,2\\}\\|#[0-9]\\{2,6\\}\\|#x[0-9a-f]\\{2,5\\}\\);"
-              "" id t t))                ; entities
-    (setq id (replace-regexp-in-string "[^[:alnum:]_ .-]" "" id)) ; invalid chars
+              (concat "<[^>]+>"
+                      "\\|&\\(?:[a-z][a-z]+[0-9]\\{0,2\\}\\|#[0-9]\\{2,6\\}\\|#x[0-9a-f]\\{2,5\\}\\);"
+                      "\\|[^[:alnum:]_ .-]")
+              "" id t t))
     (setq id (concat prefix id))
     (if (string-empty-p separator)
         ;; An empty separator only deletes spaces; `.' and `-' are kept.
@@ -4526,32 +5009,21 @@ leading one when there's no prefix."
           (substring id 1)
         id))))
 
-(defun adoc--section-title-with-attributes (title attributes)
-  "Return section TITLE with the document ATTRIBUTES in effect applied.
-That's its attribute references substituted, and with `experimental'
-set, the `kbd:' and `btn:' macros replaced by their text."
-  (let ((text (adoc--substitute-attributes title attributes)))
-    (if (assoc "experimental" attributes)
-        (replace-regexp-in-string
-         "\\(?:kbd\\|btn\\):\\[\\([^]\n]*\\)\\]" "\\1" text t)
-      text)))
-
-(defun adoc--unique-section-id (title params taken next)
-  "Return the auto-id for TITLE with PARAMS, numbered if it's TAKEN.
-PARAMS is (PREFIX . SEPARATOR).  TAKEN is a hash table of the ids in
-use, and the first of `ID', `ID<separator>2', `ID<separator>3', ...
-that isn't is returned, as Asciidoctor does.  NEXT is a hash table of
-the number to try first for each ID, as the ones before it are taken."
-  (let ((id (adoc--section-id title (car params) (cdr params))))
-    (if (not (gethash id taken))
-        id
-      (let ((n (gethash id next 2))
-            candidate)
-        (while (gethash (setq candidate (concat id (cdr params) (number-to-string n)))
-                        taken)
-          (setq n (1+ n)))
-        (puthash id (1+ n) next)
-        candidate))))
+(defun adoc--unique-section-id (id separator taken next)
+  "Return ID, numbered with SEPARATOR if it's TAKEN.
+TAKEN is a hash table of the ids in use, and the first of `ID',
+`ID<separator>2', `ID<separator>3', ... that isn't is returned, as
+Asciidoctor does.  NEXT is a hash table of the number to try first
+for each ID, as the ones before it are taken."
+  (if (not (gethash id taken))
+      id
+    (let ((n (gethash id next 2))
+          candidate)
+      (while (gethash (setq candidate (concat id separator (number-to-string n)))
+                      taken)
+        (setq n (1+ n)))
+      (puthash id (1+ n) next)
+      candidate)))
 
 (defvar-local adoc--section-table-cache nil
   "The last `adoc--section-table' as (KEY . TABLE), see there.")
@@ -4609,13 +5081,13 @@ so on, as in Asciidoctor."
                 (when (> (nth 2 descriptor) 0)
                   (let* ((explicit (adoc--section-explicit-id descriptor))
                          (title (string-trim (nth 3 descriptor)))
+                         (params (adoc--section-id-params attributes antora))
                          (id (or explicit
                                  (when (assoc "sectids" attributes)
                                    (adoc--unique-section-id
-                                    (adoc--section-title-with-attributes
-                                     title attributes)
-                                    (adoc--section-id-params attributes antora)
-                                    taken next)))))
+                                    (adoc--section-id title (car params) (cdr params)
+                                                      attributes)
+                                    (cdr params) taken next)))))
                     (when id (puthash id t taken))
                     (push (list id title start (and explicit t)) result)))
                 (goto-char (nth 5 descriptor))))))

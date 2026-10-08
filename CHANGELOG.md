@@ -89,6 +89,7 @@
   - `ifdef` and `ifndef` branches count only when their condition holds, so the common `ifdef::env-github[]` block no longer changes the ids.
   - The attributes Asciidoctor and Antora set by default, like `backend-html5` or `env-site`, count as set.
   - Image paths resolve their references the way titles do: by the entries above them, case-insensitively, and through attributes that refer to other attributes.
+- [#105](https://github.com/bbatsov/adoc-mode/pull/105): Section auto-ids follow Asciidoctor's substitution order, so titles with passthroughs (`+{x}+`, `pass:[...]`), escaped quoted text (`\__x__`) or attribute values holding markup get the ids Asciidoctor gives them, and so do titles with icons, index terms or links under `:hide-uri-scheme:`.
 
 ## 0.9.0 (2026-06-02)
 

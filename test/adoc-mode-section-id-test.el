@@ -120,6 +120,28 @@
     (expect (adoc--section-id "Use <b>x</b>" "_" "_") :to-equal "_use_bxb")
     (expect (adoc--section-id "Use +++<b>x</b>+++ now" "_" "_") :to-equal "_use_x_now"))
 
+  (it "leaves the text of passthroughs alone"
+    (expect (adoc-test--section-ids
+             (concat "= D\n:x: Zed\n\n== +{x}+ a\n\n== pass:[{x}] b\n\n"
+                     "== pass:a[{x}] c\n\n== ++_y_++ d\n"))
+            :to-equal '("_x_a" "_x_b" "_zed_c" "_y_d")))
+
+  (it "formats quoted text before substituting attribute references"
+    (expect (adoc-test--section-ids "= D\n:y: __foo__\n\n== a{y}b\n")
+            :to-equal '("_a_foo_b")))
+
+  (it "leaves escaped quoted text as it is"
+    (expect (adoc--section-id "a\\__x__b" "_" "_") :to-equal "_a_x_b")
+    (expect (adoc--section-id "\\_x_ y" "" "-") :to-equal "_x_-y"))
+
+  (it "applies the document attributes that change how links and icons show"
+    (expect (adoc-test--section-ids "= D\n:hide-uri-scheme:\n\n== See https://x.org\n")
+            :to-equal '("_see_x_org"))
+    (expect (adoc-test--section-ids "= D\n\n== icon:check[] Done\n")
+            :to-equal '("_check_done"))
+    (expect (adoc-test--section-ids "= D\n:icons: font\n\n== icon:check[] Done\n")
+            :to-equal '("_done")))
+
   (it "uses the text of kbd: and btn: macros when they're enabled"
     (expect (adoc-test--section-ids "= D\n\n== Press kbd:[Ctrl+C]\n")
             :to-equal '("_press_kbdctrlc"))
@@ -148,7 +170,14 @@
                     "Caf&#233; &amp; Bar &#x2014; x" "Use <b>x</b> and a < b > c"
                     "Use +++<b>x</b>+++ and pass:[<i>y</i>] now"
                     "Use{sp}{cpp} and{nbsp}more {empty}x {amp} y {plus}z"
-                    "Press kbd:[Ctrl+C] or btn:[OK]")))
+                    "Press kbd:[Ctrl+C] or btn:[OK]" "Keys kbd:[Ctrl + T] and kbd:[Ctrl++]"
+                    "+{x}+ and pass:[{x}] and pass:q[_q_] and pass:c[<b>c</b>]"
+                    "$$<i>z</i>$$ and ++<b>y</b>++ and +++<b>x</b>+++"
+                    "a\\__x__b and \\_y_ z" "*a*_b_ c" "[.r]*bold* and \\[.r]_it_"
+                    "Copy &copy; and &amp;copy; and &#169;" "x\\--y and a\\-- b"
+                    "Index ((term)) and (((hidden))) and indexterm2:[shown]"
+                    "icon:check[] Done" "stem:[x^2] math" "See <<x, >> and <<a.adoc#b>>"
+                    "E mailto:a@b.co[Me, Subject] and https://x.org[Text^]")))
       (dolist (attrs '("" ":idprefix:\n:idseparator: -\n" ":experimental:\n"))
         (let ((doc (concat "= D\n" attrs "\n"
                            (mapconcat (lambda (title) (concat "== " title "\n\n"))
@@ -252,15 +281,22 @@
 
   (it "matches the real asciidoctor"
     (assume (executable-find "asciidoctor") "asciidoctor not installed")
-    (dolist (doc '("= D\n:idprefix:\n:idseparator: -\n\n== Foo Bar\n"
-                   "= D\n\n== Foo\n\n:idprefix: x\n:idseparator: .\n\n== Bar Baz\n"
-                   "= D\n:idseparator: ab\n\n== Foo Bar\n"
-                   "= D\n:idprefix: sec-\n\n== Foo Bar\n\n:idprefix: x\n\n== .NET Core\n"
-                   "= D\n\n== Foo\n\n:sectids!:\n\n== Bar\n\n:sectids:\n\n== Baz\n"
-                   "= D\n:Product: Acme\n:full: {product} Pro\n\n== {full} Setup\n"
-                   "= D\n\n== {p} A\n\n:p: Zed \\\n  Zap\n\n== {p} B\n\n:p!:\n\n== {p} C\n"
-                   "= D\n:p: Zed\n\n== \\{p} A\n\n----\n:p: Zap\n----\n\n== {p} B\n"
-                   "= D\n\n====\n```ruby\n:p: Zed\n```\n:q: Zap\n====\n\n== {p} {q}\n"))
+    (dolist (doc (list "= D\n:idprefix:\n:idseparator: -\n\n== Foo Bar\n"
+                       "= D\n\n== Foo\n\n:idprefix: x\n:idseparator: .\n\n== Bar Baz\n"
+                       "= D\n:idseparator: ab\n\n== Foo Bar\n"
+                       "= D\n:idprefix: sec-\n\n== Foo Bar\n\n:idprefix: x\n\n== .NET Core\n"
+                       "= D\n\n== Foo\n\n:sectids!:\n\n== Bar\n\n:sectids:\n\n== Baz\n"
+                       "= D\n:Product: Acme\n:full: {product} Pro\n\n== {full} Setup\n"
+                       "= D\n\n== {p} A\n\n:p: Zed \\\n  Zap\n\n== {p} B\n\n:p!:\n\n== {p} C\n"
+                       "= D\n:p: Zed\n\n== \\{p} A\n\n----\n:p: Zap\n----\n\n== {p} B\n"
+                       "= D\n\n====\n```ruby\n:p: Zed\n```\n:q: Zap\n====\n\n== {p} {q}\n"
+                       (concat "= D\n:x: _foo_\n:y: __foo__\n:z: a -> b\n:w: link:u[Text]\n"
+                               ":v: +p+\n\n== {x} bar\n\n== a{y}b\n\n== {z}\n\n== {w}\n\n== {v}\n")
+                       (concat "= D\n:hide-uri-scheme:\n:icons: font\n\n"
+                               "== See https://x.org and link:https://y.org[]\n\n"
+                               "== icon:check[] Done\n")
+                       (concat "= D\n:p: pass:[<b>raw</b>]\n:q: pass:q[*s* _e_]\n:s: a < b & c\n"
+                               ":t: {lt}b{gt}tag{lt}/b{gt}\n\n== {p} {q}\n\n== {s} {t}\n")))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
