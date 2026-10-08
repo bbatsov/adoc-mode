@@ -523,6 +523,46 @@
     (when-fontifying-it "fontifies a thematic break (ruler)"
       ("'''" ("'''" adoc-complex-replacement-face)))
 
+    (when-fontifying-it "fontifies a Markdown-style thematic break"
+      ("---" ("---" adoc-complex-replacement-face))
+      ("***" ("***" adoc-complex-replacement-face))
+      ("* * *" ("* * *" adoc-complex-replacement-face))
+      ("Para.\n\n  - - -" ("- - -" adoc-complex-replacement-face))
+      ("* * *\n\n* * *"
+       ("* * *" adoc-complex-replacement-face)
+       ("* * *" adoc-complex-replacement-face)))
+
+    (when-fontifying-it "fontifies a thematic break where a block begins"
+      ("== Title\n* * *" ("* * *" adoc-complex-replacement-face))
+      ;; an attribute or anchor line ends the paragraph above it
+      ("Para.\n[.fancy]\n_ _ _" ("_ _ _" adoc-complex-replacement-face))
+      ("[[x]]\n.Title\n// comment\n---" ("---" adoc-complex-replacement-face))
+      (":foo: bar\n---" ("---" adoc-complex-replacement-face))
+      ("====\n* * *\n====" ("* * *" adoc-complex-replacement-face))
+      ("* a\n+\n---" ("---" adoc-complex-replacement-face))
+      ;; but a block title, comment or attribute entry doesn't
+      ("Para.\n.Title\n---" ("---" nil))
+      ("Para.\n// comment\n---" ("---" nil))
+      ("Para.\n---" ("---" nil))
+      ;; and a verbatim style makes it a paragraph
+      ("[source]\n---" ("---" nil)))
+
+    (when-fontifying-it "fontifies a thematic break in a list"
+      ;; `***' can't be an item
+      ("* a\n\n***" ("***" adoc-complex-replacement-face))
+      ;; and `* * *' is one only with a level of the list using `*'
+      ("- a\n\n* * *" ("* * *" adoc-complex-replacement-face))
+      ("- a\n- - -\n\n* * *" ("* * *" adoc-complex-replacement-face))
+      ("* a\nmore\n- - -" ("- - -" adoc-complex-replacement-face))
+      ("* a\n\n* * *" (6 6 adoc-list-face) (8 10 nil))
+      ("* a\n** b\n\n* * *" (11 11 adoc-list-face))
+      ("- a\n- - -" (5 5 adoc-list-face))
+      ;; or right below an item
+      ("* a\n- - -" (5 5 adoc-list-face)))
+
+    (when-fontifying-it "doesn't take a line in a listing for a thematic break"
+      ("----\n* * *\n----" ("* * *" adoc-code-face)))
+
     (when-fontifying-it "fontifies a page break"
       ("<<<" ("<<<" adoc-meta-face)))
 

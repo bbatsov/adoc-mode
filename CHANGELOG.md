@@ -73,6 +73,7 @@
 - [#98](https://github.com/bbatsov/adoc-mode/pull/98): Section auto-ids take the document attributes into account the way Asciidoctor does: attribute references in a title are substituted before its id is derived (`== {product} Setup`), `:sectids!:` turns auto-ids off, and `:idprefix:` / `:idseparator:` apply from the line that sets them, including in buffers that aren't visiting a file.
 - [#98](https://github.com/bbatsov/adoc-mode/pull/98): Repeated section titles get numbered ids (`_foo`, `_foo_2`, ...) as in Asciidoctor, skipping the ids explicit anchors above them already use, so a reference to `_foo_2` leads to the second section instead of nowhere.
 - [#98](https://github.com/bbatsov/adoc-mode/pull/98): Section auto-ids of titles with markup match Asciidoctor's: link and xref macros contribute their text, images and anchors nothing, built-in attributes like `{nbsp}` and replacements like `--` or `(C)` disappear the way their entities do, and emphasis loses its underscores even with an Antora-style `-` separator.
+- [#102](https://github.com/bbatsov/adoc-mode/pull/102): Markdown-style thematic breaks (`---`, `* * *` and the like) are highlighted like `'''`, and the list commands no longer take `* * *` for a list item, unless it continues a list using `*`, where Asciidoctor reads it as one.
 
 ## 0.9.0 (2026-06-02)
 

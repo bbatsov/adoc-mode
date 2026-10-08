@@ -2727,6 +2727,84 @@ between matching delimiters, never in the surrounding prose."
          '(setq adoc--table-cell-separator nil)
          '(0 '(face adoc-table-face adoc-reserved block-del) t))))
 
+(defconst adoc--re-markdown-thematic-break
+  "^ \\{0,3\\}\\(\\([-*_]\\)\\( *\\)\\2\\3\\2\\)[ \t]*$"
+  "Regexp matching a Markdown-style thematic break, such as `* * *'.
+Group 1 is the break without its indentation, group 2 its character and
+group 3 the spaces between them.")
+
+(defconst adoc--re-verbatim-style-line
+  "^\\[\\(?:literal\\|listing\\|source\\|verse\\)\\(?:[,#.%].*\\)?\\][ \t]*$"
+  "Regexp matching a block attribute line that makes a paragraph verbatim.")
+
+(defun adoc--thematic-break-line-p (pos)
+  "Return non-nil when the line at POS looks like a thematic break."
+  (save-excursion
+    (goto-char pos)
+    (beginning-of-line)
+    (looking-at-p adoc--re-markdown-thematic-break)))
+
+(defun adoc--block-begins-p ()
+  "Return non-nil when a block can begin on the line at point.
+That's below a blank line, a section title, a block delimiter or a list
+continuation, or below a block attribute or anchor line, which also
+ends a paragraph above it.  Block titles,
+comments and attribute entries leave it to the line above them.  A block
+attribute line with a verbatim style, such as `[source]', makes the
+line part of a paragraph, though."
+  (save-excursion
+    (let (attributes)
+      (catch 'done
+        (while t
+          (cond
+           ((or (/= (forward-line -1) 0) (looking-at-p "[ \t]*$"))
+            (throw 'done t))
+           ((looking-at-p adoc--re-verbatim-style-line) (throw 'done nil))
+           ((looking-at-p "\\[.*\\][ \t]*$") (setq attributes t))
+           ((or (looking-at-p (adoc-re-one-line-title nil))
+                (looking-at-p adoc--re-block-delimiter)
+                (looking-at-p "\\+[ \t]*$"))
+            (throw 'done t))
+           ((looking-at-p "\\.[^ \t.]\\|//\\(?:[^/]\\|$\\)\\|:!?[[:alnum:]_][^:\n]*:\\(?:[ \t]\\|$\\)"))
+           (t (throw 'done attributes))))))))
+
+(defun adoc--open-list-keys (pos)
+  "Return the keys of the list levels open above the line at POS.
+They come innermost first, see `adoc--list-item-key'.  Lines like
+`* * *' in the list are items when their key is open, and thematic
+breaks, which Asciidoctor puts in the item above, otherwise."
+  (let (keys)
+    (dolist (item (reverse (adoc--list-items-above (list :marker-beg pos) t))
+                  keys)
+      (let* ((key (adoc--list-item-key item))
+             (open (member key keys)))
+        (cond
+         (open (setq keys open))
+         ((not (adoc--thematic-break-line-p (plist-get item :marker-beg)))
+          (push key keys)))))))
+
+(defun adoc--markdown-thematic-break-p ()
+  "Return non-nil when the line at point is a Markdown-style thematic break.
+Asciidoctor takes `---', `* * *' and the like for one where a block
+begins, see `adoc--block-begins-p'.  Where `* * *' or `- - -' continues
+a list, it's an item instead when a level open there has the same
+marker, or when it's right below an item."
+  (save-excursion
+    (save-match-data
+      (beginning-of-line)
+      (and (looking-at adoc--re-markdown-thematic-break)
+           (not (nth 2 (adoc--delimited-block-at (point))))
+           (let* ((char (match-string-no-properties 2))
+                  (open (and (not (string-empty-p (match-string 3)))
+                             (not (equal char "_"))
+                             (adoc--open-list-keys (match-beginning 1)))))
+             (if open
+                 (not (or (member char open)
+                          (save-excursion
+                            (and (zerop (forward-line -1))
+                                 (adoc--list-item-at-point t)))))
+               (adoc--block-begins-p)))))))
+
 (defun adoc-get-font-lock-keywords ()
   "Return list of keywords for `adoc-mode'."
   (list
@@ -2794,6 +2872,12 @@ between matching delimiters, never in the surrounding prose."
    ;; Is a block marcro in asciidoc.conf, although manual has it in the "text formatting" section
    ;; ^'{3,}$=#ruler
    (list "^\\('\\{3,\\}+\\)[ \t]*$"
+         '(1 '(face adoc-complex-replacement-face adoc-reserved block-del)))
+   ;; Markdown-style ruler line, which comes before the list items, as `* * *'
+   ;; would make one
+   (list (lambda (end)
+           (adoc-kwf-std end adoc--re-markdown-thematic-break '(1) nil
+                         #'adoc--markdown-thematic-break-p))
          '(1 '(face adoc-complex-replacement-face adoc-reserved block-del)))
    ;; forced pagebreak
    ;; Is a block marcro in asciidoc.conf, although manual has it in the "text formatting" section
@@ -3391,7 +3475,7 @@ non-nil, the sub type is toggled."
 
 ;;;; List editing
 
-(defun adoc--list-item-at-point ()
+(defun adoc--list-item-at-point (&optional with-breaks)
   "Return a description of the list item on the current line, or nil.
 The description is a plist with these keys:
 
@@ -3404,18 +3488,20 @@ The description is a plist with these keys:
 
 Labeled lists and callouts are intentionally not recognised, as
 their markers are too easily confused with ordinary prose, and
-neither are lines in verbatim blocks, such as listings."
+neither are lines in verbatim blocks, such as listings, or thematic
+breaks, such as `* * *', unless WITH-BREAKS is non-nil."
   (save-excursion
     (beginning-of-line)
     (cond
      ((nth 2 (adoc--delimited-block-at (point))) nil)
      ((looking-at (adoc-re-oulisti 'adoc-unordered 'adoc-all-levels))
       (let ((marker (match-string-no-properties 2)))
-        (list :type 'unordered
-              :marker marker
-              :indent (match-string-no-properties 1)
-              :marker-beg (match-beginning 2)
-              :level (if (string-prefix-p "-" marker) 0 (length marker)))))
+        (unless (and (not with-breaks) (adoc--markdown-thematic-break-p))
+          (list :type 'unordered
+                :marker marker
+                :indent (match-string-no-properties 1)
+                :marker-beg (match-beginning 2)
+                :level (if (string-prefix-p "-" marker) 0 (length marker))))))
      ((looking-at (adoc-re-oulisti 'adoc-implicitly-numbered 'adoc-all-levels))
       (let ((marker (match-string-no-properties 2)))
         (list :type 'implicit-numbered
@@ -3429,6 +3515,16 @@ neither are lines in verbatim blocks, such as listings."
             :indent (match-string-no-properties 1)
             :marker-beg (match-beginning 2)
             :level 0)))))
+
+(defun adoc--list-item-key (item)
+  "Return what sets ITEM's nesting level in its list.
+That's its marker, or for an explicitly numbered item, the kind of
+numbering.  As in Asciidoctor, an item nests under the one above it when
+their keys differ, unless an item it's nested in has the same key, in
+which case it goes back out to that item's level."
+  (if (eq (plist-get item :type) 'explicit-numbered)
+      (adoc--explicit-marker-kind (plist-get item :marker))
+    (plist-get item :marker)))
 
 (defun adoc--check-level (level max-level)
   "Return LEVEL, or signal a `user-error' if it's outside 0 to MAX-LEVEL.
@@ -3454,12 +3550,12 @@ them up."
             (match-string 2 marker)))
    (t marker)))
 
-(defun adoc--list-items-above (item)
+(defun adoc--list-items-above (item &optional with-breaks)
   "Return the items above ITEM in its list, nearest first.
 The list ends at a paragraph or block that follows a blank line, as in
 AsciiDoc, or at the start of the delimited block it's in.  A delimited
 block inside the list is skipped as a whole, so its lines aren't taken
-for items."
+for items.  WITH-BREAKS is passed on to `adoc--list-item-at-point'."
   (save-excursion
     (goto-char (plist-get item :marker-beg))
     (let ((own (adoc--delimited-block-at (line-beginning-position)))
@@ -3471,7 +3567,7 @@ for items."
             (cond
              (nested (goto-char (car block)))
              ((and block (<= (point) (nth 1 own))) (throw 'done nil)))
-            (let ((other (and (not nested) (adoc--list-item-at-point))))
+            (let ((other (and (not nested) (adoc--list-item-at-point with-breaks))))
               (cond
                (other (push other items))
                ((looking-at-p "[ \t]*$"))

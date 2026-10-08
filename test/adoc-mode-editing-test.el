@@ -292,6 +292,22 @@
     ;; indentation is preserved
     (adoc-test-trans "  ** foo!" "  ** foo\n  ** " '(adoc-insert-list-item)))
 
+  (it "doesn't take a thematic break for a list item"
+    (adoc-test-trans "* * *!" "* * *"
+                     '(expect (adoc-insert-list-item) :to-throw 'user-error))
+    ;; so a list right below one starts afresh
+    (adoc-test-trans "* * *\n* a!" "* * *\n* a"
+                     '(expect (adoc-demote 1) :to-throw 'user-error))
+    ;; but in a list using `*', `* * *' is an item, as Asciidoctor has it
+    (adoc-test-trans "* a\n\n* * *!" "* a\n\n* * *\n* " '(adoc-insert-list-item))
+    (adoc-test-trans "- a\n\n* * *!" "- a\n\n* * *"
+                     '(expect (adoc-insert-list-item) :to-throw 'user-error))
+    ;; however many of them follow it
+    (let ((items (mapconcat #'identity (make-list 40 "* * *") "\n\n")))
+      (adoc-test-trans (concat "* a\n\n" items "!")
+                       (concat "* a\n\n" items "\n* ")
+                       '(adoc-insert-list-item))))
+
   (it "errors when inserting a list item outside a list"
     (with-temp-buffer
       (adoc-mode)
