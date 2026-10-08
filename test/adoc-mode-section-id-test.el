@@ -126,6 +126,20 @@
                      "== pass:a[{x}] c\n\n== ++_y_++ d\n"))
             :to-equal '("_x_a" "_x_b" "_zed_c" "_y_d")))
 
+  (it "doesn't start a passthrough on the closing `+' of the one before"
+    (expect (adoc-test--section-ids
+             "= D\n:x: v\n\n== C [.r]+x+[.r]+y+\n\n== D +x++{x}+\n")
+            :to-equal '("_c_x_ry" "_d_xv")))
+
+  (it "doesn't take the characters of its placeholders in a title for one"
+    (expect (adoc-test--section-ids
+             "= D\n\n== A +x+ \u009699\u0097 b\n\n== B +\u00960\u0097+ c\n")
+            :to-equal '("_a_x_99_b" "_b_0_c")))
+
+  (it "puts back a passthrough inside another one"
+    (expect (adoc-test--section-ids "= D\n:x: v\n\n== A +x++{x}++y+\n")
+            :to-equal '("_a_xxy")))
+
   (it "formats quoted text before substituting attribute references"
     (expect (adoc-test--section-ids "= D\n:y: __foo__\n\n== a{y}b\n")
             :to-equal '("_a_foo_b")))
@@ -177,7 +191,8 @@
                     "Copy &copy; and &amp;copy; and &#169;" "x\\--y and a\\-- b"
                     "Index ((term)) and (((hidden))) and indexterm2:[shown]"
                     "icon:check[] Done" "stem:[x^2] math" "See <<x, >> and <<a.adoc#b>>"
-                    "E mailto:a@b.co[Me, Subject] and https://x.org[Text^]")))
+                    "E mailto:a@b.co[Me, Subject] and https://x.org[Text^]"
+                    "C [.r]+x+[.r]+y+" "D +x++{x}+" "A +x++{x}++y+" "B ++{x}++ +{x}+")))
       (dolist (attrs '("" ":idprefix:\n:idseparator: -\n" ":experimental:\n"))
         (let ((doc (concat "= D\n" attrs "\n"
                            (mapconcat (lambda (title) (concat "== " title "\n\n"))

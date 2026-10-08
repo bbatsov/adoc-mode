@@ -5181,27 +5181,34 @@ place.  An escaped passthrough is left as text."
                      (funcall extract (string-replace "\\]" "]" (match-string 8 s))
                               (adoc--pass-subs (or subs "")))))))))))
   (when (string-search "+" text)
-    (setq text
-          (adoc--gsub
-           adoc--re-pass text
-           (lambda (_ s)
-             (let ((beg (match-beginning 0))
-                   (attrs (match-string 2 s))
-                   (content (match-string 4 s)))
-               (cond
-                ;; Like constrained quoted text, it needs a character in
-                ;; front that can't be part of a word, unless that's the
-                ;; backslash of an escape.
-                ((and (not (match-beginning 1))
-                      (or attrs (not (match-beginning 3)))
-                      (> beg 0)
-                      (string-match-p "[[:alnum:]_;:\\]" (substring s (1- beg) beg)))
-                 nil)
-                ((match-beginning 3)
-                 (concat (match-string 1 s) (and attrs (concat "[" attrs "]"))
-                         "+" content "+"))
-                (t (concat (and (match-beginning 1) (concat "[" attrs "]"))
-                           (funcall extract content '(specialcharacters))))))))))
+    (let ((taken 0))
+      (setq text
+            (adoc--gsub
+             adoc--re-pass text
+             (lambda (_ s)
+               (let ((beg (match-beginning 0))
+                     (attrs (match-string 2 s))
+                     (content (match-string 4 s)))
+                 (cond
+                  ;; Like constrained quoted text, it needs a character in
+                  ;; front that can't be part of a word, unless that's the
+                  ;; backslash of an escape.  Asciidoctor's regexp takes
+                  ;; that character in, so it can't be the closing `+' of
+                  ;; the passthrough before.
+                  ((and (not (match-beginning 1))
+                        (or attrs (not (match-beginning 3)))
+                        (> beg 0)
+                        (or (< (1- beg) taken)
+                            (string-match-p "[[:alnum:]_;:\\]"
+                                            (substring s (1- beg) beg))))
+                   nil)
+                  (t
+                   (setq taken (or (match-beginning 9) (match-end 0)))
+                   (if (match-beginning 3)
+                       (concat (match-string 1 s) (and attrs (concat "[" attrs "]"))
+                               "+" content "+")
+                     (concat (and (match-beginning 1) (concat "[" attrs "]"))
+                             (funcall extract content '(specialcharacters))))))))))))
   (when (string-match-p "stem:\\|math:" text)
     (setq text
           (adoc--gsub
@@ -5573,7 +5580,9 @@ the counters in TEXT counted in ATTRIBUTES."
   (let ((passthroughs '()))
     (when (memq 'macros subs)
       (setq text (adoc--extract-passthroughs
-                  text
+                  ;; The placeholders are made of these, so they can't be
+                  ;; in the text, where they wouldn't show anyway.
+                  (replace-regexp-in-string "[\u0096\u0097]" "" text t t)
                   (lambda (content pass-subs)
                     (push (cons content pass-subs) passthroughs)
                     (format "\u0096%d\u0097" (1- (length passthroughs)))))))
@@ -5588,15 +5597,22 @@ the counters in TEXT counted in ATTRIBUTES."
                    ('macros (adoc--sub-macros text attributes)))))
     (when passthroughs
       (setq passthroughs (nreverse passthroughs))
-      (setq text (adoc--gsub "\u0096\\([0-9]+\\)\u0097" text
-                             (lambda (_ s)
-                               (let ((pass (nth (string-to-number (match-string 1 s))
-                                                passthroughs)))
-                                 (pcase-let ((`(,passed . ,counted)
-                                              (adoc--apply-subs (car pass) (cdr pass)
-                                                                attributes)))
-                                   (setq attributes counted)
-                                   passed))))))
+      ;; A passthrough's text can hold the placeholder of one taken out
+      ;; before it, as `+' can enclose a `++' passthrough, so it's put back
+      ;; with the ones below LIMIT.
+      (cl-labels ((restore (text limit)
+                    (adoc--gsub "\u0096\\([0-9]+\\)\u0097" text
+                                (lambda (match s)
+                                  (let* ((i (string-to-number (match-string 1 s)))
+                                         (pass (and (< i limit) (nth i passthroughs))))
+                                    (if (not pass)
+                                        match
+                                      (pcase-let ((`(,passed . ,counted)
+                                                   (adoc--apply-subs (car pass) (cdr pass)
+                                                                     attributes)))
+                                        (setq attributes counted)
+                                        (restore passed i))))))))
+        (setq text (restore text (length passthroughs)))))
     (cons text attributes)))
 
 (defun adoc--render-section-title (title &optional attributes)
