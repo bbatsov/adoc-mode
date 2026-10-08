@@ -269,6 +269,10 @@
       (re-search-forward "^== ")
       (expect (adoc--section-id-at-point) :to-equal "_acme_setup")))
 
+  (it "lets an attribute entry refer to the attribute it sets"
+    (expect (adoc-test--section-ids "= D\n:p: Acme\n:p: {p} Pro\n\n== {p} Setup\n")
+            :to-equal '("_acme_pro_setup")))
+
   (it "ignores attribute entries in verbatim blocks"
     (expect (adoc-test--section-ids
              "= D\n\n----\n:p: Zed\n----\n\n====\n:q: Zap\n\nx\n====\n\n== {p} {q}\n")
@@ -287,6 +291,7 @@
                        "= D\n:idprefix: sec-\n\n== Foo Bar\n\n:idprefix: x\n\n== .NET Core\n"
                        "= D\n\n== Foo\n\n:sectids!:\n\n== Bar\n\n:sectids:\n\n== Baz\n"
                        "= D\n:Product: Acme\n:full: {product} Pro\n\n== {full} Setup\n"
+                       "= D\n:p: Acme\n:p: {p} Pro\n\n== {p} Setup\n"
                        "= D\n\n== {p} A\n\n:p: Zed \\\n  Zap\n\n== {p} B\n\n:p!:\n\n== {p} C\n"
                        "= D\n:p: Zed\n\n== \\{p} A\n\n----\n:p: Zap\n----\n\n== {p} B\n"
                        "= D\n\n====\n```ruby\n:p: Zed\n```\n:q: Zap\n====\n\n== {p} {q}\n"

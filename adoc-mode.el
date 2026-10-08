@@ -4387,13 +4387,12 @@ the substitutions the macro names applied."
 (defun adoc--apply-attribute-entry (name value attributes)
   "Return ATTRIBUTES, an alist of (NAME . VALUE), with NAME set to VALUE.
 A nil VALUE unsets it.  VALUE can refer to the attributes set before,
-and it's stored the way Asciidoctor stores it, see
+NAME included, and it's stored the way Asciidoctor stores it, see
 `adoc--attribute-value'.  ATTRIBUTES itself is left alone."
-  (setq attributes (cl-remove name attributes :key #'car :test #'equal))
   (if value
       (cons (cons name (adoc--attribute-value value attributes))
-            attributes)
-    attributes))
+            (cl-remove name attributes :key #'car :test #'equal))
+    (cl-remove name attributes :key #'car :test #'equal)))
 
 (defun adoc--attributes-at (pos)
   "Return the document attributes in effect at POS, as an alist.
