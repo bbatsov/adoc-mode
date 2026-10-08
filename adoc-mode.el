@@ -4067,6 +4067,18 @@ and title's text are not preserved, afterwards its always one space."
 Group 2 is the name and group 4 the value.  Group 1 or 3 matches the
 `!' of an entry that unsets the attribute.")
 
+(defconst adoc--builtin-attribute-values
+  '(("amp" . "&") ("apos" . "&#39;") ("asterisk" . "*") ("backslash" . "\\")
+    ("backtick" . "`") ("blank" . "") ("brvbar" . "&#166;") ("caret" . "^")
+    ("cpp" . "C&#43;&#43;") ("deg" . "&#176;") ("empty" . "") ("endsb" . "]")
+    ("gt" . ">") ("ldquo" . "&#8220;") ("lsquo" . "&#8216;") ("lt" . "<")
+    ("nbsp" . "&#160;") ("plus" . "&#43;") ("pp" . "&#43;&#43;")
+    ("quot" . "&#34;") ("rdquo" . "&#8221;") ("rsquo" . "&#8217;")
+    ("sp" . " ") ("startsb" . "[") ("tilde" . "~") ("two-colons" . "::")
+    ("two-semicolons" . ";;") ("vbar" . "|") ("wj" . "&#8288;")
+    ("zwsp" . "&#8203;"))
+  "Asciidoctor's built-in attributes that stand for a character.")
+
 (defun adoc--in-verbatim-block-p (pos)
   "Return non-nil when POS is in the content of a verbatim delimited block.
 That's a listing, literal, passthrough or comment block, whose content
@@ -4100,7 +4112,8 @@ blocks are just text, so they're left out."
 
 (defun adoc--substitute-attributes (text attributes)
   "Replace the attribute references in TEXT with their values.
-ATTRIBUTES is an alist of (NAME . VALUE) with downcased names.  A
+ATTRIBUTES is an alist of (NAME . VALUE) with downcased names, which
+take precedence over Asciidoctor's built-in character attributes.  A
 reference to an attribute that isn't set stays as it is, as Asciidoctor
 leaves it by default, and an escaped one (`\\{name}') loses its
 backslash."
@@ -4112,7 +4125,8 @@ backslash."
        (let ((name (downcase (match-string 2 ref))))
          (cond
           ((match-beginning 1) (substring ref 1))
-          ((cdr (assoc name attributes)))
+          ((cdr (or (assoc name attributes)
+                    (assoc name adoc--builtin-attribute-values))))
           (t ref))))
      text t t)))
 
@@ -4151,16 +4165,99 @@ separator is used."
          (cons (or prefix (if antora "" "_"))
                (substring separator 0 (min 1 (length separator))))))))
 
+(defun adoc--link-macro-text (text)
+  "Return the text a link or xref macro with attribute list TEXT shows.
+That's TEXT itself unless it has named attributes, and then its first
+positional attribute.  Return nil when there's none, as the macro shows
+its target then."
+  (cond
+   ((string-empty-p text) nil)
+   ((not (string-search "=" text)) text)
+   ((string-match "\\`\"\\([^\"]*\\)\"" text) (match-string 1 text))
+   (t (let ((first (car (split-string text ","))))
+        (unless (string-search "=" first) first)))))
+
+(defun adoc--section-title-text (title)
+  "Return the text of section TITLE the way Asciidoctor renders it.
+Only as far as it matters for its id, which is derived from the
+rendered title with the markup taken out: link and xref macros give
+their text, images and anchors nothing, a role list before quoted
+text goes, emphasis loses its underscores, and the replacements for
+the copyright sign, dashes, the ellipsis and arrows become entities.
+Attribute references are expected to be substituted already."
+  (if (not (string-match-p "[][+<>_(:.=-]" title))
+      title                             ; nothing to render
+    (adoc--render-section-title title)))
+
+(defun adoc--render-section-title (title)
+  "Do the work of `adoc--section-title-text' for TITLE."
+  (let ((case-fold-search nil)
+        (text title))
+    ;; Raw HTML passes through, and the id leaves its tags out.
+    (setq text (replace-regexp-in-string
+                "\\+\\+\\+\\(.+?\\)\\+\\+\\+\\|pass:[a-z,]*\\[\\(.*?\\)\\]"
+                (lambda (pass)
+                  (let ((content (or (match-string 1 pass) (match-string 2 pass))))
+                    (save-match-data
+                      (replace-regexp-in-string "<[^>]+>" "" content))))
+                text t t))
+    (setq text (replace-regexp-in-string
+                "\\[\\[[^]\n]*\\]\\]\\|anchor:[^ \t\n[]+\\[[^]\n]*\\]\\|image:[^ \t\n[]+\\[[^]\n]*\\]"
+                "" text t t))
+    (setq text (replace-regexp-in-string "<<[^,>\n]+,[ \t]*\\([^>\n]+\\)>>" "\\1" text t))
+    (setq text (replace-regexp-in-string
+                "\\(link:\\|mailto:\\|xref:\\|\\(?:https?\\|ftp\\|irc\\)://\\)\\([^][ \t\n]*\\)\\[\\([^]\n]*\\)\\]"
+                (lambda (macro)
+                  (let ((kind (match-string 1 macro))
+                        (target (match-string 2 macro))
+                        (label (match-string 3 macro)))
+                    (save-match-data
+                      (cond
+                       ((adoc--link-macro-text label))
+                       ((string-suffix-p "//" kind) (concat kind target))
+                       ;; Asciidoctor shows the converted path of another
+                       ;; document
+                       ((equal kind "xref:")
+                        (replace-regexp-in-string
+                         "\\.adoc\\(?:#.*\\)?\\'" ".html" target))
+                       (t target)))))
+                text t t))
+    ;; A role or other attribute list before quoted text: `[.role]#text#'.
+    (setq text (replace-regexp-in-string
+                "\\(^\\|[^[:alnum:]_;:}]\\)\\[[^]\n]*\\]\\([#*_`^~]\\)" "\\1\\2" text t))
+    ;; Emphasis, the one kind of quoted text whose markup is a valid id
+    ;; character.  Constrained emphasis needs no word character around it,
+    ;; and as matching it uses up the character after it, it takes another
+    ;; pass for each emphasized word that directly follows another.
+    (setq text (replace-regexp-in-string "__\\(.+?\\)__" "\\1" text t))
+    (let ((re (concat "\\(^\\|[^[:alnum:]_;:}]\\)_\\([^ \t\n]\\|[^ \t\n].*?[^ \t\n]\\)_"
+                      "\\([^[:alnum:]_]\\|$\\)")))
+      (while (string-match re text)
+        (setq text (replace-match "\\1\\2\\3" t nil text))))
+    ;; Replacements, except the ones that give an apostrophe, whose
+    ;; characters the id drops anyway.
+    (setq text (replace-regexp-in-string "\\(?:^\\| \\)--\\(?: \\|$\\)" "" text t t))
+    (while (string-match "\\([[:alnum:]_]\\)--\\([[:alnum:]_]\\)" text)
+      (setq text (replace-match "\\1\\2" t nil text)))
+    (replace-regexp-in-string
+     "\\(\\\\\\)?\\(([CR])\\|(TM)\\|\\.\\.\\.\\|->\\|=>\\|<-\\|<=\\)"
+     (lambda (replacement)
+       (if (match-beginning 1) (substring replacement 1) ""))
+     text t t)))
+
 (defun adoc--section-id (title prefix separator)
   "Return the Asciidoctor auto-id for the section titled TITLE.
 PREFIX and SEPARATOR are the `idprefix' and `idseparator' to use, see
-`adoc--section-id-params'.  Mirrors Asciidoctor's id generation:
-downcase, drop characters outside letters/digits/`_'/space/`.'/`-',
+`adoc--section-id-params'.  Mirrors Asciidoctor's id generation: take
+the rendered title (see `adoc--section-title-text'), downcase it, drop
+entities and characters outside letters/digits/`_'/space/`.'/`-',
 prepend the prefix, translate each run of space, `.', `-' and separator
 characters to one separator, then drop a trailing separator, and a
 leading one when there's no prefix."
-  (let ((id (downcase title)))
-    (setq id (replace-regexp-in-string "<[^>]*>" "" id)) ; inline tags
+  (let ((id (downcase (adoc--section-title-text title))))
+    (setq id (replace-regexp-in-string
+              "&\\(?:[a-z][a-z]+[0-9]\\{0,2\\}\\|#[0-9]\\{2,6\\}\\|#x[0-9a-f]\\{2,5\\}\\);"
+              "" id t t))                ; entities
     (setq id (replace-regexp-in-string "[^[:alnum:]_ .-]" "" id)) ; invalid chars
     (setq id (concat prefix id))
     (if (string-empty-p separator)
@@ -4225,6 +4322,16 @@ block title or a description list term, say, only later on."
                   (push (cons pos id) ids))))))))
     (sort ids (lambda (a b) (< (car a) (car b))))))
 
+(defun adoc--section-title-with-attributes (title attributes)
+  "Return section TITLE with the document ATTRIBUTES in effect applied.
+That's its attribute references substituted, and with `experimental'
+set, the `kbd:' and `btn:' macros replaced by their text."
+  (let ((text (adoc--substitute-attributes title attributes)))
+    (if (assoc "experimental" attributes)
+        (replace-regexp-in-string
+         "\\(?:kbd\\|btn\\):\\[\\([^]\n]*\\)\\]" "\\1" text t)
+      text)))
+
 (defun adoc--unique-section-id (title params taken next)
   "Return the auto-id for TITLE with PARAMS, numbered if it's TAKEN.
 PARAMS is (PREFIX . SEPARATOR).  TAKEN is a hash table of the ids in
@@ -4242,13 +4349,23 @@ the number to try first for each ID, as the ones before it are taken."
         (puthash id (1+ n) next)
         candidate))))
 
+(defvar-local adoc--section-table-cache nil
+  "The last `adoc--section-table' as (KEY . TABLE), see there.")
+
 (defun adoc--section-table ()
   "Return a list of (ID TITLE POSITION EXPLICIT) for the buffer's sections.
 See `adoc--scan-sections'.  The ids depend on the document header and
-the titles before them, so narrowing doesn't change them."
-  (save-restriction
-    (widen)
-    (adoc--scan-sections)))
+the titles before them, so narrowing doesn't change them.  The table is
+kept until the text of the buffer or a setting it depends on changes."
+  (let ((key (list (buffer-chars-modified-tick) adoc-section-id-style
+                   adoc-enable-two-line-title buffer-file-name)))
+    (if (equal key (car adoc--section-table-cache))
+        (cdr adoc--section-table-cache)
+      (let ((table (save-restriction
+                     (widen)
+                     (adoc--scan-sections))))
+        (setq adoc--section-table-cache (cons key table))
+        table))))
 
 (defun adoc--scan-sections ()
   "Return the sections of the buffer for `adoc--section-table'.
@@ -4292,7 +4409,8 @@ so on, as in Asciidoctor."
                          (id (or explicit
                                  (when (assoc "sectids" attributes)
                                    (adoc--unique-section-id
-                                    (adoc--substitute-attributes title attributes)
+                                    (adoc--section-title-with-attributes
+                                     title attributes)
                                     (adoc--section-id-params attributes antora)
                                     taken next)))))
                     (when id (puthash id t taken))
@@ -4793,8 +4911,9 @@ a section, so it has none."
     (font-lock-ensure)
     (let ((descriptor (adoc--heading-descriptor-at-point)))
       (when (and descriptor (> (nth 2 descriptor) 0))
-        (car (cl-find (nth 4 descriptor) (adoc--section-table)
-                      :key #'caddr))))))
+        (or (adoc--section-explicit-id descriptor)
+            (car (cl-find (nth 4 descriptor) (adoc--section-table)
+                          :key #'caddr)))))))
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql adoc)))
   (or (adoc-xref-id-at-point)

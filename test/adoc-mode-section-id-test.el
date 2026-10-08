@@ -81,6 +81,89 @@
                        (match-string 1 html))))
           (expect (adoc--section-id title pre sep) :to-equal real))))))
 
+(describe "section ids of marked-up titles"
+  (it "uses the text of link and xref macros"
+    (expect (adoc--section-id "Department xref:cops_bundler.adoc[Bundler]" "_" "_")
+            :to-equal "_department_bundler")
+    (expect (adoc--section-id "https://www.gnu.org/x.html[Xref] integration" "" "-")
+            :to-equal "xref-integration")
+    (expect (adoc--section-id "A link:x.html[Text,window=_blank] b" "_" "_")
+            :to-equal "_a_text_b")
+    (expect (adoc--section-id "A link:x.html[] b" "_" "_") :to-equal "_a_x_html_b")
+    (expect (adoc--section-id "A link:x[a=b] c" "_" "_") :to-equal "_a_x_c")
+    (expect (adoc--section-id "See <<t,the target>>" "_" "_")
+            :to-equal "_see_the_target"))
+
+  (it "leaves images, anchors and quote roles out"
+    (expect (adoc--section-id "Logo image:x.png[Alt text] here" "_" "_")
+            :to-equal "_logo_here")
+    (expect (adoc--section-id "Foo [[x]] bar" "_" "_") :to-equal "_foo_bar")
+    (expect (adoc--section-id "A [.red]#big# deal" "_" "_") :to-equal "_a_big_deal"))
+
+  (it "drops the underscores of emphasis but not of words"
+    (expect (adoc--section-id "The _Big_ Day and snake_case" "" "-")
+            :to-equal "the-big-day-and-snake_case")
+    (expect (adoc--section-id "_a_ _b_" "" "-") :to-equal "a-b")
+    (expect (adoc--section-id "__un__constrained" "" "-") :to-equal "unconstrained"))
+
+  (it "applies Asciidoctor's replacements"
+    (expect (adoc--section-id "A (C) B -- C" "_" "_") :to-equal "_a_bc")
+    (expect (adoc--section-id "Foo--Bar--Baz" "_" "_") :to-equal "_foobarbaz")
+    (expect (adoc--section-id "Wait...what" "_" "_") :to-equal "_waitwhat")
+    (expect (adoc--section-id "v2 -> v3" "" "-") :to-equal "v2-v3")
+    (expect (adoc--section-id "A \\(C) b" "_" "_") :to-equal "_a_c_b"))
+
+  (it "drops entities and keeps the text of literal tags"
+    (expect (adoc--section-id "Caf&#233; &amp; Bar" "_" "_") :to-equal "_caf_bar")
+    (expect (adoc--section-id "Use <b>x</b>" "_" "_") :to-equal "_use_bxb")
+    (expect (adoc--section-id "Use +++<b>x</b>+++ now" "_" "_") :to-equal "_use_x_now"))
+
+  (it "uses the text of kbd: and btn: macros when they're enabled"
+    (expect (adoc-test--section-ids "= D\n\n== Press kbd:[Ctrl+C]\n")
+            :to-equal '("_press_kbdctrlc"))
+    (expect (adoc-test--section-ids "= D\n:experimental:\n\n== Press kbd:[Ctrl+C]\n")
+            :to-equal '("_press_ctrlc")))
+
+  (it "resolves the built-in character attributes"
+    (expect (adoc-test--section-ids "= D\n\n== Use{sp}{cpp} and{nbsp}more {empty}x\n")
+            :to-equal '("_use_c_andmore_x")))
+
+  (it "matches the real asciidoctor"
+    (assume (executable-find "asciidoctor") "asciidoctor not installed")
+    (let ((titles '("Department xref:cops_bundler.adoc[Bundler]"
+                    "https://www.gnu.org/x.html[Xref] integration"
+                    "A link:x.html[Text,window=_blank] b"
+                    "E https://x.org[\"Quoted, text\",role=x] f"
+                    "Mail mailto:a@b.org[Me]" "See xref:other.adoc#frag[]"
+                    "A link:x[a=b] c" "B https://x.org[a=b] c" "C xref:o.adoc[a=b] d"
+                    "Logo image:x.png[Alt text] here" "Foo [[x]] mid"
+                    "A [.red]#big# deal" "B [.x]_it_ c" "x[0]_suffix_ y[1]#z#"
+                    "The _Big_ Day and snake_case" "_a_ _b_ a_b_ c"
+                    "__un__constrained" "*Bold* #mark# ^sup^ ~sub~ `mono_x`"
+                    "A (C) B (TM) -- C ... D -> E => F" "Foo--Bar--Baz"
+                    "Don't wait...what" "A \\(C) b \\... c"
+                    "Caf&#233; &amp; Bar &#x2014; x" "Use <b>x</b> and a < b > c"
+                    "Use +++<b>x</b>+++ and pass:[<i>y</i>] now"
+                    "Use{sp}{cpp} and{nbsp}more {empty}x {amp} y {plus}z"
+                    "Press kbd:[Ctrl+C] or btn:[OK]")))
+      (dolist (attrs '("" ":idprefix:\n:idseparator: -\n" ":experimental:\n"))
+        (let ((doc (concat "= D\n" attrs "\n"
+                           (mapconcat (lambda (title) (concat "== " title "\n\n"))
+                                      titles ""))))
+          (expect (adoc-test--section-ids doc)
+                  :to-equal (adoc-test--asciidoctor-section-ids doc)))))))
+
+(describe "adoc--section-table"
+  (it "keeps up with edits and settings"
+    (with-adoc-buffer "= D\n\n== Foo\n"
+      (expect (adoc--collect-section-ids) :to-equal '("_foo"))
+      (goto-char (point-max))
+      (insert "\n== Foo\n")
+      (expect (adoc--collect-section-ids) :to-equal '("_foo" "_foo_2"))
+      (let ((adoc-section-id-style 'antora))
+        (expect (adoc--collect-section-ids) :to-equal '("foo" "foo-2")))
+      (expect (adoc--collect-section-ids) :to-equal '("_foo" "_foo_2")))))
+
 (describe "adoc--section-id-params"
   (it "honours an explicit adoc-section-id-style"
     (let ((doc "= D\n:idprefix: x\n:idseparator: .\n\n== A B\n"))

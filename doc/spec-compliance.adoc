@@ -236,8 +236,9 @@ Findings are graded:
 
 | Auto-generated IDs, section refs `+<<id>>+`
 | Refs supported; section auto-ids are computed the way Asciidoctor does
-  (style per `adoc-section-id-style`) and offered in completion, navigation
-  and the `xref` backend
+  (style per `adoc-section-id-style`), numbering duplicates and honouring
+  `idprefix`, `idseparator`, `sectids` and the attributes a title refers
+  to, and offered in completion, navigation and the `xref` backend
 | -
 
 | Custom section ID via `[#id]` shorthand
