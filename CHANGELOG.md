@@ -57,6 +57,7 @@
 - [#94](https://github.com/bbatsov/adoc-mode/pull/94): The tempo templates are documented with the AsciiDoc help text again (see `C-h f tempo-template-adoc-emphasis`), instead of a bare "Insert a adoc-emphasis."
 - [#94](https://github.com/bbatsov/adoc-mode/pull/94): The trademark and dash templates insert `(TM)` and `--`, which Asciidoctor replaces with ™ and an em dash, as their menu entries say. They inserted `(T)` and `---`, which stay as they are.
 - [#94](https://github.com/bbatsov/adoc-mode/pull/94): Tempo templates, and loading `adoc-mode` itself, no longer fail with `wrong-type-argument symbolp` when the current command is a lambda (a key bound to one, a hydra, or a transient).
+- [#97](https://github.com/bbatsov/adoc-mode/pull/97): The nested imenu index (the default) no longer leaves out sections that skip a level, which also left a document without a level 0 title with an empty index.
 
 ## 0.9.0 (2026-06-02)
 

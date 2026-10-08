@@ -5044,38 +5044,27 @@ Each heading contains its sub-headings as a nested menu."
                                       (car item) (cdr item)))))
                        flat-index)))
     ;; items is now ((name pos . level) ...)
-    (adoc--imenu-build-tree items 0)))
+    (adoc--imenu-build-tree items)))
 
-(defun adoc--imenu-build-tree (items min-level)
-  "Build a nested imenu tree from ITEMS starting at MIN-LEVEL.
-ITEMS is a list of (name pos . level)."
+(defun adoc--imenu-build-tree (items)
+  "Build a nested imenu tree from ITEMS, a list of (NAME POS . LEVEL).
+Each item gets the items that follow it as its children, up to the
+next one at the same or a higher level.  The first item can be at any
+level, so a document without a level 0 title, or one that skips a
+level, keeps all its sections."
   (let (result)
     (while items
-      (let* ((item (car items))
-             (name (car item))
-             (pos (cadr item))
-             (level (cddr item)))
-        (cond
-         ;; Item is at a higher level than we're collecting — return
-         ((< level min-level)
-          (setq items nil))
-         ;; Item is at a deeper level — shouldn't happen if called correctly
-         ((> level min-level)
-          (setq items (cdr items)))
-         ;; Item is at our level — collect it and its children
-         (t
-          (setq items (cdr items))
-          ;; Collect children (items with level > current level, up to
-          ;; next item at same or higher level)
-          (let (children)
-            (while (and items (> (cddr (car items)) level))
-              (push (car items) children)
-              (setq items (cdr items)))
-            (if children
-                (let ((subtree (adoc--imenu-build-tree
-                                (nreverse children) (1+ level))))
-                  (push (cons name (cons (cons nil pos) subtree)) result))
-              (push (cons name pos) result)))))))
+      (let* ((item (pop items))
+             (level (cddr item))
+             children)
+        (while (and items (> (cddr (car items)) level))
+          (push (pop items) children))
+        (push (if children
+                  (cons (car item)
+                        (cons (cons nil (cadr item))
+                              (adoc--imenu-build-tree (nreverse children))))
+                (cons (car item) (cadr item)))
+              result)))
     (nreverse result)))
 
 (defvar adoc-mode-syntax-table

@@ -70,6 +70,34 @@
                  ("chapter 2"
                   (nil . 51)
                   ("sub chapter 2.1" . 64)
-                  ("sub chapter 2.2" . 84))))))))
+                  ("sub chapter 2.2" . 84)))))))
+
+  (it "nests the sections of a document without a level 0 title"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "== chapter 1\n"
+              "=== sub chapter 1.1\n"
+              "== chapter 2\n")
+      (expect (adoc-imenu-create-nested-index)
+              :to-equal
+              '(("chapter 1"
+                 (nil . 1)
+                 ("sub chapter 1.1" . 14))
+                ("chapter 2" . 34)))))
+
+  (it "keeps sections that skip a level or come before a shallower one"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "=== early\n"
+              "== chapter 1\n"
+              "==== deep\n"
+              "=== shallower\n")
+      (expect (adoc-imenu-create-nested-index)
+              :to-equal
+              '(("early" . 1)
+                ("chapter 1"
+                 (nil . 11)
+                 ("deep" . 24)
+                 ("shallower" . 34)))))))
 
 ;;; adoc-mode-imenu-test.el ends here
