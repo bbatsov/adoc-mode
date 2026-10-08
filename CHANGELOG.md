@@ -91,6 +91,7 @@
   - Image paths resolve their references the way titles do: by the entries above them, case-insensitively, and through attributes that refer to other attributes.
 - [#105](https://github.com/bbatsov/adoc-mode/pull/105): Section auto-ids follow Asciidoctor's substitution order, so titles with passthroughs (`+{x}+`, `pass:[...]`), escaped quoted text (`\__x__`) or attribute values holding markup get the ids Asciidoctor gives them, and so do titles with icons, index terms or links under `:hide-uri-scheme:`.
 - [#107](https://github.com/bbatsov/adoc-mode/pull/107): An attribute entry that refers to the attribute it sets, as in `:product: {product} Pro`, gets its earlier value for section ids instead of leaving the reference as it is.
+- [#107](https://github.com/bbatsov/adoc-mode/pull/107): Counters (`{counter:step}`, `{counter2:step}`) in section titles, attribute entries and the document title count as they do in Asciidoctor, so the auto-ids of the titles that use them match.
 
 ## 0.9.0 (2026-06-02)
 

@@ -4351,47 +4351,117 @@ See `adoc--conditional-holds-p'."
               (forward-line 1))))))
     (nreverse entries)))
 
-(defun adoc--substitute-attributes (text attributes)
+(defun adoc--substitute-attributes (text attributes &optional count)
   "Replace the attribute references in TEXT with their values.
 ATTRIBUTES is an alist of (NAME . VALUE) with downcased names, which
 take precedence over Asciidoctor's built-in character attributes.  A
 reference to an attribute that isn't set stays as it is, as Asciidoctor
 leaves it by default, and an escaped one (`\\{name}') loses its
-backslash."
+backslash.
+
+With COUNT non-nil, the counters count, `{counter:name}' and
+`{counter2:name:seed}' (see `adoc--count'): a `counter' is replaced by
+its next value and a `counter2' by nothing, and COUNT is called with
+the attributes that hold their new values.  Without COUNT, they stay
+as they are."
   (if (not (string-search "{" text))
       text
     (replace-regexp-in-string
-     "\\(\\\\\\)?{\\([[:alnum:]_][[:alnum:]_-]*\\)}"
+     (concat "\\(\\\\\\)?{\\(?:\\(counter2?\\):\\([^:}]+\\)\\(?::\\([^}]*\\)\\)?"
+             "\\|\\([[:alnum:]_][[:alnum:]_-]*\\)\\)}")
      (lambda (ref)
-       (let ((name (downcase (match-string 2 ref))))
-         (cond
-          ((match-beginning 1) (substring ref 1))
-          ((cdr (or (assoc name attributes)
-                    (assoc name adoc--builtin-attribute-values))))
-          (t ref))))
+       (cond
+        ((match-beginning 1) (substring ref 1))
+        ((match-beginning 2)
+         (if (not count)
+             ref
+           (let ((kind (match-string 2 ref))
+                 (counted (adoc--count (match-string 3 ref) (match-string 4 ref)
+                                       attributes)))
+             (setq attributes (cdr counted))
+             (funcall count attributes)
+             (if (equal kind "counter") (car counted) ""))))
+        ((cdr (let ((name (downcase (match-string 5 ref))))
+                (or (assoc name attributes)
+                    (assoc name adoc--builtin-attribute-values)))))
+        (t ref)))
      text t t)))
 
+(defun adoc--string-succ (string)
+  "Return the successor of STRING, the way Ruby's `String#succ' makes it.
+Its last letter or digit goes up, and on to the one before it when it
+wraps around, so `az' is followed by `ba', `zz' by `aaa' and `a9' by
+`b0'.  A digit doesn't carry over to a letter, or a letter to a digit,
+across other characters: `a-9' is followed by `a-10'."
+  (cl-flet ((alnum-p (c) (or (<= ?0 c ?9) (<= ?a c ?z) (<= ?A c ?Z)))
+            (digit-p (c) (<= ?0 c ?9)))
+    (let ((s (copy-sequence string))
+          (i (1- (length string)))
+          last)
+      (while (and (>= i 0) (not (alnum-p (aref s i))))
+        (setq i (1- i)))
+      (if (< i 0)
+          ;; With no letters or digits, the last character goes up.
+          (progn
+            (unless (string-empty-p s)
+              (aset s (1- (length s)) (1+ (aref s (1- (length s))))))
+            s)
+        (catch 'done
+          (while t
+            (let ((c (aref s i)))
+              (unless (memq c '(?9 ?z ?Z))
+                (aset s i (1+ c))
+                (throw 'done s))
+              (aset s i (pcase c (?9 ?0) (?z ?a) (_ ?A)))
+              (setq last i))
+            (let ((j (1- i)))
+              (while (and (>= j 0) (not (alnum-p (aref s j))))
+                (setq j (1- j)))
+              (when (or (< j 0)
+                        (and (< j (1- i))
+                             (not (eq (digit-p (aref s j)) (digit-p (aref s last))))))
+                (throw 'done (concat (substring s 0 last)
+                                     (if (digit-p (aref s last)) "1" (string (aref s last)))
+                                     (substring s last))))
+              (setq i j))))))))
+
+(defun adoc--count (name seed attributes)
+  "Return (VALUE . ATTRIBUTES) for the next VALUE of the counter NAME.
+That's the counter's value in ATTRIBUTES, an alist of the document
+attributes in effect, counted up as Asciidoctor does, or SEED, or 1
+for a counter that isn't set yet.  The counter holds VALUE in the
+ATTRIBUTES returned."
+  (let* ((current (cdr (assoc name attributes)))
+         (value (cond
+                 ((or (null current) (string-empty-p current)) (or seed "1"))
+                 ((string-match-p "\\`\\(?:0\\|-?[1-9][0-9]*\\)\\'" current)
+                  (number-to-string (1+ (string-to-number current))))
+                 (t (adoc--string-succ current)))))
+    (cons value (cons (cons name value)
+                      (cl-remove name attributes :key #'car :test #'equal)))))
+
 (defun adoc--attribute-value (value attributes)
-  "Return the attribute entry VALUE as Asciidoctor stores it.
-That's with its special characters escaped and the attribute references
-in it substituted from ATTRIBUTES, or for a `pass:' macro, its text with
-the substitutions the macro names applied."
+  "Return (VALUE . ATTRIBUTES) for an attribute entry with VALUE.
+That's VALUE as Asciidoctor stores it, with its special characters
+escaped and the attribute references in it substituted from ATTRIBUTES,
+or for a `pass:' macro, its text with the substitutions the macro names
+applied.  The ATTRIBUTES returned have the counters in VALUE counted."
   (let ((case-fold-search nil))
     (if (string-match "\\`pass:\\([a-z]+\\(?:,[a-z-]+\\)*\\)?\\[\\(.*\\)]\\'" value)
-        (adoc--apply-subs (match-string 2 value)
-                          (adoc--pass-subs (or (match-string 1 value) ""))
-                          attributes)
-      (adoc--substitute-attributes (adoc--escape-special-characters value)
-                                   attributes))))
+        (let ((subs (match-string 1 value)))
+          (adoc--apply-subs (match-string 2 value) (adoc--pass-subs (or subs ""))
+                            attributes))
+      (adoc--apply-subs value '(specialcharacters attributes) attributes))))
 
 (defun adoc--apply-attribute-entry (name value attributes)
   "Return ATTRIBUTES, an alist of (NAME . VALUE), with NAME set to VALUE.
 A nil VALUE unsets it.  VALUE can refer to the attributes set before,
 NAME included, and it's stored the way Asciidoctor stores it, see
-`adoc--attribute-value'.  ATTRIBUTES itself is left alone."
+`adoc--attribute-value', with the counters in it counted.  ATTRIBUTES
+itself is left alone."
   (if value
-      (cons (cons name (adoc--attribute-value value attributes))
-            (cl-remove name attributes :key #'car :test #'equal))
+      (pcase-let ((`(,value . ,attributes) (adoc--attribute-value value attributes)))
+        (cons (cons name value) (cl-remove name attributes :key #'car :test #'equal)))
     (cl-remove name attributes :key #'car :test #'equal)))
 
 (defun adoc--attributes-at (pos)
@@ -4939,12 +5009,13 @@ and menus aren't, though they do."
   text)
 
 (defun adoc--apply-subs (text subs attributes)
-  "Return TEXT with the substitutions SUBS applied, as Asciidoctor does it.
+  "Apply the substitutions SUBS to TEXT the way Asciidoctor does.
 SUBS is a list of the symbols in `adoc--normal-subs', and ATTRIBUTES
 an alist of the document attributes in effect, see
 `adoc--substitute-attributes'.  With `macros' among them, the
 passthroughs are taken out first, and put back with their own
-substitutions applied at the end."
+substitutions applied at the end.  Return (TEXT . ATTRIBUTES), with
+the counters in TEXT counted in ATTRIBUTES."
   (let ((passthroughs '()))
     (when (memq 'macros subs)
       (setq text (adoc--extract-passthroughs
@@ -4956,39 +5027,53 @@ substitutions applied at the end."
       (setq text (pcase-exhaustive sub
                    ('specialcharacters (adoc--escape-special-characters text))
                    ('quotes (adoc--sub-quotes text))
-                   ('attributes (adoc--substitute-attributes text attributes))
+                   ('attributes
+                    (adoc--substitute-attributes
+                     text attributes (lambda (counted) (setq attributes counted))))
                    ('replacements (adoc--sub-replacements text))
                    ('macros (adoc--sub-macros text attributes)))))
-    (if (not passthroughs)
-        text
+    (when passthroughs
       (setq passthroughs (nreverse passthroughs))
-      (adoc--gsub "\u0096\\([0-9]+\\)\u0097" text
-                  (lambda (_ s)
-                    (let ((pass (nth (string-to-number (match-string 1 s))
-                                     passthroughs)))
-                      (adoc--apply-subs (car pass) (cdr pass) attributes)))))))
+      (setq text (adoc--gsub "\u0096\\([0-9]+\\)\u0097" text
+                             (lambda (_ s)
+                               (let ((pass (nth (string-to-number (match-string 1 s))
+                                                passthroughs)))
+                                 (pcase-let ((`(,passed . ,counted)
+                                              (adoc--apply-subs (car pass) (cdr pass)
+                                                                attributes)))
+                                   (setq attributes counted)
+                                   passed))))))
+    (cons text attributes)))
 
 (defun adoc--render-section-title (title &optional attributes)
-  "Return section TITLE rendered in HTML, as Asciidoctor renders it.
+  "Return (HTML . ATTRIBUTES) for section TITLE rendered as Asciidoctor does.
 Only as far as it matters for its id, see `adoc--sub-macros'.
 ATTRIBUTES is an alist of the document attributes in effect, see
-`adoc--substitute-attributes'."
+`adoc--substitute-attributes', and the ATTRIBUTES returned have the
+counters in TITLE counted."
   (if (string-match-p "[][\\&<>*_`#^~\"'{(.=+$:-]" title)
       (let ((case-fold-search nil))
         (adoc--apply-subs title adoc--normal-subs attributes))
-    title))                             ; nothing to render
+    (cons title attributes)))           ; nothing to render
 
 (defun adoc--section-id (title prefix separator &optional attributes)
   "Return the Asciidoctor auto-id for the section titled TITLE.
 PREFIX and SEPARATOR are the `idprefix' and `idseparator' to use, see
 `adoc--section-id-params', and ATTRIBUTES the document attributes in
-effect, see `adoc--substitute-attributes'.  Mirrors Asciidoctor's id
-generation: take the rendered title (see `adoc--render-section-title'),
-downcase it, drop its tags, entities and characters outside
+effect, see `adoc--substitute-attributes'."
+  (adoc--rendered-title-id (car (adoc--render-section-title title attributes))
+                           prefix separator))
+
+(defun adoc--rendered-title-id (html prefix separator)
+  "Return the auto-id for a section whose title renders as HTML.
+PREFIX and SEPARATOR are the `idprefix' and `idseparator' to use, see
+`adoc--section-id-params'.  Mirrors Asciidoctor's id generation: take
+the rendered title (see `adoc--render-section-title'), downcase it,
+drop its tags, entities and characters outside
 letters/digits/`_'/space/`.'/`-', prepend the prefix, translate each
 run of space, `.', `-' and separator characters to one separator, then
 drop a trailing separator, and a leading one when there's no prefix."
-  (let ((id (downcase (adoc--render-section-title title attributes))))
+  (let ((id (downcase html)))
     (setq id (replace-regexp-in-string
               (concat "<[^>]+>"
                       "\\|&\\(?:[a-z][a-z]+[0-9]\\{0,2\\}\\|#[0-9]\\{2,6\\}\\|#x[0-9a-f]\\{2,5\\}\\);"
@@ -5050,9 +5135,10 @@ delimited blocks are skipped, and so is the document title.  ID is the
 section's explicit id when EXPLICIT is non-nil, otherwise its auto-id,
 or nil where `sectids' is unset.  The document attributes set above a
 title apply to its auto-id: `idprefix', `idseparator' and `sectids', as
-well as the ones it refers to.  An auto-id already taken by an earlier
-section or explicit id gets a number appended, `_foo_2', `_foo_3' and
-so on, as in Asciidoctor."
+well as the ones it refers to, counters included, which count in the
+titles and attribute entries above it.  An auto-id already taken by an
+earlier section or explicit id gets a number appended, `_foo_2',
+`_foo_3' and so on, as in Asciidoctor."
   (save-excursion
     (save-match-data
       (font-lock-ensure)
@@ -5072,21 +5158,40 @@ so on, as in Asciidoctor."
             (if (not descriptor)
                 (forward-line 1)
               (let ((start (nth 4 descriptor)))
+                ;; The entries are applied again rather than taking the
+                ;; attributes they leave, as the titles in between count
+                ;; their counters too.
                 (while (and entries (< (car (car entries)) start))
-                  (setq attributes (nth 3 (pop entries))))
+                  (pcase-let ((`(,_ ,name ,value) (pop entries)))
+                    (setq attributes (adoc--apply-attribute-entry name value attributes))))
                 (while (and anchors (< (car (car anchors)) start))
                   (puthash (cdr (pop anchors)) t taken))
-                ;; A level-0 title is the document title, not a section.
-                (when (> (nth 2 descriptor) 0)
+                (if (= (nth 2 descriptor) 0)
+                    ;; A level-0 title is the document title, not a
+                    ;; section, but its counters count all the same.
+                    (setq attributes
+                          (cdr (adoc--apply-subs (nth 3 descriptor)
+                                                 '(specialcharacters attributes)
+                                                 attributes)))
                   (let* ((explicit (adoc--section-explicit-id descriptor))
                          (title (string-trim (nth 3 descriptor)))
                          (params (adoc--section-id-params attributes antora))
+                         ;; Asciidoctor renders the title of a section that
+                         ;; gets an auto-id, and that of a section with an
+                         ;; explicit id when it refers to attributes, so
+                         ;; that's when its counters count.
+                         (rendered (when (if explicit
+                                             (string-search "{" title)
+                                           (assoc "sectids" attributes))
+                                     (adoc--render-section-title title attributes)))
                          (id (or explicit
-                                 (when (assoc "sectids" attributes)
-                                   (adoc--unique-section-id
-                                    (adoc--section-id title (car params) (cdr params)
-                                                      attributes)
-                                    (cdr params) taken next)))))
+                                 (and rendered
+                                      (adoc--unique-section-id
+                                       (adoc--rendered-title-id (car rendered)
+                                                                (car params) (cdr params))
+                                       (cdr params) taken next)))))
+                    (when rendered
+                      (setq attributes (cdr rendered)))
                     (when id (puthash id t taken))
                     (push (list id title start (and explicit t)) result)))
                 (goto-char (nth 5 descriptor))))))

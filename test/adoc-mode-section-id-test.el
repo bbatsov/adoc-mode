@@ -347,6 +347,57 @@
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
+(describe "counters in section titles"
+  (it "counts them the way Asciidoctor does"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\n== Step {counter:step}\n\n== Step {counter:step}\n\n"
+                     "== Part {counter:part:A}\n\n== Part {counter:part}\n\n"
+                     "== {counter2:step}Again {step}\n"))
+            :to-equal '("_step_1" "_step_2" "_part_a" "_part_b" "_again_3")))
+
+  (it "counts on from the value of the attribute"
+    (expect (adoc-test--section-ids "= D\n:n: 5\n:m: z\n\n== {counter:n} {counter:m}\n")
+            :to-equal '("_6_aa")))
+
+  (it "counts them in the document title, attribute entries and every section title"
+    (expect (adoc-test--section-ids
+             (concat "= D {counter:n}\n:m: {counter:n}\n\n"
+                     "[#x]\n== X {counter:n}\n\n== A {counter:n} {m}\n"))
+            :to-equal '("x" "_a_4_2")))
+
+  (it "leaves passed through and escaped counters alone"
+    (expect (adoc-test--section-ids
+             "= D\n\n== +{counter:n}+\n\n== \\{counter:n}\n\n== {counter:n}\n")
+            :to-equal '("_countern" "_countern_2" "_1")))
+
+  (it "matches the real asciidoctor"
+    (assume (executable-find "asciidoctor") "asciidoctor not installed")
+    (dolist (doc (list
+                  "= D\n\n== A {counter:n}\n\n[#x]\n== B {counter:n}\n\n== C {counter:n}\n"
+                  "= D\n:n: 5\n\n== A {counter:n}\n\n== B {counter2:n}\n\n== C {n}\n"
+                  (concat "= D\n\n== A {counter:n} {n} {counter:n}\n\n"
+                          "== B pass:a[{counter:n}] +{counter:n}+\n")
+                  (concat "= D {counter:n}\n:m: {counter:n}\n\n"
+                          "== A {counter:n} {m}\n\n== B {counter:N}\n")
+                  (concat "= D\n\n== A {counter:x:1.9}\n\n== B {counter:x}\n\n"
+                          "== C {counter:y:a-9}\n\n== D {counter:y}\n")
+                  (concat "= D\n\n== A {counter:n:zz}\n\n:n: q\n\n== B {counter:n}\n\n"
+                          ":n!:\n\n== C {counter:n}\n")
+                  (concat "= D\n\n[discrete]\n== A {counter:n}\n\n"
+                          ".B {counter:n}\n----\nx\n----\n\n== C {counter:n}\n")
+                  (concat "= D\n:sectids!:\n\n== A {counter:n}\n\n[#e]\n== E {counter:n}\n\n"
+                          ":sectids:\n\n== B {counter:n}\n")))
+      (expect (adoc-test--section-ids doc)
+              :to-equal (adoc-test--asciidoctor-section-ids doc)))))
+
+(describe "adoc--string-succ"
+  (it "counts the way Ruby's String#succ does"
+    (pcase-dolist (`(,string . ,succ)
+                   '(("a" . "b") ("az" . "ba") ("zz" . "aaa") ("Zz" . "AAa") ("a9" . "b0")
+                     ("1.9" . "2.0") ("a-9" . "a-10") ("x9z" . "y0a") ("05" . "06")
+                     ("*" . "+") ("a*" . "b*")))
+      (expect (adoc--string-succ string) :to-equal succ))))
+
 (describe "duplicate section ids"
   (it "numbers the ids of repeated titles"
     (expect (adoc-test--section-ids "= D\n\n== Foo\n\n== Foo\n\n=== Foo\n")
