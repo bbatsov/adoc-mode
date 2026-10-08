@@ -4955,18 +4955,50 @@ itself is left alone."
         (cons (cons name value) (cl-remove name attributes :key #'car :test #'equal)))
     (cl-remove name attributes :key #'car :test #'equal)))
 
+(defvar-local adoc--document-entries-cache nil
+  "The last `adoc--document-entries' as (KEY . VALUE), see there.")
+
+(defun adoc--document-entries ()
+  "Return (ANTORA ATTRIBUTES ENTRIES . SKIPPED) for the buffer.
+ANTORA is non-nil for a page in an Antora component, ATTRIBUTES is the
+alist of the attributes it starts out with, see
+`adoc--initial-attributes', and ENTRIES and SKIPPED are what
+`adoc--attribute-entries' returns for them.  They're kept until the
+text of the buffer, its file or a setting they depend on changes."
+  (let ((key (list (buffer-chars-modified-tick) adoc-enable-two-line-title
+                   buffer-file-name)))
+    (if (equal key (car adoc--document-entries-cache))
+        (cdr adoc--document-entries-cache)
+      (let ((value (save-excursion
+                     (save-restriction
+                       (widen)
+                       (let* ((antora (adoc--antora-p))
+                              (attributes (adoc--initial-attributes antora)))
+                         (cons antora
+                               (cons attributes
+                                     (adoc--attribute-entries attributes))))))))
+        (setq adoc--document-entries-cache (cons key value))
+        value))))
+
 (defun adoc--attributes-at (pos)
   "Return the document attributes in effect at POS, as an alist.
 That's the ones a document starts out with, updated by the attribute
-entries above POS, see `adoc--attribute-entries'."
-  (save-excursion
-    (save-restriction
-      (widen)
-      (let* ((attributes (adoc--initial-attributes (adoc--antora-p)))
-             (entries (car (adoc--attribute-entries attributes))))
-        (while (and entries (< (car (car entries)) pos))
-          (setq attributes (nth 3 (pop entries))))
-        attributes))))
+entries above POS, see `adoc--attribute-entries', and by the counters
+the section titles above it count, see `adoc--scan-sections'."
+  (pcase-let ((`(,_ ,attributes ,entries . ,_) (adoc--document-entries)))
+    (while (and entries (< (car (car entries)) pos))
+      (setq attributes (nth 3 (pop entries))))
+    ;; Only a title that counts a counter makes a difference.
+    (if (save-excursion
+          (save-restriction
+            (widen)
+            (goto-char (point-min))
+            (let ((case-fold-search nil))
+              (re-search-forward "^[=#]\\{1,6\\}[ \t].*{counter2?:" nil t))))
+        (let ((counted (seq-take-while (lambda (state) (< (car state) pos))
+                                       (cdr (adoc--section-scan)))))
+          (if counted (cdr (car (last counted))) attributes))
+      attributes)))
 
 (defun adoc--antora-p ()
   "Return non-nil when the buffer's file lives in an Antora component."
@@ -5601,69 +5633,87 @@ for each ID, as the ones before it are taken."
       candidate)))
 
 (defvar-local adoc--section-table-cache nil
-  "The last `adoc--section-table' as (KEY . TABLE), see there.")
+  "The last `adoc--section-scan' as (KEY . VALUE), see there.")
 
-(defun adoc--section-table ()
-  "Return a list of (ID TITLE POSITION EXPLICIT) for the buffer's sections.
-See `adoc--scan-sections'.  The ids depend on the document header and
-the titles before them, so narrowing doesn't change them.  The table is
-kept until the text of the buffer or a setting it depends on changes."
+(defun adoc--section-scan ()
+  "Return what `adoc--scan-sections' does for the buffer.
+The ids depend on the document header and the titles before them, so
+narrowing doesn't change them.  The value is kept until the text of the
+buffer or a setting it depends on changes."
   (let ((key (list (buffer-chars-modified-tick) adoc-section-id-style
                    adoc-enable-two-line-title buffer-file-name)))
     (if (equal key (car adoc--section-table-cache))
         (cdr adoc--section-table-cache)
-      (let ((table (save-restriction
-                     (widen)
-                     (adoc--scan-sections))))
-        (setq adoc--section-table-cache (cons key table))
-        table))))
+      (let ((scan (save-restriction
+                    (widen)
+                    (adoc--scan-sections))))
+        (setq adoc--section-table-cache (cons key scan))
+        scan))))
+
+(defun adoc--section-table ()
+  "Return a list of (ID TITLE POSITION EXPLICIT) for the buffer's sections.
+See `adoc--scan-sections'."
+  (car (adoc--section-scan)))
 
 (defun adoc--scan-sections ()
-  "Return the sections of the buffer for `adoc--section-table'.
-The list is in document order, with one element for each section title
-font-lock actually fontifies as one, so `==' lines inside code or other
-delimited blocks are skipped, and so is the document title.  ID is the
-section's explicit id when EXPLICIT is non-nil, otherwise its auto-id,
-or nil where `sectids' is unset.  The document attributes set above a
+  "Return (SECTIONS . COUNTED) for the sections of the buffer.
+SECTIONS is the list for `adoc--section-table', in document order,
+with one element for each section title font-lock actually fontifies
+as one, so `==' lines inside code or other delimited blocks are
+skipped, and so are the document title and the titles the preprocessor
+drops.  ID is the section's explicit
+id when EXPLICIT is non-nil, otherwise its auto-id, or nil where
+`sectids' is unset.  The document attributes set above a
 title apply to its auto-id: `idprefix', `idseparator' and `sectids', as
 well as the ones it refers to, counters included, which count in the
 titles and attribute entries above it.  An auto-id already taken by an
 earlier section or explicit id gets a number appended, `_foo_2',
-`_foo_3' and so on, as in Asciidoctor."
+`_foo_3' and so on, as in Asciidoctor.
+
+COUNTED is a list of (POSITION . ATTRIBUTES) for the attributes in
+effect after each title and attribute entry from the first title that
+counts a counter on, as the attribute entries don't count those, see
+`adoc--attributes-at'."
   (save-excursion
     (save-match-data
       (font-lock-ensure)
-      (let* ((re (adoc--re-all-titles))
-             (antora (adoc--antora-p))
-             (attributes (adoc--initial-attributes antora))
-             (entries (car (adoc--attribute-entries attributes)))
-             (anchors (cl-loop for (pos _end id registered) in (adoc--anchors)
-                               when registered collect (cons pos id)))
-             (taken (make-hash-table :test #'equal))
-             (next (make-hash-table :test #'equal))
-             (result '()))
+      (pcase-let* ((re (adoc--re-all-titles))
+                   (`(,antora ,attributes ,entries . ,skipped) (adoc--document-entries))
+                   ;; for the explicit ids and anchors
+                   (adoc--skipped-ranges skipped)
+                   (counted '())
+                   (anchors (cl-loop for (pos _end id registered) in (adoc--anchors)
+                                     when registered collect (cons pos id)))
+                   (taken (make-hash-table :test #'equal))
+                   (next (make-hash-table :test #'equal))
+                   (result '()))
         (goto-char (point-min))
         (while (re-search-forward re nil t)
           (goto-char (match-beginning 0))
           (let ((descriptor (adoc--heading-descriptor-at-point)))
-            (if (not descriptor)
+            (if (or (not descriptor) (adoc--skipped-line-p))
                 (forward-line 1)
               (let ((start (nth 4 descriptor)))
-                ;; The entries are applied again rather than taking the
-                ;; attributes they leave, as the titles in between count
-                ;; their counters too.
+                ;; Once a title has counted a counter, the entries are
+                ;; applied again rather than taking the attributes they
+                ;; leave, which don't have it counted.
                 (while (and entries (< (car (car entries)) start))
-                  (pcase-let ((`(,_ ,name ,value) (pop entries)))
-                    (setq attributes (adoc--apply-attribute-entry name value attributes))))
+                  (pcase-let ((`(,pos ,name ,value ,applied) (pop entries)))
+                    (if (not counted)
+                        (setq attributes applied)
+                      (setq attributes (adoc--apply-attribute-entry name value attributes))
+                      (push (cons pos attributes) counted))))
                 (while (and anchors (< (car (car anchors)) start))
                   (puthash (cdr (pop anchors)) t taken))
                 (if (= (nth 2 descriptor) 0)
                     ;; A level-0 title is the document title, not a
                     ;; section, but its counters count all the same.
-                    (setq attributes
-                          (cdr (adoc--apply-subs (nth 3 descriptor)
-                                                 '(specialcharacters attributes)
-                                                 attributes)))
+                    (let ((after (cdr (adoc--apply-subs (nth 3 descriptor)
+                                                        '(specialcharacters attributes)
+                                                        attributes))))
+                      (unless (eq after attributes)
+                        (push (cons start after) counted))
+                      (setq attributes after))
                   (let* ((explicit (adoc--section-explicit-id descriptor))
                          (title (string-trim (nth 3 descriptor)))
                          (params (adoc--section-id-params attributes antora))
@@ -5682,11 +5732,17 @@ earlier section or explicit id gets a number appended, `_foo_2',
                                                                 (car params) (cdr params))
                                        (cdr params) taken next)))))
                     (when rendered
+                      (unless (eq (cdr rendered) attributes)
+                        (push (cons start (cdr rendered)) counted))
                       (setq attributes (cdr rendered)))
                     (when id (puthash id t taken))
                     (push (list id title start (and explicit t)) result)))
                 (goto-char (nth 5 descriptor))))))
-        (nreverse result)))))
+        (when counted
+          (pcase-dolist (`(,pos ,name ,value) entries)
+            (setq attributes (adoc--apply-attribute-entry name value attributes))
+            (push (cons pos attributes) counted)))
+        (cons (nreverse result) (nreverse counted))))))
 
 (defun adoc--collect-sections ()
   "Return a list of (ID TITLE POSITION) for the buffer's section auto-ids.
@@ -6213,6 +6269,7 @@ while the block extents are being recorded."
                            (re-search-backward
                             (concat "^" (regexp-quote (match-string 1)) "[ \t]*$")
                             nil t))))
+                   ((adoc--skipped-line-p))
                    ((looking-at-p adoc--re-block-attribute-line)
                     (setq value (funcall getter))
                     t)
@@ -6642,15 +6699,14 @@ the match.  The search is case-sensitive, like ids."
 
 (defun adoc--section-id-at-point ()
   "Return the id of the section title point is on, or nil.
-That's its explicit id, or else its auto-id.  The document title isn't
-a section, so it has none."
+That's its explicit id, or else its auto-id, as `adoc--section-table'
+has it.  The document title isn't a section, so it has none, and
+neither is a title the preprocessor drops."
   (when (adoc-title-descriptor)         ; cheap, before fontifying
     (font-lock-ensure)
     (let ((descriptor (adoc--heading-descriptor-at-point)))
       (when (and descriptor (> (nth 2 descriptor) 0))
-        (or (adoc--section-explicit-id descriptor)
-            (car (cl-find (nth 4 descriptor) (adoc--section-table)
-                          :key #'caddr)))))))
+        (car (cl-find (nth 4 descriptor) (adoc--section-table) :key #'caddr))))))
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql adoc)))
   (or (adoc-xref-id-at-point)

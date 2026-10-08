@@ -442,6 +442,15 @@
       (goto-char (point-min))
       (expect (adoc--inline-link-at-point) :to-be nil))))
 
+(describe "the section id at point"
+  (it "agrees with the section table past a branch that doesn't hold"
+    (with-temp-buffer
+      (insert (concat "= D\n\nifndef::env-github[]\n[#a]\nendif::[]\n"
+                      "ifdef::env-github[]\n[#b]\nendif::[]\n== Foo\n"))
+      (adoc-mode)
+      (re-search-backward "^== Foo")
+      (expect (adoc--section-id-at-point) :to-equal "a"))))
+
 (describe "xref backend"
   (defmacro adoc-test--with-xref-doc (&rest body)
     "Run BODY in an adoc-mode buffer holding a doc with anchors and xrefs."

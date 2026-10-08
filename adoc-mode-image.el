@@ -74,7 +74,7 @@ See also `adoc-display-remote-images'."
   "Regexp matching block- and inline-images.")
 
 (declare-function adoc--attributes-at "adoc-mode" (pos))
-(declare-function adoc--substitute-attributes "adoc-mode" (text attributes))
+(declare-function adoc--substitute-attributes "adoc-mode" (text attributes &optional count))
 (declare-function adoc--unescape-special-characters "adoc-mode" (text))
 
 (defun adoc--resolve-attribute-references (str &optional pos)

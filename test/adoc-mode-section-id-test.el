@@ -369,6 +369,20 @@
                      "== {authors} {authorcount}\n\n== {revnumber} {revremark}\n"))
             :to-equal '("_jane_q_doe_jqd_roe" "_jane_q_doe_bob_roe_2" "_1_0_draft")))
 
+  (it "sets the parts of an author set in the header"
+    (expect (adoc-test--section-ids
+             "= D\n:author: Jane Q Doe\n\n== {firstname} {lastname} {authorinitials}\n")
+            :to-equal '("_jane_doe_jqd"))
+    ;; over the author line's, taking the words past the second for the
+    ;; last name
+    (expect (adoc-test--section-ids
+             "= Doc\nJohn Doe\n:author: Jane Mary Q Doe\n\n== {firstname} {lastname} {authorinitials}\n")
+            :to-equal '("_jane_q_doe_jmq")))
+
+  (it "gives the titles in a branch that doesn't hold no id"
+    (expect (adoc-test--section-ids "= Doc\n\nifdef::nope[]\n== Foo\nendif::nope[]\n\n== Foo\n")
+            :to-equal '("_foo")))
+
   (it "joins a continued value and goes on with the entries below it"
     (expect (adoc-test--section-ids
              "= D\n:description: a long \\\n  value\n:idprefix: q\n\n== Foo\n")
@@ -517,7 +531,12 @@
                    "= T\nifdef::nope[]\nJohn Doe\nendif::[]\nJane Roe\n:idprefix: q\n\n== {author}\n"
                    "= D\n:a: b \\\n  c +\n:x: y\n\n== A {x}\n"
                    "= D\n:sep: +\n:x: y\n\n== A {x}\n"
-                   "////\nc\n////\n= Doc\nJane Doe\n:x: y\n\n== A {x} {author}\n"))
+                   "////\nc\n////\n= Doc\nJane Doe\n:x: y\n\n== A {x} {author}\n"
+                   "= D\n\n[#x]\nifdef::nope[]\nSome text\nendif::[]\n== Foo\n"
+                   "= D\n\nifndef::env-github[]\n[#a]\nendif::[]\nifdef::env-github[]\n[#b]\nendif::[]\n== Foo\n"
+                   "= D\n:author: Jane Q Doe\n\n== {firstname} {lastname} {authorinitials}\n"
+                   "= Doc\nJohn Doe\n:author: Jane Mary Q Doe\n\n== {firstname} {lastname} {authorinitials}\n"
+                   "= Doc\n\nifdef::nope[]\n== Foo\nendif::nope[]\n\n== Foo\n"))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
@@ -644,6 +663,15 @@
 
   (it "needs a space before an anchor at the end of the title"
     (expect (adoc-test--section-ids "= D\n\n== Foo[[x]]\n") :to-equal '("_foo")))
+
+  (it "looks past the lines of a branch that doesn't hold for the id"
+    (expect (adoc-test--section-ids
+             "= D\n\n[#x]\nifdef::nope[]\nSome text\nendif::[]\n== Foo\n")
+            :to-equal '("x"))
+    (expect (adoc-test--section-ids
+             (concat "= D\n\nifndef::env-github[]\n[#a]\nendif::[]\n"
+                     "ifdef::env-github[]\n[#b]\nendif::[]\n== Foo\n"))
+            :to-equal '("a")))
 
   (it "doesn't look past an include directive for the id"
     (expect (adoc-test--section-ids "= D\n\n[#x]\ninclude::chapter1.adoc[]\n\n== Next Section\n")

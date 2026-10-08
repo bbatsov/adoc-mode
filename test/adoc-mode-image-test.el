@@ -52,6 +52,33 @@
         (expect (adoc--resolve-attribute-references "{gone}{sp}x" pos)
                 :to-equal "{gone} x"))))
 
+  (it "counts the counters in the section titles above the image"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "= D\n\n== A {counter:n}\n\nimage::{n}.png[]\n\n"
+              "== B {counter:n}\n\nimage::{n}.png[]\n")
+      (goto-char (point-min))
+      (let (paths)
+        (while (re-search-forward "image::\\([^[]+\\)\\[" nil t)
+          (push (adoc--resolve-attribute-references (match-string 1) (match-beginning 0))
+                paths))
+        (expect (nreverse paths) :to-equal '("1.png" "2.png"))))
+    ;; and the entries below them still count
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "= D\n\n== A {counter:n}\n\n:img: x\n\nimage::{img}{n}.png[]\n")
+      (expect (adoc--resolve-attribute-references "{img}{n}.png" (point-max))
+              :to-equal "x1.png")))
+
+  (it "only scans the section titles when one counts a counter"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "= D\n\nStep {counter:n}.\n\n:dir: x\n\nimage::{dir}.png[]\n")
+      (spy-on 'adoc--section-scan :and-call-through)
+      (expect (adoc--resolve-attribute-references "{dir}.png" (point-max))
+              :to-equal "x.png")
+      (expect 'adoc--section-scan :not :to-have-been-called)))
+
   (it "keeps the special characters in their values"
     (with-temp-buffer
       (adoc-mode)
