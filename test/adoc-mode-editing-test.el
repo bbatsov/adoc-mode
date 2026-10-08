@@ -149,28 +149,71 @@
 (describe "adoc-mode list editing"
 
   (it "promotes/demotes unordered list items"
-    (adoc-test-trans "* foo!" "** foo" '(adoc-demote 1))
-    (adoc-test-trans "** foo!" "* foo" '(adoc-promote 1))
-    (adoc-test-trans "* foo!" "- foo" '(adoc-promote 1))
-    (adoc-test-trans "- foo!" "* foo" '(adoc-demote 1))
+    (adoc-test-trans "* a\n* b!" "* a\n** b" '(adoc-demote 1))
+    (adoc-test-trans "- a\n- b!" "- a\n** b" '(adoc-demote 1))
+    (adoc-test-trans "* a\n** b!" "* a\n* b" '(adoc-promote 1))
+    (adoc-test-trans "* a\n* b!" "* a\n*** b" '(adoc-demote 2))
     ;; leading indentation is preserved
-    (adoc-test-trans "  ** foo!" "  *** foo" '(adoc-demote 1))
-    (adoc-test-trans "* foo!" "*** foo" '(adoc-demote 2)))
+    (adoc-test-trans "  * a\n  ** b\n  ** c!" "  * a\n  ** b\n  *** c" '(adoc-demote 1)))
+
+  (it "gives an item promoted to the outermost level its list's marker"
+    ;; `-' and `*' are both outermost markers, and a change of marker nests
+    (adoc-test-trans "- a\n** b!" "- a\n- b" '(adoc-promote 1))
+    (adoc-test-trans "- a\n** b\n*** c!" "- a\n** b\n** c" '(adoc-promote 1))
+    (adoc-test-trans "- a\n+\npara\n** b!" "- a\n+\npara\n- b" '(adoc-promote 1))
+    ;; a detached paragraph ends the list, so there's no marker to follow
+    (adoc-test-trans "- a\n\nPara.\n\n** b!" "- a\n\nPara.\n\n* b" '(adoc-promote 1))
+    ;; and the lines of a code block aren't items
+    (adoc-test-trans "[source,yaml]\n----\n- one\n----\n\n. Step\n** detail!"
+                     "[source,yaml]\n----\n- one\n----\n\n. Step\n* detail"
+                     '(adoc-promote 1)))
 
   (it "promotes/demotes implicitly-numbered list items"
-    (adoc-test-trans ". foo!" ".. foo" '(adoc-demote 1))
-    (adoc-test-trans ".. foo!" ". foo" '(adoc-promote 1)))
+    (adoc-test-trans ". a\n. b!" ". a\n.. b" '(adoc-demote 1))
+    (adoc-test-trans ". a\n.. b!" ". a\n. b" '(adoc-promote 1)))
+
+  (it "goes the other way with a negative argument on a list item"
+    (adoc-test-trans "* a\n* b!" "* a\n** b" '(adoc-promote -1))
+    (adoc-test-trans "* a\n** b!" "* a\n* b" '(adoc-demote -1)))
 
   (it "doesn't promote or demote a list item past the outermost or innermost level"
     (adoc-test-trans "- foo!" "- foo"
                      '(expect (adoc-promote 1) :to-throw 'user-error))
     (adoc-test-trans "* foo!" "* foo"
+                     '(expect (adoc-promote 1) :to-throw 'user-error))
+    (adoc-test-trans "* a\n** b!" "* a\n** b"
                      '(expect (adoc-promote 2) :to-throw 'user-error))
-    (adoc-test-trans "***** foo!" "***** foo"
+    (adoc-test-trans "***** a\n***** b!" "***** a\n***** b"
                      '(expect (adoc-demote 1) :to-throw 'user-error))
     (adoc-test-trans ". foo!" ". foo"
                      '(expect (adoc-promote 1) :to-throw 'user-error))
-    (adoc-test-trans "..... foo!" "..... foo"
+    (adoc-test-trans "..... a\n..... b!" "..... a\n..... b"
+                     '(expect (adoc-demote 1) :to-throw 'user-error)))
+
+  (it "demotes past sublists of another kind"
+    (adoc-test-trans "* a\n. b\n* c!" "* a\n. b\n** c" '(adoc-demote 1))
+    (adoc-test-trans ". a\n- b\n. c!" ". a\n- b\n.. c" '(adoc-demote 1))
+    (adoc-test-trans "* a\n1. b\n* c!" "* a\n1. b\n** c" '(adoc-demote 1))
+    ;; Asciidoctor goes by the marker, not the indentation
+    (adoc-test-trans "* a\n  * b!" "* a\n  ** b" '(adoc-demote 1)))
+
+  (it "leaves a list item alone on a zero argument"
+    (adoc-test-trans "- a!\n- b" "- a\n- b" '(adoc-promote 0))
+    (adoc-test-trans "Intro.\n\n- a!\n- b" "Intro.\n\n- a\n- b" '(adoc-demote 0)))
+
+
+  (it "doesn't demote the first item of a list"
+    ;; it would have no item to nest under, and its siblings would end
+    ;; up nested under it instead
+    (adoc-test-trans "* a!\n* b" "* a\n* b"
+                     '(expect (adoc-demote 1) :to-throw 'user-error))
+    (adoc-test-trans "* a\n** b!\n* c" "* a\n** b\n* c"
+                     '(expect (adoc-demote 1) :to-throw 'user-error))
+    ;; an earlier list doesn't count
+    (adoc-test-trans "* a\n\nPara.\n\n* b!\n* c" "* a\n\nPara.\n\n* b\n* c"
+                     '(expect (adoc-demote 1) :to-throw 'user-error))
+    (adoc-test-trans "----\n* x\n----\n\n* first!\n* second"
+                     "----\n* x\n----\n\n* first\n* second"
                      '(expect (adoc-demote 1) :to-throw 'user-error)))
 
   (it "refuses to change the level of an explicitly-numbered item"

@@ -3408,15 +3408,6 @@ their markers are too easily confused with ordinary prose."
             :marker-beg (match-beginning 2)
             :level 0)))))
 
-(defun adoc--unordered-marker (level)
-  "Return the unordered list marker for nesting LEVEL (0-based).
-Level 0 is the dash bullet; deeper levels use that many asterisks."
-  (if (= level 0) "-" (make-string level ?*)))
-
-(defun adoc--implicit-numbered-marker (level)
-  "Return the implicit-numbered list marker (dots) for LEVEL (0-based)."
-  (make-string (1+ level) ?.))
-
 (defun adoc--check-level (level max-level)
   "Return LEVEL, or signal a `user-error' if it's outside 0 to MAX-LEVEL.
 For promoting and demoting titles and list items."
@@ -3441,27 +3432,88 @@ them up."
             (match-string 2 marker)))
    (t marker)))
 
+(defun adoc--list-items-above (item)
+  "Return the items above ITEM in its list, nearest first.
+The list ends at a paragraph or block that follows a blank line, as in
+AsciiDoc, or at the start of the delimited block it's in.  A delimited
+block inside the list is skipped as a whole, so its lines aren't taken
+for items."
+  (save-excursion
+    (goto-char (plist-get item :marker-beg))
+    (let ((own (adoc--delimited-block-at (line-beginning-position)))
+          items)
+      (catch 'done
+        (while (zerop (forward-line -1))
+          (let* ((block (adoc--delimited-block-at (point)))
+                 (nested (and block (not (equal block own)))))
+            (cond
+             (nested (goto-char (car block)))
+             ((and block (<= (point) (nth 1 own))) (throw 'done nil)))
+            (let ((other (and (not nested) (adoc--list-item-at-point))))
+              (cond
+               (other (push other items))
+               ((looking-at-p "[ \t]*$"))
+               ((save-excursion
+                  (or (/= (forward-line -1) 0) (looking-at-p "[ \t]*$")))
+                (throw 'done nil)))))))
+      (nreverse items))))
+
+(defun adoc--outer-unordered-marker (item)
+  "Return the marker of the outermost unordered items in ITEM's list.
+That's `-' or `*', so ITEM promoted to the outermost level stays in
+its list.  Return `*' when the list has no such item above ITEM."
+  (or (seq-some (lambda (other)
+                  (let ((marker (plist-get other :marker)))
+                    (and (eq (plist-get other :type) 'unordered)
+                         (= (length marker) 1)
+                         marker)))
+                (adoc--list-items-above item))
+      "*"))
+
+(defun adoc--prev-list-sibling-p (item)
+  "Return non-nil when ITEM's list has an item at ITEM's level above it.
+That's an item with the same marker.  Asciidoctor nests an item with
+a new marker under the one above it, so going up, a shorter marker of
+the same kind, or a different one of the same length, is ITEM's parent."
+  (let ((type (plist-get item :type))
+        (marker (plist-get item :marker)))
+    (catch 'done
+      (dolist (other (adoc--list-items-above item))
+        (when (eq (plist-get other :type) type)
+          (let ((other-marker (plist-get other :marker)))
+            (cond
+             ((string= other-marker marker) (throw 'done t))
+             ((<= (length other-marker) (length marker)) (throw 'done nil))))))
+      nil)))
+
 (defun adoc--change-list-item-level (item delta)
   "Change list ITEM's nesting level by DELTA, rewriting its marker.
 A positive DELTA nests the item deeper, a negative one shallower.
-Signal a `user-error' when that leaves the range of levels the
-marker style supports."
-  (let* ((type (plist-get item :type))
-         (level (+ (plist-get item :level) delta))
-         (old-marker (plist-get item :marker))
-         (beg (plist-get item :marker-beg))
-         (new-marker
-          (pcase type
-            ('unordered
-             (adoc--unordered-marker (adoc--check-level level adoc-uolist-max-level)))
-            ('implicit-numbered
-             (adoc--implicit-numbered-marker (adoc--check-level level 4)))
-            (_ (user-error "Cannot change the nesting level of a numbered list item")))))
-    (unless (string= new-marker old-marker)
-      (save-excursion
-        (goto-char beg)
-        (delete-region beg (+ beg (length old-marker)))
-        (insert new-marker)))))
+
+The depth is the marker's length, as Asciidoctor nests on a change of
+marker: `-' and `*' both mark the outermost level of an unordered
+list, `**' the next one.  Signal a `user-error' when the new depth is
+outside the five levels `adoc-mode' recognizes, and, as in Org mode,
+when demoting the first item of a list, which would leave it with no
+item to nest under.  A DELTA of 0 leaves ITEM alone."
+  (let ((type (plist-get item :type))
+        (old-marker (plist-get item :marker))
+        (beg (plist-get item :marker-beg)))
+    (when (eq type 'explicit-numbered)
+      (user-error "Cannot change the nesting level of a numbered list item"))
+    (unless (zerop delta)
+      (let ((depth (1+ (adoc--check-level (+ (length old-marker) delta -1) 4))))
+        (when (and (> delta 0) (not (adoc--prev-list-sibling-p item)))
+          (user-error "Cannot demote the first item of a list"))
+        (let ((new-marker (cond
+                           ((eq type 'implicit-numbered) (make-string depth ?.))
+                           ((= depth 1) (adoc--outer-unordered-marker item))
+                           (t (make-string depth ?*)))))
+          (unless (string= new-marker old-marker)
+            (save-excursion
+              (goto-char beg)
+              (delete-region beg (+ beg (length old-marker)))
+              (insert new-marker))))))))
 
 (defun adoc-insert-list-item (&optional _arg)
   "Insert a new list item below the item at point.
