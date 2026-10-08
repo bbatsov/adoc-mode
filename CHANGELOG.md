@@ -37,6 +37,7 @@
   - `M-up` / `M-down` move an item with the items nested in it, whatever their markers (`* a` then `- b`, or `* a` then `. b`), and across blank lines.
   - `M-left` gives an item the marker of the item it was in, and `M-right` the marker of its new siblings, or one that isn't in use around it. They work on explicitly numbered items too, and as in Org mode, an item with items nested in it isn't promoted on its own.
   - A list takes in what Asciidoctor attaches to its items, such as literal paragraphs, description lists and thematic breaks after a blank line, and blocks and tables attached with `+`. It ends at a paragraph after a blank line, a block that isn't attached or a table cell, so an item no longer moves into another list or out of its block.
+- [#108](https://github.com/bbatsov/adoc-mode/pull/108): `adoc-font-lock-extend-after-change-max` is obsolete, as a code block is now fontified again as a whole after a change in it, however long it is.
 
 ### Bugs fixed
 

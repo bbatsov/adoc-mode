@@ -346,6 +346,9 @@ Also used to delimit the scan for the end delimiter."
   :type 'integer
   :group 'adoc
   :package-version '(adoc-mode . "0.8.0"))
+(make-obsolete-variable 'adoc-font-lock-extend-after-change-max
+                        "a code block is fontified again as a whole after a change in it, however long."
+                        "0.10.0")
 
 (defcustom adoc-max-image-size nil
   "Maximum width and height for displayed images.
@@ -2424,29 +2427,13 @@ actual source code."
       (set-match-data (list start-header end-block start-src end-src (current-buffer)))
       lang)))
 
-(defun adoc-font-lock-extend-after-change-region (beg end _old-len)
-  "Enlarge region for re-fontification after edit.
-BEG is the beginning of the region and END its end.
-The region is extended if it includes a part of a source block.
-Returns a cons (BEG . END) with the updated limits of the region."
-  (save-match-data
-    (save-excursion
-      (goto-char beg)
-      ;; Maybe edits in header line: Skip to body
-      (cl-case (char-after (line-beginning-position))
-        (?\[ (forward-line 2))
-        (?- (forward-line 1)))
-      ;; Search backward for header:
-      (let ((beg-block (re-search-backward adoc-code-block-begin-regexp (max 0 (- (point) adoc-font-lock-extend-after-change-max)) t))
-            end-block)
-        (when beg-block
-          (goto-char (match-end 0))
-          (setq end-block (or (re-search-forward (format "\n%s$" (regexp-quote (match-string 2)))
-                                                 (+ (point) adoc-font-lock-extend-after-change-max)
-                                                 t)
-                              end))
-          (when (and end-block (> end-block beg)) ;; block reaches really into edited area
-            (cons (min beg beg-block) (max end end-block))))))))
+(defun adoc-font-lock-extend-after-change-region (_beg _end _old-len)
+  "Return nil, leaving the region to fontify after a change as it is.
+`adoc-font-lock-extend-region' widens it to whole delimited blocks."
+  nil)
+(make-obsolete 'adoc-font-lock-extend-after-change-region
+               "`adoc-font-lock-extend-region' widens the region to whole blocks."
+               "0.10.0")
 
 (defun adoc-fontify-code-blocks (last)
   "Add text properties to next code block from point to LAST.
@@ -7077,7 +7064,6 @@ Turning on Adoc mode runs the normal hook `adoc-mode-hook'."
                 (font-lock-mark-block-function . adoc-font-lock-mark-block-function)))
   (setq-local font-lock-extra-managed-props '(adoc-reserved adoc-attribute-list adoc-code-block adoc-flyspell-ignore))
   (setq-local font-lock-unfontify-region-function 'adoc-unfontify-region-function)
-  (setq-local font-lock-extend-after-change-region-function #'adoc-font-lock-extend-after-change-region)
   (add-hook 'font-lock-extend-region-functions #'adoc-font-lock-extend-region nil t)
   (add-hook 'before-change-functions #'adoc--invalidate-block-extents nil t)
 

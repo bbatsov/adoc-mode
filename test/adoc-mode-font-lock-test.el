@@ -292,6 +292,40 @@
           (expect (adoc-test-chunked-fontification-difference text chunk-size)
                   :to-be nil))))
 
+    (it "refontifies all of a code block after an edit in it"
+      (with-temp-buffer
+        (insert "Intro.\n\n[source,adoctest-lang]\n----\nif x\n  do something\n"
+                "  while y\n----\n\nAfter.\n")
+        (adoc-mode)
+        (adoc-test-fontify-in-chunks 30)
+        (adoc-test-track-changes)
+        (goto-char (point-min))
+        (search-forward "if x")
+        (insert " /*")
+        (adoc-test-fontify-in-chunks 30)
+        (let ((edited (adoc-test--face-runs))
+              (text (buffer-string)))
+          (expect edited :to-equal (with-temp-buffer
+                                     (insert text)
+                                     (adoc-mode)
+                                     (font-lock-ensure)
+                                     (adoc-test--face-runs))))))
+
+    (it "leaves a code block alone after an edit below it"
+      ;; a closing fence used to be taken for an opening one, so every edit
+      ;; below a fenced block fontified the block natively again
+      (dolist (block '("```adoctest-lang\nif x\n```\n"
+                       "[source,adoctest-lang]\n----\nif x\n----\n"))
+        (with-temp-buffer
+          (insert block "\nSome prose here.\n")
+          (adoc-mode)
+          (adoc-test-fontify-in-chunks 1000)
+          (adoc-test-track-changes)
+          (search-backward "prose")
+          (insert "x")
+          (expect (text-property-any (point-min) (1+ (length block)) 'fontified nil)
+                  :to-be nil))))
+
     (when-fontifying-it "ends a block at the first exact repeat of its delimiter"
       ("----\ncode\n\n----\n\nprose with *bold*\n\n----\nmore\n----\n"
        ("code" adoc-code-face)

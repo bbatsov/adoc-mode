@@ -236,6 +236,13 @@ constructs that break when a chunk starts or ends inside them."
       (jit-lock-fontify-now pos (min (point-max) (+ pos chunk-size)))
       (setq pos (text-property-any pos (point-max) 'fontified nil)))))
 
+(defun adoc-test-track-changes ()
+  "Make a change mark the text to fontify again, as `font-lock-mode' does.
+That's for a buffer fontified by `adoc-test-fontify-in-chunks', which
+then fontifies the marked text, like jit-lock catching up."
+  (add-hook 'jit-lock-after-change-extend-region-functions
+            #'font-lock-extend-jit-lock-region-after-change nil t))
+
 (defun adoc-test--face-runs ()
   "Return the current buffer's faces as a list of (START END FACE) runs."
   (let ((pos (point-min)) runs)
