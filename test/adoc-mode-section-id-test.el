@@ -192,7 +192,15 @@
                     "Index ((term)) and (((hidden))) and indexterm2:[shown]"
                     "icon:check[] Done" "stem:[x^2] math" "See <<x, >> and <<a.adoc#b>>"
                     "E mailto:a@b.co[Me, Subject] and https://x.org[Text^]"
-                    "C [.r]+x+[.r]+y+" "D +x++{x}+" "A +x++{x}++y+" "B ++{x}++ +{x}+")))
+                    "C [.r]+x+[.r]+y+" "D +x++{x}+" "A +x++{x}++y+" "B ++{x}++ +{x}+"
+                    "A link:x['Quoted, text',role=x] b" "B link:x['Don\\'t, go'] b"
+                    "C link:x[x.y=z] b" "D https://x.org['*bold*',role=x] b"
+                    "E xref:y['Q, t'] b" "F icon:heart[alt=Love] b" "G icon:x[alt=\"A, b\"] c"
+                    "A link:x[\"Text\"x,role=y] b" "B link:x[\"a\" \"b\",role=x] b"
+                    "A link:x['Tom & Jerry',role=x] b" "B link:x['A -> B',role=x] b"
+                    "C link:x['It (C) 2024',role=x] b" "E link:x['<b>',role=x] b"
+                    "A icon:x[alt='Tom & Jerry'] b" "F icon:x[alt=None] b"
+                    "H link:x[a=None,'Q, r'] b" "C link:x[\"\\\"q\\\" r\",x=y] b")))
       (dolist (attrs '("" ":idprefix:\n:idseparator: -\n" ":experimental:\n"))
         (let ((doc (concat "= D\n" attrs "\n"
                            (mapconcat (lambda (title) (concat "== " title "\n\n"))
@@ -622,6 +630,35 @@
                    "= D\n\n== H {set:z:A&B} {z}\n"))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
+
+(describe "adoc--attribute-list"
+  (it "parses an attribute list the way Asciidoctor does"
+    (expect (adoc--attribute-list "Text, role=x, a.b = \"q, r\" ,'s\\'t'")
+            :to-equal '((nil . "Text") ("role" . "x") ("a.b" . "q, r") (nil . "s't")))
+    (expect (adoc--attribute-list ",x") :to-equal '((nil) (nil . "x")))
+    (expect (adoc--attribute-list "") :to-equal nil)
+    ;; a quoted value ends at the first quote that isn't escaped
+    (expect (adoc--attribute-list "\"Text\"x,'It''s'")
+            :to-equal '((nil . "Text") (nil . "x") (nil . "It") (nil . "s")))
+    ;; and one that isn't closed takes its quote in
+    (expect (adoc--attribute-list "\"open, x=y")
+            :to-equal '((nil . "\"open") ("x" . "y"))))
+
+  (it "leaves an attribute set to None out, but in its position"
+    (expect (adoc--attribute-list "a=None,b") :to-equal '(("a") (nil . "b")))
+    (expect (adoc--named-attribute "a" (adoc--attribute-list "a=x,a=None"))
+            :to-equal "x"))
+
+  (it "passes the values in single quotes through SUB"
+    (expect (adoc--attribute-list "'<b>',x='y',title='z'" #'upcase)
+            :to-equal '((nil . "<B>") ("x" . "Y") ("title" . "z"))))
+
+  (it "doesn't backtrack on escapes or blanks"
+    (let ((attrlist (concat "'" (apply #'concat (make-list 5000 "\\a")) "'x")))
+      (expect (length (adoc--attribute-list attrlist)) :to-equal 2))
+    (let ((attrlist (concat "a" (make-string 20000 ?\s) "b,c")))
+      (expect (adoc--attribute-list attrlist)
+              :to-equal `((nil . ,(concat "a" (make-string 20000 ?\s) "b")) (nil . "c"))))))
 
 (describe "adoc--string-succ"
   (it "counts the way Ruby's String#succ does"

@@ -5305,25 +5305,143 @@ last one turns an escaped entity, `&amp;copy;', back into one.")
                 (t replacement))))))
     text))
 
-(defun adoc--first-positional-attribute (attrlist)
-  "Return the first positional attribute in ATTRLIST, or nil if there's none."
-  (cond
-   ((string-match "\\`[ \t]*\"\\(\\(?:[^\"\\]\\|\\\\.\\)*\\)\"" attrlist)
-    (string-replace "\\\"" "\"" (match-string 1 attrlist)))
-   ((string-match "\\`[ \t]*\\([^,]*?\\)[ \t]*\\(?:,\\|\\'\\)" attrlist)
-    (let ((first (match-string 1 attrlist)))
-      (unless (or (string-empty-p first)
-                  (string-match-p "\\`[[:alnum:]_][[:alnum:]_-]*[ \t]*=" first))
-        first)))))
+(defun adoc--attribute-list (attrlist &optional sub)
+  "Return the attributes in ATTRLIST, parsed the way Asciidoctor does it.
+The value is a list of (NAME . VALUE) in order, NAME being nil for a
+positional attribute.  A value in double or single quotes ends at the
+first quote that isn't escaped with a backslash, and can hold a comma.
+An unquoted named value of `None' gives a nil VALUE, as Asciidoctor
+leaves the attribute out, though it does take up its position.  SUB, when
+non-nil, is called with each value in single quotes but those of
+`title' and `reftext', and gives the value instead, as Asciidoctor
+applies the normal substitutions to them for some macros."
+  (let ((pos 0)
+        (len (length attrlist))
+        (continue t)
+        attrs)
+    (cl-labels
+        ((peek () (and (< pos len) (aref attrlist pos)))
+         (skip-blank ()
+           (let ((start pos))
+             (while (memq (peek) '(?\s ?\t))
+               (setq pos (1+ pos)))
+             (- pos start)))
+         (to-delimiter ()
+           ;; Up to the next comma, without the blanks in front of it.
+           (let ((end (or (string-search "," attrlist pos) len)))
+             (while (and (> end pos) (memq (aref attrlist (1- end)) '(?\s ?\t)))
+               (setq end (1- end)))
+             (prog1 (substring attrlist pos end)
+               (setq pos end))))
+         (name ()
+           ;; A name at POS, as Asciidoctor's NameRx has it.
+           (let ((end pos))
+             (while (and (< end len)
+                         (let ((c (aref attrlist end)))
+                           (or (eq c ?_)
+                               (and (> end pos) (memq c '(?- ?.)))
+                               (string-match-p "[[:alnum:]]" (string c)))))
+               (setq end (1+ end)))
+             (when (> end pos)
+               (prog1 (substring attrlist pos end)
+                 (setq pos end)))))
+         (quoted (quote)
+           ;; POS is past the opening QUOTE.
+           (if (eq (peek) quote)
+               (progn (setq pos (1+ pos)) "")
+             (let ((end (1+ pos)))
+               (while (and (< end len)
+                           (not (and (eq (aref attrlist end) quote)
+                                     (not (eq (aref attrlist (1- end)) ?\\)))))
+                 (setq end (1+ end)))
+               (if (>= end len)
+                   ;; No closing quote: the quote is part of the value.
+                   (concat (string quote) (to-delimiter))
+                 (prog1 (string-replace (string ?\\ quote) (string quote)
+                                        (substring attrlist pos end))
+                   (setq pos (1+ end)))))))
+         (quoted-value ()
+           ;; At a quote, return the value it starts and whether it's in
+           ;; single quotes.
+           (let* ((quote (prog1 (peek) (setq pos (1+ pos))))
+                  (value (quoted quote)))
+             (cons value (and (eq quote ?') (not (string-prefix-p "'" value)))))))
+      (while continue
+        (let (name value single skip)
+          (skip-blank)
+          (if (memq (peek) '(?\" ?'))
+              (pcase-setq `(,name . ,single) (quoted-value))
+            (setq name (name))
+            (let ((skipped (if name (skip-blank) 0))
+                  (c (peek)))
+              (cond
+               ((not c)
+                (setq continue nil)
+                (unless (or name
+                            (let ((end len))
+                              (while (and (> end 0)
+                                          (memq (aref attrlist (1- end)) '(?\s ?\t)))
+                                (setq end (1- end)))
+                              (and (> end 0) (eq (aref attrlist (1- end)) ?,))))
+                  (setq skip t)))
+               ((eq c ?,))
+               ((and name (eq c ?=))
+                (setq pos (1+ pos))
+                (skip-blank)
+                (pcase (peek)
+                  ((or ?\" ?') (pcase-setq `(,value . ,single) (quoted-value)))
+                  ((or ?, 'nil) (setq value ""))
+                  (_ (setq value (to-delimiter))
+                     (when (equal value "None")
+                       (setq value nil
+                             skip 'none)))))
+               (t
+                (setq pos (1+ pos)
+                      name (concat name (make-string skipped ?\s) (string c)
+                                   (to-delimiter)))))))
+          (cond
+           ((eq skip 'none) (push (list name) attrs))
+           ((not skip)
+            (when (and single sub)
+              (if value
+                  (unless (member name '("title" "reftext"))
+                    (setq value (funcall sub value)))
+                (setq name (funcall sub name))))
+            (push (if value (cons name value) (cons nil name)) attrs)))
+          (when continue
+            (if (>= pos len)
+                (setq continue nil)
+              ;; Past the comma, if that's what's next.
+              (let ((next pos))
+                (while (and (< next len) (memq (aref attrlist next) '(?\s ?\t)))
+                  (setq next (1+ next)))
+                (cond
+                 ((>= next len) (setq pos next continue nil))
+                 ((eq (aref attrlist next) ?,) (setq pos (1+ next)))))))))
+      (nreverse attrs))))
 
-(defun adoc--link-text (text trigger)
+(defun adoc--named-attribute (name attrs)
+  "Return the value ATTRS give the attribute NAME, or nil.
+ATTRS are from `adoc--attribute-list', and the last value set wins."
+  (cdr (seq-find (lambda (attr) (and (equal (car attr) name) (cdr attr)))
+                 (reverse attrs))))
+
+(defun adoc--first-positional-attribute (attrlist &optional sub)
+  "Return the first positional attribute in ATTRLIST, or nil if there's none.
+That's the first attribute when it has no name, see
+`adoc--attribute-list' for it and SUB."
+  (pcase (car (adoc--attribute-list attrlist sub))
+    (`(nil . ,(and value (pred stringp) (pred (not string-empty-p)))) value)))
+
+(defun adoc--link-text (text trigger &optional sub)
   "Return the text of a link macro with the attribute list TEXT.
 An attribute list with TRIGGER in it is parsed, and its first
 positional attribute is the text, otherwise TEXT itself is.  Return
-nil when there's no text, as the macro shows its target then."
+nil when there's no text, as the macro shows its target then.  See
+`adoc--attribute-list' for SUB."
   (let ((text (string-replace "\\]" "]" text)))
     (when (string-search trigger text)
-      (setq text (or (adoc--first-positional-attribute text) "")))
+      (setq text (or (adoc--first-positional-attribute text sub) "")))
     (setq text (string-remove-suffix "^" text))
     (unless (string-empty-p text) text)))
 
@@ -5441,7 +5559,11 @@ ATTRIBUTES are the document attributes in effect.  Only the macros
 that make a difference to a section id are converted, and footnotes
 and menus aren't, though they do."
   (cl-flet ((convert (regexp replace)
-              (setq text (adoc--gsub regexp text replace))))
+              (setq text (adoc--gsub regexp text replace)))
+            ;; What Asciidoctor does with a value in single quotes in the
+            ;; attribute list of a link, xref or index term.
+            (sub (value)
+              (car (adoc--apply-subs value adoc--normal-subs attributes))))
     (when (and (assoc "experimental" attributes)
                (string-match-p "kbd:\\|btn:" text))
       (convert adoc--re-kbd-btn-macro
@@ -5460,11 +5582,14 @@ and menus aren't, though they do."
                   ((string-prefix-p "\\" match) (substring match 1))
                   ((or (equal (match-string 1 s) "mage") (assoc "icons" attributes))
                    "<img>")
-                  ;; Without icons, an icon shows its name.
-                  (t (concat "<span>["
-                             (replace-regexp-in-string
-                              "[_-]" " " (file-name-base (match-string 2 s)) t t)
-                             "&#93;</span>"))))))
+                  ;; Without icons, an icon shows its alt text, or its name.
+                  (t (let ((name (match-string 2 s))
+                           (attrlist (match-string 3 s)))
+                       (concat "<span>["
+                               (or (adoc--named-attribute "alt" (adoc--attribute-list attrlist))
+                                   (replace-regexp-in-string
+                                    "[_-]" " " (file-name-base name) t t))
+                               "&#93;</span>")))))))
     (when (string-match-p "((\\|indexterm" text)
       (convert adoc--re-index-term
                (lambda (match s)
@@ -5478,7 +5603,7 @@ and menus aren't, though they do."
                          (substring match 1)
                        (let ((term (string-trim (string-replace "\\]" "]" (match-string 2 s)))))
                          (or (and (string-search "=" term)
-                                  (adoc--first-positional-attribute term))
+                                  (adoc--first-positional-attribute term #'sub))
                              term))))
                     ;; `\(((term)))' escapes the concealed term and leaves a
                     ;; visible one in parentheses.
@@ -5513,7 +5638,7 @@ and menus aren't, though they do."
                     (text
                      (concat (unless (equal prefix "link:") prefix)
                              (adoc--link (concat scheme (match-string 4 s))
-                                         (adoc--link-text text "=")
+                                         (adoc--link-text text "=" #'sub)
                                          attributes)))
                     ((member prefix '("link:" "\"" "'")) match)
                     (t
@@ -5539,7 +5664,7 @@ and menus aren't, though they do."
                          (target (match-string 2 s)))
                      (adoc--link target
                                  (or (adoc--link-text (match-string 3 s)
-                                                      (if mailto "," "="))
+                                                      (if mailto "," "=") #'sub)
                                      (and mailto target))
                                  attributes))))))
     (when (string-match-p "\\[\\[\\|anchor:" text)
@@ -5559,7 +5684,7 @@ and menus aren't, though they do."
                        (when text
                          (setq text (string-replace "\\]" "]" text))
                          (when (string-search "=" text)
-                           (setq text (adoc--first-positional-attribute text)))))
+                           (setq text (adoc--first-positional-attribute text #'sub)))))
                       ((string-search "," refid)
                        (let ((comma (string-search "," refid)))
                          (setq text (string-trim-left (substring refid (1+ comma)))
