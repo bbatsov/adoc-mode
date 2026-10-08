@@ -516,6 +516,23 @@
       (expect (adoc-move-list-item-down) :to-throw 'user-error)
       (expect (adoc-move-list-item-up) :to-throw 'user-error)))
 
+  (it "moves a list item in a block left open in another one"
+    ;; the open block runs to the end of the example, with no closing
+    ;; delimiter, so its last line is an item
+    (adoc-test-trans "====\n--\n* a\n* b!\n====\n" "====\n--\n* b\n* a\n====\n"
+                     '(adoc-move-list-item-up))
+    (adoc-test-trans "====\n--\n* a!\n* b\n====\n" "====\n--\n* b\n* a\n====\n"
+                     '(adoc-move-list-item-down)))
+
+  (it "takes no line in a verse block for a list item"
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "[verse]\n____\n* a\n* b\n____\n")
+      (goto-char (point-min))
+      (search-forward "* b")
+      (expect (adoc--list-item-at-point) :to-be nil)
+      (expect (adoc-move-list-item-up) :to-throw 'user-error)))
+
   (it "errors when there is no sibling to move past"
     (with-temp-buffer
       (adoc-mode)

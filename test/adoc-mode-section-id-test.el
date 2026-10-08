@@ -281,7 +281,25 @@
              "= D\n\n====\n:q: Zap\n\n....\n:q: Zoo\n....\n====\n\n== {q}\n")
             :to-equal '("_zap"))
     (expect (adoc-test--section-ids "= D\n\n```\n:r: Zip\n```\n\n== {r}\n")
-            :to-equal '("_r")))
+            :to-equal '("_r"))
+    ;; a block left open in another one runs to the end of that one
+    (expect (adoc-test--section-ids "= D\n\n====\n----\n:p: Zed\n====\n\n== {p}\n")
+            :to-equal '("_p")))
+
+  (it "ignores attribute entries in blocks a style makes verbatim"
+    (dolist (block '("[source]\n--" "[source#x.y]\n--" "[.role]\n[listing]\n--"
+                     "[source]\n[.role]\n--" "[comment]\n--" "[pass]\n--"
+                     "[verse]\n____" "[source]\n\n--" "[source]\n// c\n:q: x\n.Title\n--"
+                     "[source]\n////\n[stem]\n////\nifdef::x[]\nendif::x[]\n--"))
+      (expect (adoc-test--section-ids
+               (format "= D\n\n%s\n:p: Zed\n%s\n\n== {p}\n"
+                       block (car (last (split-string block "\n")))))
+              :to-equal '("_p")))
+    ;; but not a style Asciidoctor doesn't turn the block into
+    (dolist (block '("[stem]\n--" "[#x,source]\n--" "[quote]\n--" "[NOTE]\n--"))
+      (expect (adoc-test--section-ids
+               (format "= D\n\n%s\n:p: Zed\n--\n\n== {p}\n" block))
+              :to-equal '("_zed"))))
 
   (it "matches the real asciidoctor"
     (assume (executable-find "asciidoctor") "asciidoctor not installed")
@@ -301,7 +319,14 @@
                                "== See https://x.org and link:https://y.org[]\n\n"
                                "== icon:check[] Done\n")
                        (concat "= D\n:p: pass:[<b>raw</b>]\n:q: pass:q[*s* _e_]\n:s: a < b & c\n"
-                               ":t: {lt}b{gt}tag{lt}/b{gt}\n\n== {p} {q}\n\n== {s} {t}\n")))
+                               ":t: {lt}b{gt}tag{lt}/b{gt}\n\n== {p} {q}\n\n== {s} {t}\n")
+                       "= D\n\n====\n----\n:p: Zed\n====\n\n== {p}\n"
+                       "= D\n\n====\n[source]\n--\n:p: Zed\n--\n====\n\n== {p}\n"
+                       (concat "= D\n\n[verse]\n____\n:p: Zed\n____\n\n"
+                               "[stem]\n--\n:q: Zap\n--\n\n== {p} {q}\n")
+                       "= D\n\n[source]\n\n// c\n.Title\n--\n:p: Zed\n--\n\n== {p}\n"
+                       (concat "= D\n\n[source]\n////\n[stem]\n////\nifndef::x[]\nendif::x[]\n"
+                               "--\n:p: Zed\n--\n\n== {p}\n")))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
@@ -450,7 +475,10 @@
                    "= D\n\n[source#_foo,ruby]\n----\nx\n----\n\n== Foo\n"
                    "= D\n\n====\n[[_foo]]\npara\n====\n\n== Foo\n\npara [[_foo_3]]\n\n== Foo\n"
                    "= D\n\n== Foo\n\n:sectids!:\n\n== Foo\n\n:sectids:\n\n== Foo\n"
-                   "= D\n\n----\n[[_foo]]\n----\n\n// [[_foo]]\n\n== Foo\n"))
+                   "= D\n\n----\n[[_foo]]\n----\n\n// [[_foo]]\n\n== Foo\n"
+                   "= D\n\n[verse]\n____\n[[_foo]]x\n____\n\n== Foo\n"
+                   "= D\n\n[[_foo]]\n[verse]\n____\nx\n____\n\n== Foo\n"
+                   "= D\n\n[verse]\n--\n[[_foo]]x\n--\n\n[source]\n--\n[[_foo]]\n--\n\n== Foo\n"))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 

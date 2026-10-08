@@ -96,6 +96,9 @@
 - [#105](https://github.com/bbatsov/adoc-mode/pull/105): Section auto-ids follow Asciidoctor's substitution order, so titles with passthroughs (`+{x}+`, `pass:[...]`), escaped quoted text (`\__x__`) or attribute values holding markup get the ids Asciidoctor gives them, and so do titles with icons, index terms or links under `:hide-uri-scheme:`.
 - [#107](https://github.com/bbatsov/adoc-mode/pull/107): An attribute entry that refers to the attribute it sets, as in `:product: {product} Pro`, gets its earlier value for section ids instead of leaving the reference as it is.
 - [#107](https://github.com/bbatsov/adoc-mode/pull/107): Counters (`{counter:step}`, `{counter2:step}`) in section titles, attribute entries and the document title count as they do in Asciidoctor, so the auto-ids of the titles that use them match.
+- [#108](https://github.com/bbatsov/adoc-mode/pull/108): The list commands and section ids leave the lines of more blocks alone, as Asciidoctor does.
+  - An open block styled `[source]`, `[listing]`, `[literal]`, `[pass]`, `[comment]` or `[verse]`, or a quote block styled `[verse]`, is verbatim, also when blank lines, comments or a block title come between the style and the block.
+  - A block left open in another block runs to the end of that block.
 
 ## 0.9.0 (2026-06-02)
 

@@ -1844,12 +1844,13 @@ The text is displayed RAISE lines higher, unless RAISE is 0."
 (defun adoc--delimited-block-match-p ()
   "Return non-nil unless the delimited block matched can't be one.
 In a listing, literal or other verbatim block a delimiter line is just
-content, and a block nested in another one has to close before it does.
-See `adoc--ensure-block-extents' for how blocks are found."
+content, and a block nested in another one has to close before it does,
+or else it runs to the end of that one.  See `adoc--ensure-block-extents'
+for how blocks are found."
   (let ((block (get-text-property (match-beginning 0) 'adoc-delimited-block)))
     (or (null block)
-        (= (nth 1 block) (match-beginning 0))
-        (and (not (nth 2 block))
+        (and (or (= (nth 1 block) (match-beginning 0))
+                 (not (nth 2 block)))
              (<= (match-end 0) (nth 3 block))))))
 
 (defun adoc--outside-delimited-block-p ()
@@ -2514,11 +2515,27 @@ are Asciidoctor's delimiters, Markdown's ``` fence included, not the
 ones `adoc-delimited-block-del' customizes for highlighting.  A `|==='
 table is highlighted line by line, so it needs no extent.")
 
-(defun adoc--verbatim-delimiter-p (delimiter)
-  "Return non-nil when DELIMITER opens a block whose content isn't AsciiDoc.
-That's every block but the example, sidebar, quote and open ones."
-  (not (or (equal delimiter "--")
-           (memq (aref delimiter 0) '(?= ?* ?_)))))
+(defconst adoc--verbatim-styles '("comment" "listing" "literal" "pass" "source")
+  "Block styles that make a paragraph or an open block's text verbatim.
+Asciidoctor substitutes nothing in it, anchors included.  The `verse'
+style is verbatim too, but it substitutes inline markup.")
+
+(defun adoc--verbatim-block-p (delimiter open)
+  "Return non-nil when the block DELIMITER opens at OPEN isn't AsciiDoc inside.
+That's every block but the example, sidebar, quote and open ones, and an
+open or quote block too when its block attribute lines give it a style
+that Asciidoctor turns into a verbatim block (see
+`adoc--block-attribute-above'), such as `[source]' over `--'.  The
+value is `verse' for a verse block, whose text gets inline markup
+though."
+  (let ((style (and (or (equal delimiter "--") (eq (aref delimiter 0) ?_))
+                    (save-excursion
+                      (goto-char open)
+                      (adoc--block-attribute-above #'adoc--block-attribute-style)))))
+    (cond
+     ((equal style "verse") 'verse)
+     ((equal delimiter "--") (and (member style adoc--verbatim-styles) t))
+     (t (not (memq (aref delimiter 0) '(?= ?* ?_)))))))
 
 (defconst adoc--re-block-metadata-line
   "^\\(?:\\[.*\\]\\|\\.[^ \t.].*\\)[ \t]*$"
@@ -2582,14 +2599,16 @@ for `before-change-functions'."
   "Make sure the extents of the delimited blocks before POS are recorded.
 Each block, together with the attribute, anchor and title lines right
 above it, gets an `adoc-delimited-block' text property whose value is
-the list (START OPEN VERBATIM END PARENT): where the block begins, where
-its opening delimiter line is, whether its content isn't AsciiDoc (see
-`adoc--verbatim-delimiter-p'), where it ends, and the block it's nested
-in, or nil.  A block nested in an example, sidebar, quote or open block
-gets an extent of its own, so the property holds the innermost block.
-Like Asciidoctor, the first line that repeats the opening delimiter
-exactly closes a block, whatever it contains, and a nested block has to
-close before its parent does.  An unterminated block gets no extent.
+the list (START OPEN VERBATIM END PARENT CLOSE): where the block begins,
+where its opening delimiter line is, whether its content isn't AsciiDoc
+\(see `adoc--verbatim-block-p'), where it ends, the block it's nested
+in, or nil, and where its closing delimiter line is, or nil.  A block
+nested in an example, sidebar, quote or open block gets an extent of
+its own, so the property holds the innermost block.  Like Asciidoctor,
+the first line that repeats the opening delimiter exactly closes a
+block, whatever it contains, and a nested block has to close before its
+parent does, or else runs to the parent's end with no CLOSE.  An
+unterminated top-level block gets no extent.
 
 The scan picks up where the last one left off, and a block it starts
 is recorded whole."
@@ -2661,22 +2680,24 @@ before END.  See `adoc--ensure-block-extents'."
             (while (and (zerop (forward-line -1))
                         (looking-at-p adoc--re-block-metadata-line))
               (setq block-start (point))))
-          (cond
-           ((re-search-forward closing (and parent end) t)
-            (let* ((content-end (match-beginning 0))
-                   (block-end (min (1+ (point)) (point-max)))
-                   (verbatim (adoc--verbatim-delimiter-p delimiter))
-                   (block (list block-start open verbatim block-end parent)))
-              (put-text-property block-start block-end 'adoc-delimited-block block)
-              (unless verbatim
-                (adoc--record-block-extents content-start content-end block))
-              (unless parent
-                (setq end (max end block-end)))
-              (goto-char block-end)))
-           ;; Asciidoctor runs an unterminated nested block to the end of its
-           ;; parent, but it gets no extent, like a top-level one.
-           ((not (or parent adoc--block-extents-unterminated))
-            (setq adoc--block-extents-unterminated block-start)))))))
+          (let ((closed (re-search-forward closing (and parent end) t)))
+            (cond
+             ;; Asciidoctor runs a block left open in another one to the end
+             ;; of its parent.
+             ((or closed parent)
+              (let* ((content-end (if closed (match-beginning 0) end))
+                     (block-end (if closed (min (1+ (point)) (point-max)) end))
+                     (verbatim (adoc--verbatim-block-p delimiter open))
+                     (block (list block-start open verbatim block-end parent
+                                  (and closed content-end))))
+                (put-text-property block-start block-end 'adoc-delimited-block block)
+                (unless verbatim
+                  (adoc--record-block-extents content-start content-end block))
+                (unless parent
+                  (setq end (max end block-end)))
+                (goto-char block-end)))
+             ((not adoc--block-extents-unterminated)
+              (setq adoc--block-extents-unterminated block-start))))))))
   end)
 
 (defvar font-lock-beg)
@@ -2807,13 +2828,22 @@ a list, it can be an item instead, see `adoc--list-scan'."
     (save-match-data
       (beginning-of-line)
       (and (looking-at adoc--re-markdown-thematic-break)
-           (not (nth 2 (adoc--delimited-block-at (point))))
-           (if (adoc--item-shaped-break-p)
+           (let* ((block (adoc--delimited-block-at (point)))
+                  (verbatim (nth 2 block)))
+             (cond
+              ;; Text in a verbatim block isn't a break, but it separates the
+              ;; stanzas of a verse block all the same, and a block left open
+              ;; in another one isn't highlighted as a block.  Neither has
+              ;; lists in it.
+              ((and verbatim (or (eq verbatim 'verse) (not (nth 5 block))))
+               (adoc--block-begins-p))
+              (verbatim nil)
+              ((adoc--item-shaped-break-p)
                (let ((breaks (cdr (adoc--thematic-breaks-table))))
                  (pcase (gethash (point) breaks 'unknown)
                    ('unknown (nth 3 (adoc--list-scan (point) t)))
-                   (known known)))
-             (adoc--block-begins-p))))))
+                   (known known))))
+              (t (adoc--block-begins-p))))))))
 
 (defun adoc-get-font-lock-keywords ()
   "Return list of keywords for `adoc-mode'."
@@ -3636,8 +3666,10 @@ no list goes on past one, or the beginning of the buffer, to its end."
               (progn (goto-char (cdr table)) (line-beginning-position))
               t))
        (own
+        ;; up to the closing delimiter, or the end of a block left open in
+        ;; another one
         (list (progn (goto-char (nth 1 own)) (line-beginning-position 2))
-              (progn (goto-char (1- (nth 3 own))) (line-beginning-position))
+              (or (nth 5 own) (nth 3 own))
               nil))
        (t
         (goto-char pos)
@@ -4449,12 +4481,19 @@ Group 2 is the name and group 4 the value.  Group 1 or 3 matches the
     ("zwsp" . "&#8203;"))
   "Asciidoctor's built-in attributes that stand for a character.")
 
-(defun adoc--in-verbatim-block-p (pos)
+(defun adoc--in-verbatim-block-p (pos &optional inline)
   "Return non-nil when POS is in the content of a verbatim delimited block.
-That's a listing, literal, passthrough or comment block, whose content
-isn't AsciiDoc."
-  (let ((block (adoc--delimited-block-at pos)))
-    (and block (nth 2 block) (> pos (nth 1 block)))))
+That's one whose content isn't AsciiDoc, such as a listing, literal,
+passthrough, comment or verse block, a fenced code block or a table.
+The value is what `adoc--verbatim-block-p' says of the block, so
+`verse' for a verse block.  With INLINE non-nil, only a block whose text
+gets no inline markup counts, so not a verse block."
+  (let* ((block (adoc--delimited-block-at pos))
+         (verbatim (nth 2 block)))
+    (and verbatim
+         (not (and inline (eq verbatim 'verse)))
+         (> pos (nth 1 block))
+         verbatim)))
 
 (defconst adoc--default-attributes
   '(("appendix-caption" . "Appendix") ("appendix-refsig" . "Appendix")
@@ -5662,6 +5701,8 @@ after its first line counts as a paragraph, unless it's indented."
           (table (seq-find (lambda (range) (< (car range) beg (cdr range)))
                            tables)))
       (cond
+       ;; the text of a verse block is verbatim, but gets inline markup
+       ((eq (adoc--in-verbatim-block-p beg) 'verse) 'rendered)
        ((looking-at-p adoc--re-block-anchor-line) 'registered)
        (table (if (adoc--table-anchor-registered-p beg table) 'registered 'rendered))
        ((looking-at-p adoc--re-block-attribute-line) nil)
@@ -5685,7 +5726,7 @@ after its first line counts as a paragraph, unless it's indented."
           ;; doesn't take anchors from, or a verbatim one with none at all.
           (let ((style (adoc--block-attribute-above #'adoc--block-attribute-style)))
             (cond
-             ((member style '("comment" "listing" "literal" "pass" "source")) nil)
+             ((member style adoc--verbatim-styles) nil)
              ((member style '("abstract" "example" "open" "partintro" "quote"
                               "sidebar" "verse"
                               "CAUTION" "IMPORTANT" "NOTE" "TIP" "WARNING"))
@@ -5726,7 +5767,8 @@ role or an option."
 BEG and END default to the whole buffer.  The list is in document
 order, and holds the block ids (`[[id]]', `[#id]', `[id=id]') and inline
 anchors (`[[id]]', `[[[id]]]', `anchor:id[]') that aren't escaped and
-aren't in a comment, a verbatim block or a literal paragraph.
+aren't in a comment, a literal paragraph or a verbatim block, though a
+verse block's text gets its inline anchors.
 REGISTERED is non-nil for an anchor Asciidoctor registers as soon as it
 parses it, see `adoc--anchor-registration'."
   (let ((end (or end (point-max)))
@@ -5743,7 +5785,7 @@ parses it, see `adoc--anchor-registration'."
                         (match-string-no-properties 3)
                         (match-string-no-properties 4))))
             (unless (or (match-beginning 1)
-                        (adoc--in-verbatim-block-p start)
+                        (adoc--in-verbatim-block-p start t)
                         (adoc--comment-line-p))
               (when (eq tables 'unknown)
                 (setq tables (adoc--table-ranges)))
@@ -5772,24 +5814,30 @@ parses it, see `adoc--anchor-registration'."
   "Return what GETTER finds on the block attribute lines above point's line.
 GETTER is called at the start of each of them, closest first, until it
 returns non-nil.  Like Asciidoctor, look past blank lines, comments,
-attribute entries and block titles between them and the line."
+comment blocks, attribute entries, block titles and conditional
+preprocessor directives between them and the line.  That goes by the
+text alone, as `adoc--verbatim-block-p' needs it while the block
+extents are being recorded."
   (save-excursion
-    (let ((own (adoc--delimited-block-at (point)))
-          value)
+    (let (value)
       (while (and (not value)
                   (zerop (forward-line -1))
-                  (let ((block (adoc--delimited-block-at (point))))
-                    (cond
-                     ((and block (not (eq block own)) (>= (point) (nth 1 block)))
-                      ;; skip a comment block, but not any other block
-                      (when (eq (char-after (nth 1 block)) ?/)
-                        (goto-char (nth 1 block))))
-                     ((looking-at-p adoc--re-block-attribute-line)
-                      (setq value (funcall getter))
-                      t)
-                     (t (or (looking-at-p "[ \t]*$")
-                            (looking-at-p adoc--re-block-title-or-comment-line)
-                            (looking-at-p adoc--re-attribute-entry-line)))))))
+                  (cond
+                   ((looking-at "\\(/\\{4,\\}\\)[ \t]*$")
+                    ;; a comment block, from its closing delimiter
+                    (and (> (point) (point-min))
+                         (progn
+                           (backward-char)
+                           (re-search-backward
+                            (concat "^" (regexp-quote (match-string 1)) "[ \t]*$")
+                            nil t))))
+                   ((looking-at-p adoc--re-block-attribute-line)
+                    (setq value (funcall getter))
+                    t)
+                   (t (or (looking-at-p "[ \t]*$")
+                          (looking-at-p adoc--re-block-title-or-comment-line)
+                          (looking-at-p adoc--re-attribute-entry-line)
+                          (looking-at-p adoc--re-conditional-directive))))))
       value)))
 
 (defun adoc--section-explicit-id (descriptor)

@@ -396,17 +396,43 @@
 
     (it "closes a nested block before its parent"
       ;; like Asciidoctor, the example ends at its first repeated delimiter,
-      ;; which leaves the listing in it unterminated
+      ;; which leaves the listing in it unterminated, so it runs to the end
+      ;; of the example
       (with-temp-buffer
         (insert "====\n----\n====\n----\n====\n")
         (adoc-mode)
         (goto-char (point-min))
         (forward-line 1)
         (let ((block (adoc--delimited-block-at (point))))
-          (expect (car block) :to-equal 1)
-          (expect (nth 2 block) :to-be nil))
+          (expect (car block) :to-equal 6)
+          (expect (nth 2 block) :to-be-truthy)
+          (expect (nth 3 block) :to-equal 11)
+          (expect (car (nth 4 block)) :to-equal 1)
+          ;; with no closing delimiter
+          (expect (nth 5 block) :to-be nil)
+          (expect (nth 5 (nth 4 block)) :to-equal 11))
         (forward-line 2)
         (expect (adoc--delimited-block-at (point)) :to-be nil)))
+
+    (it "takes the lines of a verbatim block for content, not list items"
+      ;; a listing left open in an example runs to the example's end, and a
+      ;; style can make an open or quote block verbatim
+      (dolist (text '("====\n----\n* item\n====\n"
+                      "[source]\n--\n* item\n--\n"
+                      "[.role]\n[literal]\n--\n* item\n--\n"
+                      "[verse]\n____\n* item\n____\n"))
+        (with-temp-buffer
+          (insert text)
+          (adoc-mode)
+          (goto-char (point-min))
+          (search-forward "* item")
+          (expect (adoc--list-item-at-point) :to-be nil)))
+      (with-temp-buffer
+        (insert "[NOTE]\n--\n* item\n--\n")
+        (adoc-mode)
+        (goto-char (point-min))
+        (search-forward "* item")
+        (expect (adoc--list-item-at-point) :to-be-truthy)))
 
     (when-fontifying-it "doesn't let a block nested in another run past its end"
       ;; the listing and the table are unterminated in the example, so they
@@ -671,6 +697,14 @@
         (expect (adoc--markdown-thematic-break-p) :to-be-truthy)
         (save-excursion (goto-char (point-min)) (delete-char 1) (insert "*"))
         (expect (adoc--markdown-thematic-break-p) :to-be nil)))
+
+    (when-fontifying-it "fontifies a thematic break separating stanzas in a verse block"
+      ("[verse]\n____\nOne.\n\n* * *\n\nTwo.\n____\n"
+       ("* * *" adoc-complex-replacement-face))
+      ;; and in a listing left open in another block, which isn't
+      ;; highlighted as one
+      ("====\n----\n* * *\n====\n"
+       ("* * *" adoc-complex-replacement-face)))
 
     (when-fontifying-it "doesn't take a line in a listing for a thematic break"
       ("----\n* * *\n----" ("* * *" adoc-code-face)))

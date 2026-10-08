@@ -92,6 +92,10 @@ collection scans it lazily)."
       "
       (expect (adoc--collect-anchor-ids) :to-equal '("real"))))
 
+  (it "collects the anchors in a verse block, whose text gets inline markup"
+    (with-adoc-buffer "[verse]\n____\n[[vanchor]]Some verse\n____\n\n[source]\n--\n[[code]]\n--\n"
+      (expect (adoc--collect-anchor-ids) :to-equal '("vanchor"))))
+
   (it "returns nil when there are no anchors"
     (with-adoc-buffer "Just some prose with <<a-ref>> but no definitions.\n"
       (expect (adoc--collect-anchor-ids) :to-equal nil))))
