@@ -674,7 +674,12 @@
       ("Para.\n// comment\n---" ("---" nil))
       ("Para.\n---" ("---" nil))
       ;; and a verbatim style makes it a paragraph
-      ("[source]\n---" ("---" nil)))
+      ("[source]\n---" ("---" nil))
+      ("[verse]\nimage::a.png[]\n- - -" (26 28 nil))
+      ;; as the header's revision line, or the rest of an attribute's value,
+      ;; it's no break either
+      ("= D\npara\n* * *" (12 14 nil))
+      ("= D\n<<<\n:a: b \\\n- - -" (19 21 nil)))
 
     (when-fontifying-it "fontifies a thematic break in a list"
       ;; `***' can't be an item

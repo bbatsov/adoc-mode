@@ -59,6 +59,10 @@ collection scans it lazily)."
       (expect (sort (adoc--collect-anchor-ids) #'string<)
               :to-equal '("alpha" "beta" "biblio1" "delta" "gamma"))))
 
+  (it "doesn't take a style for a paragraph from above an include"
+    (with-adoc-buffer "[source,ruby]\ninclude::example.rb[]\n\nText with [[anchor]] here.\n"
+      (expect (adoc--collect-anchor-ids) :to-equal '("anchor"))))
+
   (it "collects anchor macros and id attributes"
     (with-adoc-buffer "
       See anchor:mac[here].
@@ -109,7 +113,8 @@ collection scans it lazily)."
         (expect (member "flag" names) :to-be-truthy)
         (expect (member "flag!" names) :to-be nil)
         (expect (member "other" names) :to-be-truthy)
-        ;; a name with a dot can't be referenced
+        ;; Asciidoctor drops the dot from the name, as it can't be referenced
+        (expect (member "ab" names) :to-be-truthy)
         (expect (member "a" names) :to-be nil)
         (expect (member "a.b" names) :to-be nil))))
 

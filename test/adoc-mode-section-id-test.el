@@ -349,7 +349,122 @@
 
   (it "starts from the attributes Asciidoctor sets"
     (expect (adoc-test--section-ids "= D\n\n== {backend} {note-caption}\n")
-            :to-equal '("_html5_note")))
+            :to-equal '("_html5_note"))
+    (expect (adoc-test--section-ids "= D\n\n== {iconsdir} {doctitle}\n")
+            :to-equal '("_imagesicons_d")))
+
+  (it "applies the entries below the author and revision lines of the header"
+    (expect (adoc-test--section-ids
+             (concat "= D\nJane Doe <j@x.com>\nv1.0, 2020-01-01\n"
+                     ":idprefix: x\n:idseparator: -\n\n== Foo Bar\n"))
+            :to-equal '("xfoo-bar"))
+    ;; which can come after entries and comments
+    (expect (adoc-test--section-ids "= D\n:a: b\n// c\nJane Doe\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_y")))
+
+  (it "sets the attributes of the header's author and revision lines"
+    (expect (adoc-test--section-ids
+             (concat "= D\nJane Q Doe <j@x.com>; Bob Roe\nv1.0, 2020-01-01: Draft\n\n"
+                     "== {author} {authorinitials} {lastname_2}\n\n"
+                     "== {authors} {authorcount}\n\n== {revnumber} {revremark}\n"))
+            :to-equal '("_jane_q_doe_jqd_roe" "_jane_q_doe_bob_roe_2" "_1_0_draft")))
+
+  (it "joins a continued value and goes on with the entries below it"
+    (expect (adoc-test--section-ids
+             "= D\n:description: a long \\\n  value\n:idprefix: q\n\n== Foo\n")
+            :to-equal '("qfoo"))
+    (expect (adoc-test--section-ids
+             "= D\n:description: a long +\n  value\n:idprefix: q\n\n== Foo\n")
+            :to-equal '("qfoo"))
+    ;; but only with the marker it started with, and not a value of just `+'
+    (expect (adoc-test--section-ids "= D\n:a: b \\\n  c +\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_y"))
+    (expect (adoc-test--section-ids "= D\n:sep: +\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_y")))
+
+  (it "reads the header past comment blocks, and with a Markdown title"
+    (expect (adoc-test--section-ids "= D\n////\nc\n////\nJane Doe\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_y"))
+    (expect (adoc-test--section-ids
+             "////\nc\n////\n= Doc\nJane Doe\n:x: y\n\n== A {x} {author}\n")
+            :to-equal '("_a_y_jane_doe"))
+    (expect (adoc-test--section-ids "# D\nJane Doe\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_y")))
+
+  (it "applies the entries after a block that takes up a single line"
+    (dolist (block '("image::a.png[]" "'''" "<<<" "toc::[]" "* * *"))
+      (expect (adoc-test--section-ids (format "= D\n\n%s\n:x: y\n\n== A {x}\n" block))
+              :to-equal '("_a_y")))
+    ;; but not after one in a paragraph, where it's text, nor after one
+    ;; under a verbatim style, which makes it a paragraph, nor after a
+    ;; macro Asciidoctor doesn't know
+    (expect (adoc-test--section-ids "= D\n\npara\nimage::a.png[]\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_x"))
+    (expect (adoc-test--section-ids "= D\n\n[source]\n\n'''\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_x"))
+    (expect (adoc-test--section-ids "= D\n\nfoo::bar[]\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_x")))
+
+  (it "takes the one-line form of an ifdef with text for that text"
+    (expect (adoc-test--section-ids
+             "= D\n\npara\n\nifdef::backend-html5[Some text]\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_x"))
+    ;; where it holds
+    (expect (adoc-test--section-ids
+             "= D\n\nifdef::env-github[View this on the website.]\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_y")))
+
+  (it "takes neither an include nor a dropped line for the header's author"
+    (expect (adoc-test--section-ids
+             "= T\ninclude::attrs.adoc[]\nJohn Doe\nv1.0\n:idprefix: q\n\n== {revnumber} A\n")
+            :to-equal '("q1_0_a"))
+    (expect (adoc-test--section-ids
+             "= T\nifdef::nope[]\nJohn Doe\nendif::[]\nJane Roe\n:idprefix: q\n\n== {author}\n")
+            :to-equal '("qjane_roe")))
+
+  (it "names an attribute the way Asciidoctor does"
+    (expect (adoc-test--section-ids "= D\n:a.b: w\n:x: y\n\n== A {x} {ab}\n")
+            :to-equal '("_a_y_w")))
+
+  (it "looks past the lines of a branch that doesn't hold"
+    (expect (adoc-test--section-ids
+             "= D\nifdef::nope[]\npara\nendif::[]\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_y"))
+    ;; even a blank line there doesn't end the paragraph, as of Asciidoctor
+    ;; 2.0.23 (2.0.20 has it end it)
+    (expect (adoc-test--section-ids
+             "= D\n\npara\nifdef::nope[]\n\nendif::[]\n:x: y\n\n== A {x}\n")
+            :to-equal '("_a_x"))
+    ;; and the one-line form stands for an entry only where one would be
+    (expect (adoc-test--section-ids "= D\n\npara\nifdef::backend-html5[:x: y]\n\n== A {x}\n")
+            :to-equal '("_a_x")))
+
+  (it "reads conditionals the way Asciidoctor does"
+    ;; whichever of `,' and `+' comes first separates the names
+    (expect (adoc-test--section-ids "= D\n:a:\nifdef::a,b+c[]\n:x: y\nendif::[]\n\n== A {x}\n")
+            :to-equal '("_a_y"))
+    (expect (adoc-test--section-ids
+             "= D\n:a:\n:c:\nifdef::a+b,c[]\n:x: y\nendif::[]\n\n== A {x}\n")
+            :to-equal '("_a_x"))
+    ;; an endif for another attribute doesn't end the branch, nor one with
+    ;; text, but the attribute's case doesn't matter
+    (expect (adoc-test--section-ids
+             "= D\nifdef::nope[]\n:x: y\nendif::nope2[]\n:z: w\nendif::[]\n\n== A {x} {z}\n")
+            :to-equal '("_a_x_z"))
+    (expect (adoc-test--section-ids
+             "= D\nifdef::nope[]\n:x: y\nendif::nope[text]\n:z: w\nendif::[]\n\n== A {x} {z}\n")
+            :to-equal '("_a_x_z"))
+    (expect (adoc-test--section-ids "= D\nifdef::nope[]\n:x: y\nendif::NOPE[]\n:z: w\n\n== A {x} {z}\n")
+            :to-equal '("_a_x_w"))
+    ;; an ifdef with no attribute is dropped, unless it's in a branch
+    ;; that doesn't hold
+    (expect (adoc-test--section-ids
+             "= D\nifdef::nope[]\nifdef::[]\n:x: y\nendif::[]\n:z: w\nendif::[]\n\n== A {x} {z}\n")
+            :to-equal '("_a_x_z"))
+    ;; and the directives are case-sensitive
+    (expect (adoc-test--section-ids
+             "= D\n\nIfdef::nope[]\n\n:x: y\n\nEndif::[]\n\n== A {x}\n")
+            :to-equal '("_a_y")))
 
   (it "matches the real asciidoctor"
     (assume (executable-find "asciidoctor") "asciidoctor not installed")
@@ -368,7 +483,41 @@
                    "= D\n:a:\nifndef::a,b[]\n:x: y\nendif::[]\nifndef::a+b[]\n:z: w\nendif::[]\n\n== A {x} {z}\n"
                    "= D\n:x: a\nifdef::x[]\n:y: b\nendif::[]\n:x!:\nifdef::x[]\n:y: c\nendif::[]\n\n== {y}\n"
                    "= D\n\n\\ifdef::nope[]\n\n:x: y\n\n== A {x}\n"
-                   "= D\n\n== {backend} {doctype} {note-caption}\n"))
+                   "= D\n\n== {backend} {doctype} {note-caption}\n"
+                   "= D\n\n== {iconsdir} {stylesdir} {doctitle} {last-update-label}\n"
+                   "= D\nJane Doe <j@x.com>\nv1.0, 2020-01-01\n:idprefix: x\n:idseparator: -\n\n== Foo Bar\n"
+                   "= D\n// c\nJane Doe\n:x: y\n\n== A {x}\n"
+                   "= D\n:a: b\nJane Doe\n:x: y\n\n== A {x}\n"
+                   "= D\nifdef::backend-html5[]\nJane Doe\nendif::[]\n:x: y\n\n== A {x}\n"
+                   "= D\nJane Q Doe <j@x.com>; Bob Roe\nv1.0, 2020-01-01: Draft\n\n== {author} {authorinitials} {email} {lastname_2}\n\n== {authors} {authorcount} {revnumber} {revdate} {revremark}\n"
+                   "= D\nKismet Chameleon\nv2.5\n\n== {firstname} {lastname} {revnumber}\n"
+                   "= D\n:description: a long \\\n  value\n:idprefix: q\n\n== Foo\n"
+                   "= D\n\nimage::a.png[]\n:x: y\n\n== A {x}\n"
+                   "= D\n\n'''\n:x: y\n\n== A {x}\n"
+                   "= D\n\ntoc::[]\n:x: y\n\n== A {x}\n"
+                   "= D\n\npara\nimage::a.png[]\n:x: y\n\n== A {x}\n"
+                   "= D\n:a.b: w\n:x: y\n\n== A {x} {ab}\n"
+                   "= D\nifdef::nope[]\npara\nendif::[]\n:x: y\n\n== A {x}\n"
+                   "= D\n\npara\nifdef::backend-html5[:x: y]\n\n== A {x}\n"
+                   "= D\n:a:\nifdef::a,b+c[]\n:x: y\nendif::[]\n\n== A {x}\n"
+                   "= D\nifdef::nope[]\n:x: y\nendif::nope2[]\n:z: w\nendif::[]\n\n== A {x} {z}\n"
+                   "= D\nifdef::[]\n:x: y\nendif::[]\n\n== A {x}\n"
+                   "= D\n:a:\n:c:\nifdef::a+b,c[]\n:x: y\nendif::[]\n\n== A {x}\n"
+                   "= D\nifdef::nope[]\n:x: y\nendif::nope[text]\n:z: w\nendif::[]\n\n== A {x} {z}\n"
+                   "= D\nifdef::nope[]\n:x: y\nendif::NOPE[]\n:z: w\n\n== A {x} {z}\n"
+                   "= D\nifdef::nope[]\nifdef::[]\n:x: y\nendif::[]\n:z: w\nendif::[]\n\n== A {x} {z}\n"
+                   "= D\n:description: a long +\n  value\n:idprefix: q\n\n== Foo\n"
+                   "= D\n////\nc\n////\nJane Doe\n:x: y\n\n== A {x}\n"
+                   "# D\nJane Doe\n:x: y\n\n== A {x}\n"
+                   "= D\n\n[source]\n\n'''\n:x: y\n\n== A {x}\n"
+                   "= D\n\nfoo::bar[]\n:x: y\n\n== A {x}\n"
+                   "= D\n\npara\n\nifdef::backend-html5[Some text]\n:x: y\n\n== A {x}\n"
+                   "= D\n\n[#x]\ninclude::chapter1.adoc[]\n\n== Next Section\n"
+                   "= D\n\nifdef::env-github[View this on the website.]\n:x: y\n\n== A {x}\n"
+                   "= T\nifdef::nope[]\nJohn Doe\nendif::[]\nJane Roe\n:idprefix: q\n\n== {author}\n"
+                   "= D\n:a: b \\\n  c +\n:x: y\n\n== A {x}\n"
+                   "= D\n:sep: +\n:x: y\n\n== A {x}\n"
+                   "////\nc\n////\n= Doc\nJane Doe\n:x: y\n\n== A {x} {author}\n"))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
@@ -496,6 +645,16 @@
   (it "needs a space before an anchor at the end of the title"
     (expect (adoc-test--section-ids "= D\n\n== Foo[[x]]\n") :to-equal '("_foo")))
 
+  (it "doesn't look past an include directive for the id"
+    (expect (adoc-test--section-ids "= D\n\n[#x]\ninclude::chapter1.adoc[]\n\n== Next Section\n")
+            :to-equal '("_next_section")))
+
+  (it "looks past preprocessor directives for the id"
+    (expect (adoc-test--section-ids "= D\n\n[#x]\nifdef::backend-html5[]\n== Foo\nendif::[]\n")
+            :to-equal '("x"))
+    (expect (adoc-test--section-ids "= D\n\nifdef::backend-html5[]\n[#x]\nendif::[]\n== Foo\n")
+            :to-equal '("x")))
+
   (it "accepts the ids Asciidoctor does"
     (expect (adoc-test--section-ids
              "= D\n\n[[a.b:c-d]]\n== Foo\n\n[id=e.f]\n== Bar\n\n[#80-chars.role]\n== Baz\n")
@@ -520,7 +679,9 @@
                    "= D\n\n[[x]]\n////\nc\n////\n\n== Bar\n"
                    "= D\n\n[#80-chars]\n== Foo [[x]]\n"
                    "= D\n\n[id=9a]\n== Foo\n\n[id=\"a b\"]\n== Bar\n\n[id='q']\n== Baz\n"
-                   "= D\n\n[[x]]\n:attr: x\n\n== Bar\n"))
+                   "= D\n\n[[x]]\n:attr: x\n\n== Bar\n"
+                   "= D\n\n[#x]\nifdef::backend-html5[]\n== Foo\nendif::[]\n"
+                   "= D\n\nifdef::backend-html5[]\n[#x]\nendif::[]\n== Foo\n"))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
@@ -532,6 +693,12 @@
                      "|===\n| [[_e]] cell\na| para [[_f]]\n|===\n\n"
                      "== A\n\n== B\n\n== C\n\n== D\n\n== E\n\n== F\n"))
             :to-equal '("_a_2" "_b_2" "_c_2" "_d_2" "_e_2" "_f_2")))
+
+  (it "doesn't count those in the header's author or revision line"
+    (expect (adoc-test--section-ids "= Doc\nJohn Doe\nv1.0 [[_x1]]\n\n== x1\n")
+            :to-equal '("_x1"))
+    (expect (adoc-test--section-ids "= Doc\n:foo: bar \\\n[[_x2]]baz\n\n== x2\n")
+            :to-equal '("_x2")))
 
   (it "doesn't count the ones it only renders"
     (expect (adoc-test--section-ids
@@ -578,7 +745,9 @@
                    "= D\n\n[.role]\npara [[_foo]]\n\n== Foo\n"
                    "= D\n\n====\n[source]\npara [[_foo]]\n====\n\n== Foo\n"
                    "= D\n\n====\n[NOTE]\npara [[_foo]]\n\n[[_foo_2]]\npara\n====\n\n== Foo\n"
-                   "= D\n\n[link=https://x.com#_foo]\nimage::a.png[]\n\n== Foo\n"))
+                   "= D\n\n[link=https://x.com#_foo]\nimage::a.png[]\n\n== Foo\n"
+                   "= Doc\nJohn Doe\nv1.0 [[_x1]]\n\n== x1\n"
+                   "= Doc\n:foo: bar \\\n[[_x2]]baz\n\n== x2\n"))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 

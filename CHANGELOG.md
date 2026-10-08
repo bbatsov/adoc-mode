@@ -93,6 +93,10 @@
   - `ifdef` and `ifndef` branches count only when their condition holds, so the common `ifdef::env-github[]` block no longer changes the ids.
   - The attributes Asciidoctor and Antora set by default, like `backend-html5` or `env-site`, count as set.
   - Image paths resolve their references the way titles do: by the entries above them, case-insensitively, and through attributes that refer to other attributes.
+- [#111](https://github.com/bbatsov/adoc-mode/pull/111): Section ids and image paths apply the attribute entries in more of the places Asciidoctor does.
+  - Entries below the author and revision lines of the document header, a value continued with ` \`, a block macro or thematic break, or an `ifdef` branch that doesn't hold count.
+  - Attribute names are stored the way Asciidoctor stores them, so `:a.b:` sets `ab`, and the document header sets `doctitle`, `author`, `revnumber` and the like.
+  - `ifdef` separates the attributes at whichever of `,` and `+` comes first and ignores an `endif` for another attribute, as Asciidoctor does, and the explicit id above a section title is found past `ifdef` lines but not past `include::` ones.
 - [#105](https://github.com/bbatsov/adoc-mode/pull/105): Section auto-ids follow Asciidoctor's substitution order, so titles with passthroughs (`+{x}+`, `pass:[...]`), escaped quoted text (`\__x__`) or attribute values holding markup get the ids Asciidoctor gives them, and so do titles with icons, index terms or links under `:hide-uri-scheme:`.
 - [#107](https://github.com/bbatsov/adoc-mode/pull/107): An attribute entry that refers to the attribute it sets, as in `:product: {product} Pro`, gets its earlier value for section ids instead of leaving the reference as it is.
 - [#107](https://github.com/bbatsov/adoc-mode/pull/107): Counters (`{counter:step}`, `{counter2:step}`) in section titles, attribute entries and the document title count as they do in Asciidoctor, so the auto-ids of the titles that use them match.
