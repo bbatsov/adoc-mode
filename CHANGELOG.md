@@ -65,6 +65,7 @@
 - [#94](https://github.com/bbatsov/adoc-mode/pull/94): Tempo templates, and loading `adoc-mode` itself, no longer fail with `wrong-type-argument symbolp` when the current command is a lambda (a key bound to one, a hydra, or a transient).
 - [#97](https://github.com/bbatsov/adoc-mode/pull/97): The nested imenu index (the default) no longer leaves out sections that skip a level, which also left a document without a level 0 title with an empty index.
 - [#97](https://github.com/bbatsov/adoc-mode/pull/97): Outline folding (`TAB` / `S-TAB`) no longer takes a `==` line inside a listing or other delimited block for a section title (on Emacs 28 only `TAB` on that line itself is fixed).
+- [#99](https://github.com/bbatsov/adoc-mode/pull/99): Title and list editing (`M-left` / `M-right`, `C-c C-t`, `M-RET`, `M-up` / `M-down`) no longer takes a `== ...` or `* ...` line inside a listing or other code block for a title or list item and rewrites it.
 
 ## 0.9.0 (2026-06-02)
 

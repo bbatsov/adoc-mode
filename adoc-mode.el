@@ -3391,10 +3391,12 @@ The description is a plist with these keys:
 :level       0-based nesting level
 
 Labeled lists and callouts are intentionally not recognised, as
-their markers are too easily confused with ordinary prose."
+their markers are too easily confused with ordinary prose, and
+neither are lines in verbatim blocks, such as listings."
   (save-excursion
     (beginning-of-line)
     (cond
+     ((nth 2 (adoc--delimited-block-at (point))) nil)
      ((looking-at (adoc-re-oulisti 'adoc-unordered 'adoc-all-levels))
       (let ((marker (match-string-no-properties 2)))
         (list :type 'unordered
@@ -3893,7 +3895,8 @@ trailing delimiter ('== my title ==').
           (setq found t))
          (t
           (setq level (+ level 1)))))
-      (when found
+      ;; a title-like line inside a delimited block is just content
+      (when (and found (not (adoc--delimited-block-at (match-beginning 0))))
         (list type sub-type level text (match-beginning 0) (match-end 0))))))
 
 (defun adoc-make-title (descriptor)

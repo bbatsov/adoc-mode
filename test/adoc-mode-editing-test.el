@@ -61,6 +61,15 @@
     (adoc-test-trans "= D!oc\n\nText.\n" "= Doc\n\nText.\n"
                      '(progn (adoc-demote-title 1) (adoc-promote-title 1))))
 
+  (it "leaves title- and list-like lines inside code blocks alone"
+    (adoc-test-trans "----\n== not a !title\n----\n" "----\n== not a title\n----\n"
+                     '(expect (adoc-demote) :to-throw 'user-error))
+    (let ((adoc-enable-two-line-title t))
+      (adoc-test-trans "----\nsome !code\n----\n" "----\nsome code\n----\n"
+                       '(expect (adoc-demote) :to-throw 'user-error)))
+    (adoc-test-trans "----\n** fo!o\n----\n" "----\n** foo\n----\n"
+                     '(expect (adoc-promote) :to-throw 'user-error)))
+
   (it "keeps a title's delimiter style when it is followed by text"
     (adoc-test-trans "== Sec!tion\n\nbody\n" "=== Section\n\nbody\n"
                      '(adoc-demote-title 1))
