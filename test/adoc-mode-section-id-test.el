@@ -579,7 +579,32 @@
                   (concat "= D\n\n[discrete]\n== A {counter:n}\n\n"
                           ".B {counter:n}\n----\nx\n----\n\n== C {counter:n}\n")
                   (concat "= D\n:sectids!:\n\n== A {counter:n}\n\n[#e]\n== E {counter:n}\n\n"
-                          ":sectids:\n\n== B {counter:n}\n")))
+                          ":sectids:\n\n== B {counter:n}\n")
+                  "= D\n\n== A {counter:n\\}\n\n== B {counter:n}\n"
+                  "= D {Counter:n}\n\n== A {counter:n}\n"))
+      (expect (adoc-test--section-ids doc)
+              :to-equal (adoc-test--asciidoctor-section-ids doc)))))
+
+(describe "set references in section titles"
+  (it "set and unset the attribute the way Asciidoctor does"
+    (expect (adoc-test--section-ids
+             "= D\n\n== H {set:z:Q} {z}\n\n== I {set:z} {z}x\n\n== J {set:url:a:b} {url}\n")
+            :to-equal '("_h_q" "_i_x" "_j_ab")))
+
+  (it "leave the rest of the text alone"
+    (expect (adoc--substitute-attributes "x {set:z:A&amp;B} y" nil #'ignore)
+            :to-equal "x  y"))
+
+  (it "leave nothing of a title that unsets one, as Asciidoctor drops the line"
+    (expect (adoc-test--section-ids "= D\n:z: a\n\n== H {set:z!} {z}\n\n== I {z}\n")
+            :to-equal '("" "_i_z")))
+
+  (it "matches the real asciidoctor"
+    (assume (executable-find "asciidoctor") "asciidoctor not installed")
+    (dolist (doc '("= D\n\n== H {set:z:Q} {z}\n\n== I {set:z} {z}x\n\n== J {set:url:a:b} {url}\n"
+                   "= D\n:z: a\n\n== H {set:z!} {z}\n\n== I {z}\n"
+                   "= D\n\n== H {set:Z:q} {z} {set:!z}\n\n== I {z} {set:n:5}{counter:n}\n"
+                   "= D\n\n== H {set:z:A&B} {z}\n"))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 

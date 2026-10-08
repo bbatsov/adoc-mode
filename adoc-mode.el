@@ -4838,41 +4838,72 @@ it's in a branch that doesn't hold."
             (push (cons skip-start (point-max)) adoc--skipped-ranges))))
       (cons (nreverse entries) (vconcat (reverse adoc--skipped-ranges))))))
 
+(defconst adoc--re-attribute-reference
+  (concat "\\(\\\\\\)?{\\(\\(set\\|counter2?\\):[^}]+?"
+          "\\|[[:alnum:]_][[:alnum:]_-]*\\)\\(\\\\\\)?}")
+  "Asciidoctor's regexp for an attribute reference, such as `{name}'.
+Group 2 is what's in the braces, group 3 the directive of a `set',
+`counter' or `counter2' reference, and group 1 or 4 a backslash that
+escapes the reference.")
+
 (defun adoc--substitute-attributes (text attributes &optional count)
   "Replace the attribute references in TEXT with their values.
 ATTRIBUTES is an alist of (NAME . VALUE) with downcased names, which
 take precedence over Asciidoctor's built-in character attributes.  A
 reference to an attribute that isn't set stays as it is, as Asciidoctor
-leaves it by default, and an escaped one (`\\{name}') loses its
-backslash.
+leaves it by default, and an escaped one (`\\{name}' or `{name\\}')
+loses its backslash.
 
-With COUNT non-nil, the counters count, `{counter:name}' and
-`{counter2:name:seed}' (see `adoc--count'): a `counter' is replaced by
-its next value and a `counter2' by nothing, and COUNT is called with
-the attributes that hold their new values.  Without COUNT, they stay
-as they are."
+With COUNT non-nil, the directives take effect, and COUNT is called
+with the attributes they leave.  A `{counter:name}' is replaced by the
+counter's next value and a `{counter2:name:seed}' counts silently (see
+`adoc--count'), and `{set:name:value}' sets the attribute, or unsets it
+for `name!', which leaves nothing of TEXT, as Asciidoctor drops the
+line.  Without COUNT, they stay as they are."
   (if (not (string-search "{" text))
       text
-    (replace-regexp-in-string
-     (concat "\\(\\\\\\)?{\\(?:\\(counter2?\\):\\([^:}]+\\)\\(?::\\([^}]*\\)\\)?"
-             "\\|\\([[:alnum:]_][[:alnum:]_-]*\\)\\)}")
-     (lambda (ref)
-       (cond
-        ((match-beginning 1) (substring ref 1))
-        ((match-beginning 2)
-         (if (not count)
-             ref
-           (let ((kind (match-string 2 ref))
-                 (counted (adoc--count (match-string 3 ref) (match-string 4 ref)
-                                       attributes)))
-             (setq attributes (cdr counted))
-             (funcall count attributes)
-             (if (equal kind "counter") (car counted) ""))))
-        ((cdr (let ((name (downcase (match-string 5 ref))))
-                (or (assoc name attributes)
-                    (assoc name adoc--builtin-attribute-values)))))
-        (t ref)))
-     text t t)))
+    (let* ((case-fold-search nil)
+           dropped
+           (text
+            (replace-regexp-in-string
+             adoc--re-attribute-reference
+             (lambda (ref)
+               ;; The match data has to outlive what's done with the
+               ;; directives, as it's used to replace REF.
+               (save-match-data
+                 (let ((content (match-string 2 ref))
+                       (directive (match-string 3 ref)))
+                   (cond
+                    ((or (match-beginning 1) (match-beginning 4))
+                     (concat "{" content "}"))
+                    (directive
+                     (if (not count)
+                         ref
+                       (let* ((args (substring content (1+ (length directive))))
+                              (colon (string-search ":" args))
+                              (name (if colon (substring args 0 colon) args))
+                              (value (and colon (substring args (1+ colon))))
+                              (result ""))
+                         (if (equal directive "set")
+                             (let ((unset (or (string-prefix-p "!" name)
+                                              (string-suffix-p "!" name))))
+                               (setq dropped (or dropped unset)
+                                     attributes (adoc--apply-attribute-entry
+                                                 (adoc--attribute-name name)
+                                                 (unless unset (or value ""))
+                                                 attributes)))
+                           (let ((counted (adoc--count name value attributes)))
+                             (setq attributes (cdr counted))
+                             (when (equal directive "counter")
+                               (setq result (car counted)))))
+                         (funcall count attributes)
+                         result)))
+                    ((cdr (let ((name (downcase content)))
+                            (or (assoc name attributes)
+                                (assoc name adoc--builtin-attribute-values)))))
+                    (t ref)))))
+             text t t)))
+      (if dropped "" text))))
 
 (defun adoc--string-succ (string)
   "Return the successor of STRING, the way Ruby's `String#succ' makes it.
