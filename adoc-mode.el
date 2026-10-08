@@ -5833,6 +5833,103 @@ buffer or a setting it depends on changes."
 See `adoc--scan-sections'."
   (car (adoc--section-scan)))
 
+(defvar adoc--re-block-attribute-line)  ; with the anchor regexps below
+(defvar adoc--re-block-title-or-comment-line)
+
+(defconst adoc--re-media-macro-line
+  "^\\(?:image\\|video\\|audio\\)::[^ \t\n]\\(?:.*?[^ \t\n]\\)?\\[.*\\][ \t]*$"
+  "Regexp matching an `image::', `video::' or `audio::' block macro line.")
+
+(defun adoc--in-verbatim-paragraph-p (cache)
+  "Return non-nil when the line at point is in a paragraph read verbatim.
+That's one the line above is in, with a block style, such as `literal',
+that makes Asciidoctor read it up to a blank line.  CACHE is for
+`adoc--block-content-start'."
+  (save-excursion
+    (and (zerop (forward-line -1))
+         (not (adoc--paragraph-break-p))
+         (progn
+           (adoc--block-content-start cache)
+           (member (adoc--block-attribute-above #'adoc--block-attribute-style)
+                   '("listing" "literal" "source" "verse"))))))
+
+(defun adoc--block-id-below-p (pos)
+  "Return non-nil when a line below the one at POS gives its block an id.
+That's a block attribute or anchor line among the lines Asciidoctor
+reads before the block, which can have titles, comments, attribute
+entries and blank lines between them."
+  (save-excursion
+    (goto-char pos)
+    (catch 'done
+      (while (and (zerop (forward-line 1)) (not (eobp)))
+        (cond
+         ((looking-at-p adoc--re-block-attribute-line)
+          (when (adoc--block-attribute-id)
+            (throw 'done t)))
+         ((not (or (looking-at-p "[ \t]*$")
+                   (looking-at-p adoc--re-block-title-or-comment-line)
+                   (looking-at-p adoc--re-attribute-entry-line)))
+          (throw 'done nil)))))))
+
+(defun adoc--block-has-id-p (pos)
+  "Return non-nil when the lines read before the block at POS give it an id.
+POS is on one of them, see `adoc--block-id-below-p'."
+  (save-excursion
+    (goto-char pos)
+    (or (adoc--block-attribute-above #'adoc--block-attribute-id)
+        (adoc--block-id-below-p pos))))
+
+(defun adoc--counter-lines (skipped)
+  "Return the block lines whose counters count, as a list of (POSITION TEXT).
+Asciidoctor substitutes the attribute references in a block attribute
+or anchor line, and in the target and attribute list of an `image::',
+`video::' or `audio::' block macro, as it parses them, so the counters
+in those count before the titles below them.  So do the ones in the
+title of a block with an id, which it renders to register it.
+
+That's where the lines begin a block: a block attribute line ends the
+paragraph above it, unless that's one read verbatim, but a block macro
+or a title only begins a block where another one would, as does the
+start of a table cell.  Not in a table cell either, unless it's an
+AsciiDoc one, or in a conditional branch that doesn't hold, one of
+SKIPPED, see `adoc--skipped-ranges'.  The list is in document order."
+  (let ((adoc--skipped-ranges skipped)
+        (cache (make-list 4 nil))
+        (tables 'unknown)
+        lines)
+    (save-excursion
+      (goto-char (point-min))
+      (while (re-search-forward "{counter2?:" nil t)
+        (beginning-of-line)
+        (let* ((pos (point))
+               (attribute-line (looking-at-p adoc--re-block-attribute-line))
+               (title (and (not attribute-line) (looking-at-p "\\.[^ \t.]")))
+               (table (and (or attribute-line title
+                               (looking-at-p adoc--re-media-macro-line))
+                           (not (adoc--in-verbatim-block-p pos))
+                           (not (adoc--skipped-line-p))
+                           (or (seq-find (lambda (range) (< (car range) pos (cdr range)))
+                                         (if (eq tables 'unknown)
+                                             (setq tables (adoc--table-ranges))
+                                           tables))
+                               'none)))
+               (cell (and (consp table) (adoc--table-cell-at pos table)))
+               (sep (car cell)))
+          (when (and table
+                     (or (eq table 'none) (eq (cdr cell) ?a))
+                     (if attribute-line
+                         (not (adoc--in-verbatim-paragraph-p cache))
+                       (and (or (and sep (string-blank-p
+                                          (buffer-substring-no-properties (1+ sep) pos)))
+                                (save-excursion
+                                  (adoc--block-content-start cache)
+                                  (= (point) pos)))
+                            (or (not title) (adoc--block-has-id-p pos)))))
+            (push (list pos (buffer-substring-no-properties pos (line-end-position)))
+                  lines)))
+        (forward-line 1)))
+    (nreverse lines)))
+
 (defun adoc--scan-sections ()
   "Return (SECTIONS . COUNTED) for the sections of the buffer.
 SECTIONS is the list for `adoc--section-table', in document order,
@@ -5844,15 +5941,16 @@ id when EXPLICIT is non-nil, otherwise its auto-id, or nil where
 `sectids' is unset.  The document attributes set above a
 title apply to its auto-id: `idprefix', `idseparator' and `sectids', as
 well as the ones it refers to, counters included, which count in the
-titles and attribute entries above it.  An auto-id already taken by an
+titles, attribute entries and block lines above it, see
+`adoc--counter-lines'.  An auto-id already taken by an
 earlier section or explicit id gets a number appended, `_foo_2',
 `_foo_3' and so on, as in Asciidoctor, but not by an anchor in a
 conditional branch that doesn't hold.
 
 COUNTED is a list of (POSITION . ATTRIBUTES) for the attributes in
-effect after each title and attribute entry from the first title that
-counts a counter on, as the attribute entries don't count those, see
-`adoc--attributes-at'."
+effect after each title, attribute entry and block line with a counter
+from the first one that counts a counter on, as the attribute entries
+don't count those, see `adoc--attributes-at'."
   (save-excursion
     (save-match-data
       (font-lock-ensure)
@@ -5860,6 +5958,9 @@ counts a counter on, as the attribute entries don't count those, see
                    (`(,antora ,attributes ,entries . ,skipped) (adoc--document-entries))
                    ;; for the explicit ids and anchors
                    (adoc--skipped-ranges skipped)
+                   ;; The attribute entries, and the block lines with counters.
+                   (entries (sort (append entries (adoc--counter-lines skipped))
+                                  (lambda (a b) (< (car a) (car b)))))
                    (counted '())
                    (anchors (cl-loop for (pos _end id registered) in (adoc--anchors)
                                      when (and registered
@@ -5871,6 +5972,21 @@ counts a counter on, as the attribute entries don't count those, see
                    (taken (make-hash-table :test #'equal))
                    (next (make-hash-table :test #'equal))
                    (result '()))
+        (cl-flet ((apply-entry (entry)
+                    (pcase entry
+                      (`(,pos ,text)
+                       (let ((after (cdr (adoc--apply-subs text '(attributes) attributes))))
+                         (unless (eq after attributes)
+                           (push (cons pos after) counted))
+                         (setq attributes after)))
+                      ;; Once a counter has counted, the entries are applied
+                      ;; again rather than taking the attributes they leave,
+                      ;; which don't have it counted.
+                      (`(,pos ,name ,value ,applied)
+                       (if (not counted)
+                           (setq attributes applied)
+                         (setq attributes (adoc--apply-attribute-entry name value attributes))
+                         (push (cons pos attributes) counted))))))
         (goto-char (point-min))
         (while (re-search-forward re nil t)
           (goto-char (match-beginning 0))
@@ -5878,15 +5994,8 @@ counts a counter on, as the attribute entries don't count those, see
             (if (or (not descriptor) (adoc--skipped-line-p))
                 (forward-line 1)
               (let ((start (nth 4 descriptor)))
-                ;; Once a title has counted a counter, the entries are
-                ;; applied again rather than taking the attributes they
-                ;; leave, which don't have it counted.
                 (while (and entries (< (car (car entries)) start))
-                  (pcase-let ((`(,pos ,name ,value ,applied) (pop entries)))
-                    (if (not counted)
-                        (setq attributes applied)
-                      (setq attributes (adoc--apply-attribute-entry name value attributes))
-                      (push (cons pos attributes) counted))))
+                  (apply-entry (pop entries)))
                 (while (and anchors (< (car (car anchors)) start))
                   (puthash (cdr (pop anchors)) t taken))
                 (if (= (nth 2 descriptor) 0)
@@ -5922,10 +6031,7 @@ counts a counter on, as the attribute entries don't count those, see
                     (when id (puthash id t taken))
                     (push (list id title start (and explicit t)) result)))
                 (goto-char (nth 5 descriptor))))))
-        (when counted
-          (pcase-dolist (`(,pos ,name ,value) entries)
-            (setq attributes (adoc--apply-attribute-entry name value attributes))
-            (push (cons pos attributes) counted)))
+        (mapc #'apply-entry entries))
         (cons (nreverse result) (nreverse counted))))))
 
 (defun adoc--collect-sections ()
@@ -6348,21 +6454,18 @@ header row have none, whatever they say."
                         taken (or (car spanned) 0) spanned (cdr spanned))))))))
       (vconcat (nreverse cells)))))
 
-(defun adoc--table-anchor-registration (beg table)
-  "Return how Asciidoctor treats the anchor at BEG in TABLE.
-That's as for `adoc--anchor-registration'.  TABLE is a (BEG . END) of
-`adoc--table-ranges'.  Asciidoctor registers an anchor that begins the
-text of a cell, and every anchor in an AsciiDoc cell, as its content is
-parsed as a document of its own, but takes the text of a literal cell
-as it is.  See `adoc--table-cells' for the style of a cell."
+(defun adoc--table-cell-at (pos table)
+  "Return (SEP . STYLE) for the cell of TABLE that POS is in, or nil.
+SEP is where the `|' starting the cell is, and STYLE its style letter,
+such as ?a, or nil, see `adoc--table-cells'.  TABLE is a (BEG . END) of
+`adoc--table-ranges'."
   (save-excursion
-    (goto-char beg)
+    (goto-char pos)
     (let ((bound (save-excursion (goto-char (car table)) (line-end-position)))
           sep)
       (while (and (setq sep (search-backward "|" bound t))
                   (eq (char-before) ?\\)))
-      (if (not sep)
-          'rendered
+      (when sep
         (let* ((cells (adoc--table-cells table))
                (low 0) (high (1- (length cells))) style)
           (while (<= low high)
@@ -6372,12 +6475,23 @@ as it is.  See `adoc--table-cells' for the style of a cell."
                ((< (car cell) sep) (setq low (1+ middle)))
                ((> (car cell) sep) (setq high (1- middle)))
                (t (setq style (cdr cell) low (1+ high))))))
-          (cond
-           ((eq style ?l) nil)
-           ((or (eq style ?a)
-                (string-blank-p (buffer-substring-no-properties (1+ sep) beg)))
-            'registered)
-           (t 'rendered)))))))
+          (cons sep style))))))
+
+(defun adoc--table-anchor-registration (beg table)
+  "Return how Asciidoctor treats the anchor at BEG in TABLE.
+That's as for `adoc--anchor-registration'.  TABLE is a (BEG . END) of
+`adoc--table-ranges'.  Asciidoctor registers an anchor that begins the
+text of a cell, and every anchor in an AsciiDoc cell, as its content is
+parsed as a document of its own, but takes the text of a literal cell
+as it is.  See `adoc--table-cells' for the style of a cell."
+  (pcase (adoc--table-cell-at beg table)
+    ('nil 'rendered)
+    (`(,_ . ?l) nil)
+    ((and `(,sep . ,style)
+          (guard (or (eq style ?a)
+                     (string-blank-p (buffer-substring-no-properties (1+ sep) beg)))))
+     'registered)
+    (_ 'rendered)))
 
 (defvar adoc--bibliography-cache nil
   "A hash table of the list items `adoc--bibliography-item-p' went past, or nil.

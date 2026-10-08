@@ -581,6 +581,12 @@
                      "[#x]\n== X {counter:n}\n\n== A {counter:n} {m}\n"))
             :to-equal '("x" "_a_4_2")))
 
+  (it "counts them in block attribute lines and block media macros"
+    (expect (adoc-test--section-ids
+             (concat "= D\n\n== A {counter:n}\n\n[[b,{counter:n}]]\npara\n\n"
+                     "image::{counter:n}.png[]\n\n.T {counter:n}\npara\n\n== C {counter:n}\n"))
+            :to-equal '("_a_1" "_c_4")))
+
   (it "leaves passed through and escaped counters alone"
     (expect (adoc-test--section-ids
              "= D\n\n== +{counter:n}+\n\n== \\{counter:n}\n\n== {counter:n}\n")
@@ -604,7 +610,27 @@
                   (concat "= D\n:sectids!:\n\n== A {counter:n}\n\n[#e]\n== E {counter:n}\n\n"
                           ":sectids:\n\n== B {counter:n}\n")
                   "= D\n\n== A {counter:n\\}\n\n== B {counter:n}\n"
-                  "= D {Counter:n}\n\n== A {counter:n}\n"))
+                  "= D {Counter:n}\n\n== A {counter:n}\n"
+                  (concat "= D\n\n== A {counter:n}\n\n[[b,{counter:n}]]\npara\n\n"
+                          "[.role,reftext={counter:n}]\npara\n\n[{counter:n}]\n== B\n\n"
+                          "image::{counter:n}.png[{counter:n}]\n\n== C {counter:n}\n")
+                  (concat "= D\n\n== A {counter:n}\n\n* item\n[.r{counter:n}]\n+\npara\n\n"
+                          ".T {counter:n}\npara {counter:n}\n\n----\n[{counter:n}]\n----\n\n"
+                          "toc::[{counter:n}]\n\n== C {counter:n}\n")
+                  ;; where the lines begin a block, outside normal cells and
+                  ;; branches that don't hold
+                  (concat "= D\n\n== A {counter:n}\n\npara\n[{counter:n}]\npara2\n\n"
+                          "|===\n|\n[{counter:n}]\nx\na|\n[{counter:n}]\nx\n|===\n\n"
+                          "ifdef::nope[]\n[{counter:n}]\nx\nendif::[]\n\n"
+                          "  lit\n[{counter:n}]\nx\n\n[literal]\npara\n[{counter:n}]\nx\n\n"
+                          "para\nimage::{counter:n}.png[]\n\n== C {counter:n}\n")
+                  (concat "= D\n\n== A {counter:n}\n\n[pass]\npara\n[{counter:n}]\nx\n\n"
+                          "[comment]\npara\n[{counter:n}]\nx\n\n"
+                          "|===\na|\npara\nimage::{counter:n}.png[]\na|\nimage::{counter:n}.png[]\n"
+                          "a|\n[literal]\npara\n[{counter:n}]\n|===\n\n== C {counter:n}\n")
+                  ;; and in the titles of blocks with ids
+                  (concat "= D\n\n== A {counter:n}\n\n[[b]]\n.T {counter:n}\n----\nx\n----\n\n"
+                          ".T {counter:n}\n[#c]\npara\n\n.T {counter:n}\npara\n\n== C {counter:n}\n")))
       (expect (adoc-test--section-ids doc)
               :to-equal (adoc-test--asciidoctor-section-ids doc)))))
 
