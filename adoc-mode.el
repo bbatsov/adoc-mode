@@ -4392,10 +4392,14 @@ as they are."
 Its last letter or digit goes up, and on to the one before it when it
 wraps around, so `az' is followed by `ba', `zz' by `aaa' and `a9' by
 `b0'.  A digit doesn't carry over to a letter, or a letter to a digit,
-across other characters: `a-9' is followed by `a-10'."
-  (cl-flet ((alnum-p (c) (or (<= ?0 c ?9) (<= ?a c ?z) (<= ?A c ?Z)))
+across other characters: `a-9' is followed by `a-10'.  Letters outside
+ASCII count too, and go on to the next character without wrapping
+around, so `α' is followed by `β'."
+  (cl-flet ((alnum-p (c) (if (< c 128)
+                             (or (<= ?0 c ?9) (<= ?a c ?z) (<= ?A c ?Z))
+                           (string-match-p "\\`[[:alnum:]]\\'" (string c))))
             (digit-p (c) (<= ?0 c ?9)))
-    (let ((s (copy-sequence string))
+    (let ((s (vconcat string))
           (i (1- (length string)))
           last)
       (while (and (>= i 0) (not (alnum-p (aref s i))))
@@ -4403,15 +4407,15 @@ across other characters: `a-9' is followed by `a-10'."
       (if (< i 0)
           ;; With no letters or digits, the last character goes up.
           (progn
-            (unless (string-empty-p s)
+            (unless (zerop (length s))
               (aset s (1- (length s)) (1+ (aref s (1- (length s))))))
-            s)
+            (concat s))
         (catch 'done
           (while t
             (let ((c (aref s i)))
               (unless (memq c '(?9 ?z ?Z))
                 (aset s i (1+ c))
-                (throw 'done s))
+                (throw 'done (concat s)))
               (aset s i (pcase c (?9 ?0) (?z ?a) (_ ?A)))
               (setq last i))
             (let ((j (1- i)))

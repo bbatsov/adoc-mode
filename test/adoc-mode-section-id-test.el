@@ -395,8 +395,15 @@
     (pcase-dolist (`(,string . ,succ)
                    '(("a" . "b") ("az" . "ba") ("zz" . "aaa") ("Zz" . "AAa") ("a9" . "b0")
                      ("1.9" . "2.0") ("a-9" . "a-10") ("x9z" . "y0a") ("05" . "06")
-                     ("*" . "+") ("a*" . "b*")))
-      (expect (adoc--string-succ string) :to-equal succ))))
+                     ("*" . "+") ("a*" . "b*")
+                     ;; letters outside ASCII count, without wrapping around
+                     ("α" . "β") ("αz" . "βa") ("a1é" . "a1ê") ("éz" . "êa")))
+      (expect (adoc--string-succ string) :to-equal succ)))
+
+  (it "doesn't break the section ids on a counter outside ASCII"
+    (expect (adoc-test--section-ids
+             "= D\n\n== Case {counter:c:α}\n\n== Case {counter:c}\n")
+            :to-equal '("_case_α" "_case_β"))))
 
 (describe "duplicate section ids"
   (it "numbers the ids of repeated titles"
