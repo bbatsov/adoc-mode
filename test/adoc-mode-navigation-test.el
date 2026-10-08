@@ -305,6 +305,20 @@
       (outline-next-heading)
       (expect (looking-at-p "== B") :to-be-truthy)
       (outline-previous-heading)
+      (expect (looking-at-p "== A") :to-be-truthy)))
+
+  (it "skips title-like lines inside nested blocks"
+    (assume (boundp 'outline-search-function)
+            "outline-search-function needs Emacs 29")
+    (with-temp-buffer
+      (adoc-mode)
+      (insert "= Top\n\n== A\n\n====\n----\n== code\n----\n====\n\n"
+              "== B\n\nbody b\n")
+      (goto-char (point-min))
+      (search-forward "== A") (beginning-of-line)
+      (outline-next-heading)
+      (expect (looking-at-p "== B") :to-be-truthy)
+      (outline-previous-heading)
       (expect (looking-at-p "== A") :to-be-truthy))))
 
 (describe "adoc-mode cross-reference following"

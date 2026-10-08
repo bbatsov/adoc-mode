@@ -344,6 +344,42 @@
         (search-forward "more")
         (expect (get-text-property (point) 'adoc-delimited-block) :not :to-be nil)))
 
+    (it "records the blocks nested in a compound block"
+      (with-temp-buffer
+        (insert "====\n.Code\n----\n* x\n----\n====\n\n* y\n")
+        (adoc-mode)
+        (goto-char (point-min))
+        (search-forward "* x")
+        (let ((block (adoc--delimited-block-at (match-beginning 0))))
+          ;; the listing, from its title on
+          (expect (nth 2 block) :to-be-truthy)
+          (expect (car block) :to-equal 6)
+          (expect (car (adoc--outermost-block block)) :to-equal 1))
+        (search-forward "* y")
+        (expect (adoc--delimited-block-at (match-beginning 0)) :to-be nil)))
+
+    (it "closes a nested block before its parent"
+      ;; like Asciidoctor, the example ends at its first repeated delimiter,
+      ;; which leaves the listing in it unterminated
+      (with-temp-buffer
+        (insert "====\n----\n====\n----\n====\n")
+        (adoc-mode)
+        (goto-char (point-min))
+        (forward-line 1)
+        (let ((block (adoc--delimited-block-at (point))))
+          (expect (car block) :to-equal 1)
+          (expect (nth 2 block) :to-be nil))
+        (forward-line 2)
+        (expect (adoc--delimited-block-at (point)) :to-be nil)))
+
+    (when-fontifying-it "doesn't let a block nested in another run past its end"
+      ;; the listing and the table are unterminated in the example, so they
+      ;; can't pair with the delimiters after it
+      ("====\n----\n====\n\n*bold*\n\n----\n"
+       ("bold" adoc-bold-face))
+      ("====\n,===\na,b\n====\n,===\n"
+       ("a,b" nil)))
+
     (when-fontifying-it "takes a delimiter line in a literal block as content"
       ;; the listing keyword runs first, and used to pair the `----' in the
       ;; literal block with the next listing's opening delimiter
@@ -382,7 +418,13 @@
                    ;; extending a closing delimiter at the end of the buffer
                    ("++++\ncode\n++++" (end) (type "."))
                    ;; a line turning into a delimiter takes the title above
-                   ("text\n.Title\n---\ncode\n----\n" (line 3) (type "-"))))
+                   ("text\n.Title\n---\ncode\n----\n" (line 3) (type "-"))
+                   ;; closing a block nested in another
+                   ("====\n----\ncode\n\n====\n\n== Title\n"
+                    (search "code\n") (type "----\n"))
+                   ;; titling a nested block
+                   ("====\ntext\n\n----\nx\n----\n====\n"
+                    (search "text\n\n") (type ".Title\n"))))
           (with-temp-buffer
             (insert (car case))
             (adoc-mode)
@@ -453,16 +495,13 @@
        ("mid" nil)
        ("," nil)))
 
-    ;; An unclosed table must not reach across a paragraph and claim a
-    ;; later table's opening delimiter as its own close.
-    (when-fontifying-it "does not let an unclosed CSV table swallow a later one"
+    (when-fontifying-it "doesn't open a CSV table with the delimiter that closes one"
+      ;; as in Asciidoctor, the second `,===' closes the first table, so
+      ;; `City,Pop' is a paragraph and the last `,===' opens a table that
+      ;; never closes
       (",===\nName,Age\n\nprose, here\n\n,===\nCity,Pop\n,==="
-       ("Name" nil)
-       ("," nil)
-       ("prose" nil)
-       ("," nil)
        ("City" nil)
-       ("," adoc-table-face))))
+       ("," nil))))
 
   ;; ---- Admonitions ---------------------------------------------------
 

@@ -74,6 +74,10 @@
 - [#98](https://github.com/bbatsov/adoc-mode/pull/98): Repeated section titles get numbered ids (`_foo`, `_foo_2`, ...) as in Asciidoctor, skipping the ids explicit anchors above them already use, so a reference to `_foo_2` leads to the second section instead of nowhere.
 - [#98](https://github.com/bbatsov/adoc-mode/pull/98): Section auto-ids of titles with markup match Asciidoctor's: link and xref macros contribute their text, images and anchors nothing, built-in attributes like `{nbsp}` and replacements like `--` or `(C)` disappear the way their entities do, and emphasis loses its underscores even with an Antora-style `-` separator.
 - [#102](https://github.com/bbatsov/adoc-mode/pull/102): Markdown-style thematic breaks (`---`, `* * *` and the like) are highlighted like `'''`, and the list commands no longer take `* * *` for a list item, unless it continues a list using `*`, where Asciidoctor reads it as one.
+- [#104](https://github.com/bbatsov/adoc-mode/pull/104): Blocks nested in an example, sidebar, quote or open block are recognised as blocks of their own.
+  - The list commands leave the lines of a nested listing or other verbatim block alone, and its attribute entries and anchors no longer affect section ids.
+  - A nested block or table left unclosed is no longer highlighted as running past the end of the block it's in.
+  - The delimiter that closes a CSV or DSV table no longer opens another table, as in Asciidoctor.
 
 ## 0.9.0 (2026-06-02)
 

@@ -240,7 +240,10 @@
   (it "ignores attribute entries in verbatim blocks"
     (expect (adoc-test--section-ids
              "= D\n\n----\n:p: Zed\n----\n\n====\n:q: Zap\n\nx\n====\n\n== {p} {q}\n")
-            :to-equal '("_p_zap")))
+            :to-equal '("_p_zap"))
+    (expect (adoc-test--section-ids
+             "= D\n\n====\n:q: Zap\n\n....\n:q: Zoo\n....\n====\n\n== {q}\n")
+            :to-equal '("_zap")))
 
   (it "matches the real asciidoctor"
     (assume (executable-find "asciidoctor") "asciidoctor not installed")
@@ -273,6 +276,7 @@
   (it "doesn't count anchors in verbatim blocks, comments or escaped ones"
     (expect (adoc-test--section-ids
              (concat "= D\n\n----\n[[_foo]]\n----\n\n////\n[[_foo]]\n////\n\n"
+                     "====\n----\n[[_foo]]\n----\n====\n\n"
                      "// [[_foo]]\n\nx \\[[_foo]]\n\n== Foo\n"))
             :to-equal '("_foo")))
 

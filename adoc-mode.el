@@ -1832,13 +1832,15 @@ The text is displayed RAISE lines higher, unless RAISE is 0."
 ;; could surely be replaced by a single (adoc-not-reserved-bla-bla 1 3)
 
 (defun adoc--delimited-block-match-p ()
-  "Return non-nil unless the delimited block matched opens inside a verbatim one.
+  "Return non-nil unless the delimited block matched can't be one.
 In a listing, literal or other verbatim block a delimiter line is just
-content.  See `adoc--ensure-block-extents' for how blocks are found."
+content, and a block nested in another one has to close before it does.
+See `adoc--ensure-block-extents' for how blocks are found."
   (let ((block (get-text-property (match-beginning 0) 'adoc-delimited-block)))
     (or (null block)
-        (not (nth 2 block))
-        (= (nth 1 block) (match-beginning 0)))))
+        (= (nth 1 block) (match-beginning 0))
+        (and (not (nth 2 block))
+             (<= (match-end 0) (nth 3 block))))))
 
 (defun adoc--outside-delimited-block-p ()
   "Return non-nil when the current match doesn't start inside a delimited block.
@@ -2489,9 +2491,9 @@ Use this function as matching function MATCHER in `font-lock-keywords'."
 ;; being fontified covers all of it.  jit-lock fontifies the buffer in chunks,
 ;; and a chunk can begin or end anywhere - including inside a block, where an
 ;; opening delimiter can't be told from a closing one.  So the extent of every
-;; top-level block is recorded by a scan that always pairs the delimiters up
-;; from the start of the buffer, and `adoc-font-lock-extend-region' widens the
-;; region so it never splits a block.
+;; block is recorded by a scan that always pairs the delimiters up from the
+;; start of the buffer, and `adoc-font-lock-extend-region' widens the region
+;; so it never splits a top-level block.
 
 (defconst adoc--re-block-delimiter
   (concat "^\\("
@@ -2543,13 +2545,13 @@ Text added anywhere after it might close it.")
 
 (defun adoc--invalidate-block-extents (beg &rest _)
   "Forget the delimited block extents from where a change at BEG matters.
-That's the beginning of the block BEG is in, read while the text before
-the change is still there.  Otherwise it's the beginning of BEG's line,
-which may become a delimiter line, together with any attribute and
-title lines above it, which would then belong to its block.  A change
-after an unterminated block's opening delimiter can close it, so then
-the extents are forgotten from that block on.  Meant for
-`before-change-functions'."
+That's the beginning of the top-level block BEG is in, read while the
+text before the change is still there.  Otherwise it's the beginning of
+BEG's line, which may become a delimiter line, together with any
+attribute and title lines above it, which would then belong to its
+block.  A change after an unterminated block's opening delimiter can
+close it, so then the extents are forgotten from that block on.  Meant
+for `before-change-functions'."
   (when (<= beg adoc--block-extents-done)
     (save-excursion
       ;; The block just before BEG counts too when the change continues its
@@ -2560,7 +2562,7 @@ the extents are forgotten from that block on.  Meant for
                        (and (> beg (point-min))
                             (not (eq (char-before beg) ?\n))
                             (get-text-property (1- beg) 'adoc-delimited-block)))))
-        (goto-char (if block (car block) beg))
+        (goto-char (if block (car (adoc--outermost-block block)) beg))
         (let ((pos (line-beginning-position)))
           (while (and (zerop (forward-line -1))
                       (looking-at-p adoc--re-block-metadata-line))
@@ -2574,11 +2576,14 @@ the extents are forgotten from that block on.  Meant for
   "Make sure the extents of the delimited blocks before POS are recorded.
 Each block, together with the attribute, anchor and title lines right
 above it, gets an `adoc-delimited-block' text property whose value is
-the list (START OPEN VERBATIM): where the block begins, where its
-opening delimiter line is, and whether its content isn't AsciiDoc (see
-`adoc--verbatim-delimiter-p').  Like Asciidoctor, the first line that
-repeats the opening delimiter exactly closes a block, whatever it
-contains.  An unterminated block gets no extent.
+the list (START OPEN VERBATIM END PARENT): where the block begins, where
+its opening delimiter line is, whether its content isn't AsciiDoc (see
+`adoc--verbatim-delimiter-p'), where it ends, and the block it's nested
+in, or nil.  A block nested in an example, sidebar, quote or open block
+gets an extent of its own, so the property holds the innermost block.
+Like Asciidoctor, the first line that repeats the opening delimiter
+exactly closes a block, whatever it contains, and a nested block has to
+close before its parent does.  An unterminated block gets no extent.
 
 The scan picks up where the last one left off, and a block it starts
 is recorded whole."
@@ -2615,38 +2620,57 @@ a section title is plain content, as for highlighting."
     (adoc--ensure-block-extents (1+ pos))
     (get-text-property pos 'adoc-delimited-block)))
 
-(defun adoc--record-block-extents (start end)
+(defun adoc--outermost-block (block)
+  "Return the top-level block that BLOCK is nested in, or BLOCK itself.
+BLOCK is a value of the `adoc-delimited-block' property."
+  (while (nth 4 block)
+    (setq block (nth 4 block)))
+  block)
+
+(defun adoc--record-block-extents (start end &optional parent)
   "Record the extents of the delimited blocks opened between START and END.
-START has to be outside any block.  Return the position the extents are
-known up to: END, or the end of a block that runs past it.  See
-`adoc--ensure-block-extents'."
+Without PARENT, START has to be outside any block, and the return value
+is the position the extents are known up to: END, or the end of a block
+that runs past it.  With PARENT, the blocks are nested in that compound
+block, whose content runs from START to END, so they have to close
+before END.  See `adoc--ensure-block-extents'."
   (goto-char start)
-  (remove-text-properties start end '(adoc-delimited-block nil))
-  (when (and adoc--block-extents-unterminated
-             (>= adoc--block-extents-unterminated start))
-    (setq adoc--block-extents-unterminated nil))
+  (unless parent
+    (remove-text-properties start end '(adoc-delimited-block nil))
+    (when (and adoc--block-extents-unterminated
+               (>= adoc--block-extents-unterminated start))
+      (setq adoc--block-extents-unterminated nil)))
   (while (and (< (point) end)
               (re-search-forward adoc--re-block-delimiter end t))
     (let* ((open (match-beginning 0))
            (delimiter (match-string-no-properties 1))
            (closing (concat "^" (regexp-quote delimiter) "[ \t]*$")))
       (forward-line 1)
-      (unless (adoc--title-underline-p open delimiter)
-        (let ((block-start open))
+      ;; Nothing in a block is a title, so nothing there underlines one.
+      (unless (and (not parent) (adoc--title-underline-p open delimiter))
+        (let ((content-start (point))
+              (block-start open))
           (save-excursion
             (goto-char open)
             (while (and (zerop (forward-line -1))
                         (looking-at-p adoc--re-block-metadata-line))
               (setq block-start (point))))
-          (if (not (re-search-forward closing nil t))
-              (unless adoc--block-extents-unterminated
-                (setq adoc--block-extents-unterminated block-start))
-            (let ((block-end (min (1+ (point)) (point-max))))
-              (put-text-property block-start block-end 'adoc-delimited-block
-                                 (list block-start open
-                                       (adoc--verbatim-delimiter-p delimiter)))
-              (setq end (max end block-end))
-              (goto-char block-end)))))))
+          (cond
+           ((re-search-forward closing (and parent end) t)
+            (let* ((content-end (match-beginning 0))
+                   (block-end (min (1+ (point)) (point-max)))
+                   (verbatim (adoc--verbatim-delimiter-p delimiter))
+                   (block (list block-start open verbatim block-end parent)))
+              (put-text-property block-start block-end 'adoc-delimited-block block)
+              (unless verbatim
+                (adoc--record-block-extents content-start content-end block))
+              (unless parent
+                (setq end (max end block-end)))
+              (goto-char block-end)))
+           ;; Asciidoctor runs an unterminated nested block to the end of its
+           ;; parent, but it gets no extent, like a top-level one.
+           ((not (or parent adoc--block-extents-unterminated))
+            (setq adoc--block-extents-unterminated block-start)))))))
   end)
 
 (defvar font-lock-beg)
@@ -2674,16 +2698,18 @@ one (see `adoc--ensure-block-extents')."
                 changed t))))
     (adoc--ensure-block-extents font-lock-end)
     (let ((block (get-text-property font-lock-beg 'adoc-delimited-block)))
-      (when (and block (< (car block) font-lock-beg))
-        (setq font-lock-beg (car block)
-              changed t)))
-    (when (and (> font-lock-end (point-min))
-               (get-text-property (1- font-lock-end) 'adoc-delimited-block))
-      (let ((block-end (next-single-property-change
-                        (1- font-lock-end) 'adoc-delimited-block nil (point-max))))
-        (when (> block-end font-lock-end)
-          (setq font-lock-end block-end
-                changed t))))
+      (when block
+        (let ((block-start (car (adoc--outermost-block block))))
+          (when (< block-start font-lock-beg)
+            (setq font-lock-beg block-start
+                  changed t)))))
+    (let ((block (and (> font-lock-end (point-min))
+                      (get-text-property (1- font-lock-end) 'adoc-delimited-block))))
+      (when block
+        (let ((block-end (nth 3 (adoc--outermost-block block))))
+          (when (> block-end font-lock-end)
+            (setq font-lock-end block-end
+                  changed t)))))
     changed))
 
 (defun adoc-font-lock-mark-block-function ()
@@ -2712,7 +2738,7 @@ between matching delimiters, never in the surrounding prose."
        ,(concat "^\\(\\([,:]\\)=\\{3,\\}[ \t]*\\)\n"  ; 1=open line, 2=sep char
                 "\\(\\(?:[ \t]*[^ \t\n].*\n\\)*?\\)"   ; 3=cell data (no blank lines)
                 "\\(\\2=\\{3,\\}[ \t]*\\)$")           ; 4=close line
-       '(1 4)))
+       '(1 4) nil #'adoc--delimited-block-match-p))
    '(0 '(face nil font-lock-multiline t) t)
    '(1 '(face adoc-table-face adoc-reserved block-del) t)  ; opening delimiter
    '(4 '(face adoc-table-face adoc-reserved block-del) t)  ; closing delimiter
@@ -5284,11 +5310,8 @@ LOOKING-AT are as in `outline-search-function'."
           (if (not block)
               (setq found t more nil)
             ;; Carry on past the block, none of its lines can be a title.
-            (let ((next (if backward
-                            (car block)
-                          (next-single-property-change
-                           (match-beginning 0) 'adoc-delimited-block
-                           nil (point-max)))))
+            (let* ((outer (adoc--outermost-block block))
+                   (next (if backward (car outer) (nth 3 outer))))
               (if (if backward (> next limit) (< next limit))
                   (goto-char next)
                 (setq more nil))))))
