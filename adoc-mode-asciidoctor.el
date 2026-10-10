@@ -1,4 +1,4 @@
-;;; adoc-asciidoctor.el --- Asciidoctor integration for adoc-mode -*- lexical-binding: t; -*-
+;;; adoc-mode-asciidoctor.el --- Asciidoctor integration for adoc-mode -*- lexical-binding: t; -*-
 ;;
 ;; Copyright 2022-2026 Bozhidar Batsov <bozhidar@batsov.dev> and adoc-mode contributors
 ;;
@@ -382,7 +382,7 @@ diagnostics into Flymake reports via REPORT-FN.  Suitable as a member of
 
 ;;; Transient menu
 
-;;;###autoload (autoload 'adoc-asciidoctor-menu "adoc-asciidoctor" nil t)
+;;;###autoload (autoload 'adoc-asciidoctor-menu "adoc-mode-asciidoctor" nil t)
 (transient-define-prefix adoc-asciidoctor-menu ()
   "Preview and export the current AsciiDoc document with Asciidoctor."
   ["Preview"
@@ -394,6 +394,6 @@ diagnostics into Flymake reports via REPORT-FN.  Suitable as a member of
    ("f" "PDF" adoc-export-pdf)
    ("e" "EPUB3" adoc-export-epub)])
 
-(provide 'adoc-asciidoctor)
+(provide 'adoc-mode-asciidoctor)
 
-;;; adoc-asciidoctor.el ends here
+;;; adoc-mode-asciidoctor.el ends here

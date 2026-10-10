@@ -13,7 +13,7 @@
 ;;; Code:
 
 (require 'adoc-mode-test-helpers)
-(require 'adoc-asciidoctor)
+(require 'adoc-mode-asciidoctor)
 (require 'cl-lib)
 
 (describe "adoc--asciidoctor-ensure"

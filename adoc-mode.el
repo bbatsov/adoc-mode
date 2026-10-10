@@ -53,7 +53,7 @@
 (require 'xref)
 (require 'adoc-mode-image)
 (require 'adoc-mode-tempo)
-(require 'adoc-asciidoctor)
+(require 'adoc-mode-asciidoctor)
 
 (defconst adoc-mode-version "0.9.0"
   "adoc mode version number.")
