@@ -262,7 +262,8 @@ backend, `adoc-goto-ref-label').
   :type '(choice (const :tag "Auto-detect" auto)
                  (const :tag "Asciidoctor default (_my_title)" asciidoctor)
                  (const :tag "Antora (my-title)" antora))
-  :group 'adoc)
+  :group 'adoc
+  :package-version '(adoc-mode . "0.10.0"))
 
 (defcustom adoc-imenu-create-index-function 'adoc-imenu-create-nested-index
   "Function to create the imenu index.
@@ -330,7 +331,7 @@ ocaml-mode in Emacs, so `ocaml' maps to `neocaml-mode', then
            (string "Language name")
            (choice (symbol "Major mode")
                    (repeat (symbol "Major mode")))))
-  :package-version '(adoc-mode . "0.8.0"))
+  :package-version '(adoc-mode . "0.10.0"))
 
 (defcustom adoc-fontify-code-block-default-mode 'prog-mode
   "Default mode to use to fontify code blocks.
@@ -702,14 +703,16 @@ or italic styling from a surrounding constrained quote."
   "Face for bold text.
 Plain `bold' rather than a tinted face, matching `asciidoc-mode' and the
 convention in `markdown-mode' / `org-mode'."
-  :group 'adoc-faces)
+  :group 'adoc-faces
+  :package-version '(adoc-mode . "0.10.0"))
 
 (defface adoc-emphasis-face
   '((t :inherit italic))
   "For emphasized text.
 Plain `italic' rather than a tinted face, matching `asciidoc-mode' and the
 convention in `markdown-mode' / `org-mode'."
-  :group 'adoc-faces)
+  :group 'adoc-faces
+  :package-version '(adoc-mode . "0.10.0"))
 
 (defface adoc-markup-face
   '((t (:inherit shadow :slant normal :weight normal)))
@@ -862,7 +865,8 @@ For example the URL part of `http://example.com[foo]', or a raw
 (defface adoc-link-mouse-face
   '((t (:inherit highlight :underline t)))
   "Face used to highlight a link, URL or anchor under the mouse pointer."
-  :group 'adoc-faces)
+  :group 'adoc-faces
+  :package-version '(adoc-mode . "0.10.0"))
 
 (defface adoc-comment-face
   '((t (:inherit font-lock-comment-face)))

@@ -54,14 +54,16 @@
 (defcustom adoc-asciidoctor-command "asciidoctor"
   "Name of, or path to, the Asciidoctor executable."
   :type 'string
-  :group 'adoc-asciidoctor)
+  :group 'adoc-asciidoctor
+  :package-version '(adoc-mode . "0.10.0"))
 
 (defcustom adoc-asciidoctor-extra-args nil
   "Extra command-line arguments passed to every Asciidoctor invocation.
 Each element is a separate argument string, for example
 \"-a\" followed by \"sectnums\"."
   :type '(repeat string)
-  :group 'adoc-asciidoctor)
+  :group 'adoc-asciidoctor
+  :package-version '(adoc-mode . "0.10.0"))
 
 (defcustom adoc-preview-backend 'auto
   "How `adoc-preview' displays the rendered HTML.
@@ -75,7 +77,8 @@ The value is one of the following symbols:
                  (const :tag "Embedded WebKit (xwidget)" xwidget)
                  (const :tag "Emacs Web Wowser (eww)" eww)
                  (const :tag "External browser" browser))
-  :group 'adoc-asciidoctor)
+  :group 'adoc-asciidoctor
+  :package-version '(adoc-mode . "0.10.0"))
 
 ;;; Compilation
 
